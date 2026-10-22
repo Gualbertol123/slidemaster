@@ -70,17 +70,22 @@ export interface ChartSeries {
   /** line / scatter: smoothed (Catmull–Rom, 09 §3.2) */ smooth?: boolean;
   marker?: { shape?: "circle" | "square" | "diamond" | "triangle" | "none"; size?: number; color?: string };
   labels?: { show: ("value" | "name" | "category" | "percent" | "ofTarget")[];
-    pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd";
+    /** (4.11, B53) "auto": a line's label above a peak, below a dip, and on the free side where neighbours collide */
+    pos?: "above" | "below" | "left" | "right" | "center" | "inEnd" | "inBase" | "outEnd" | "auto";
     fmt?: TextFmt; /** a number format code; else the cells' */ num?: string };
   /** per point, by index: colour, marker colour (hex), label text (null = none); `total`: a waterfall's total column,
       standing on the axis (Excel's "Set as total"; 09 §2.2, §3.2) */
-  points?: Record<string, { color?: string; marker?: string; label?: string | null; total?: boolean }>;
+  points?: Record<string, { color?: string; marker?: string; label?: string | null; total?: boolean;
+    /** (4.11, B53) this point's label place, over the series' (a line's point; a bar's: above / right = outside end,
+        below / left = inside base, center) */ pos?: "above" | "below" | "left" | "right" | "center" }>;
   /** kept, not drawn */ hide?: boolean;
 }
 /** a list of categories on the x axis; groups stand side by side, an optional divider between them */
 export interface ChartGroup { n: number; cats: DataRef | string[]; divider?: LineOrNone | null; label?: string }
 export interface ChartAxis { show?: boolean; min?: number; max?: number; step?: number; num?: string; title?: string;
-  grid?: boolean; fmt?: TextFmt; line?: LineOrNone | null }
+  grid?: boolean; fmt?: TextFmt; line?: LineOrNone | null;
+  /** (4.11, B53) the bounds and the major unit read from CELLS (each over the typed one; it follows a reload and a scenario):
+      a value axis's min, max, step */ cells?: { min?: DataRef; max?: DataRef; step?: DataRef } }
 /** where a mark stands: a series' point, a category group's edge, or data coordinates (a category name or index) */
 export type MarkAt = { s: string; i: number }
   | { g: string; edge: "start" | "end" }
@@ -104,7 +109,7 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text" |
   /** ref: what its label shows ("none": no label; default both) */ show?: "both" | "name" | "value" | "none";
   /** ref: its label's place (default right: after the line's end); gap: the side of the point the arrow and label stand
       on (default right); change: the pills' row (default "axis": just above the plot's floor; "line": under the line) */
-  pos?: "right" | "left" | "above" | "axis" | "line";
+  pos?: "right" | "left" | "above" | "below" | "inside" | "axis" | "line" | "point";
   /** gap: the reference line, a "ref" mark's id */ ref?: string;
   /** gap, change: the small text beside / above the numbers ("" = none) */ caption?: string;
   /** gap, change, ref: the numbers' format code (else the cells') */ num?: string;
@@ -113,7 +118,15 @@ export interface ChartMark { kind: "arrow" | "line" | "band" | "icon" | "text" |
   /** gap, change: colours by sign – unset keys the design's (its pos / neg colours, a neutral grey for 0); "fixed": the
       mark's own colour (style.color) whatever the sign */ signs?: { pos?: string; neg?: string; zero?: string } | "fixed";
   /** change: every pair of consecutive points, or the last pair only (default all) */ pairs?: "all" | "last";
-  /** kept, not drawn (each extra switched off in the panel keeps its settings) */ off?: boolean }
+  /** kept, not drawn (each extra switched off in the panel keeps its settings) */ off?: boolean;
+  /* ---- 4.11 (B53, ADR-015 amendment of 2026-10-22): more places for the labels ----
+     ref `pos` also "below" (under the line's right end) and "inside" (on the line at the plot's right end, on the card's
+     ground); change `pos` also "point" (under each pair's later point), "above" (a row along the plot's top) and "below"
+     (a row under the category labels) */
+  /** gap: the label's side of the arrow (default the arrow's own side, `pos`) */ labelSide?: "right" | "left";
+  /** gap: the arrow's direction – from the line to the point (default, Excel's) or from the point to the line */ from?: "line" | "point";
+  /** gap: the caption under (default) or over the difference; change: the caption above the row's left (default) or
+      right end, or under the row */ capPos?: "below" | "above" | "left" | "right" }
 /** the legend's place (F15); "inside-*" draws a card behind it */
 export type LegendAt = "right" | "left" | "top" | "bottom" | "top-right" | "inside-tl" | "inside-tr" | "none";
 export interface ChartItem { kind: "chart"; /** without `sers` a type other than donut draws as a pie, as before 4.7 (09 §2.2) */ type: ChartType;
@@ -129,7 +142,10 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   /** wins over `legend` when set */ legendAt?: LegendAt;
   /** series id (or a pie's point index) → out of the legend, still drawn */ legendHide?: Record<string, true>;
   /** unset = the design's; "none" = none */ frame?: LineOrNone; titleRule?: LineOrNone; /** the plot area inside the box (optional) */ plot?: Box;
-  /** the title's own format (`fmt` is the labels') */ titleFmt?: TextFmt }
+  /** the title's own format (`fmt` is the labels') */ titleFmt?: TextFmt;
+  /** (4.11, B53) labels dragged on the stage: per label key ("title", "v:<series>:<i>", "r:<mark>", "g:<mark>",
+      "c:<mark>:<i>", "c:<mark>:cap") its offset from where the layout puts it, as fractions of the chart's box (it follows
+      the data and a resize); merged per entry */ nudge?: Record<string, { dx: number; dy: number }> }
 /* ---- lines and annotations on the slide (4.8, M15; docs/next/09 §2.3) ---- */
 /** "bar" = a limiter tick */
 export type Head = "none" | "arrow" | "triangle" | "stealth" | "oval" | "diamond" | "bar";
@@ -227,12 +243,13 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
-type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt";
+type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge";
 type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach">;
 /** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
   sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;
   axes?: Partial<Record<"x" | "y" | "y2", ChartAxis | null>> | null; marks?: Record<string, ChartMark | null> | null;
+  nudge?: Record<string, { dx: number; dy: number } | null> | null;
   legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }

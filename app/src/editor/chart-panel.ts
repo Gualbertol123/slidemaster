@@ -116,6 +116,22 @@ export function axisPatch(it: ChartItem, ax: "x" | "y" | "y2", p: Partial<Record
   const next = withKeys(it.axes?.[ax] || {}, p);
   return { axes: { [ax]: Object.keys(next).length ? next : null } };
 }
+/** (B53) an axis's min, max or step from a cell (null: typed / automatic again) – the whole axis entry, one undo step */
+export function axisCellPatch(it: ChartItem, ax: "x" | "y" | "y2", key: "min" | "max" | "step", ref: DataRef | null): ItemPatch {
+  const cur = it.axes?.[ax] || {}, cells: Record<string, unknown> = { ...(cur.cells || {}) };
+  if (ref) cells[key] = ref; else delete cells[key];
+  return axisPatch(it, ax, { cells: Object.keys(cells).length ? cells : null });
+}
+/* ---- (B53) labels dragged on the stage: ChartItem.nudge, fractions of the chart's box ---- */
+/** a label dropped `dx`, `dy` slide px from where it was (its earlier offset kept: the new one adds to it), as a
+    fraction of the chart's box; back at its place (|offset| under half a px) the entry goes */
+export function nudgePatch(it: ChartItem, key: string, dx: number, dy: number, box: { w: number; h: number }): ItemPatch {
+  const cur = it.nudge?.[key], r = (v: number) => Math.round(v * 1e5) / 1e5;
+  const fx = r((cur?.dx || 0) + dx / Math.max(1, box.w)), fy = r((cur?.dy || 0) + dy / Math.max(1, box.h));
+  return { nudge: { [key]: Math.abs(fx * box.w) < .5 && Math.abs(fy * box.h) < .5 ? null : { dx: fx, dy: fy } } };
+}
+/** every dragged label back at its place (one undo step) */
+export const nudgeResetPatch = (): ItemPatch => ({ nudge: null });
 export const legendAtPatch = (v: LegendAt): ItemPatch => ({ legendAt: v });
 /** one legend entry hidden or shown again (a series id; a waterfall's "up" / "down" / "total") */
 export const legendHidePatch = (key: string, hide: boolean): ItemPatch => ({ legendHide: { [key]: hide ? true : null } });
@@ -218,9 +234,11 @@ export const markOnPatch = (it: ChartItem, id: string, on: boolean) => markPatch
     group's categories */
 export type ChartRefWhat = { what: "add" } | { what: "vals" | "xs" | "target" | "name"; ser: string } | { what: "group-add" } | { what: "cats"; group: string }
   /* (B52) a new reference line at a cell; a line's value or name from a cell */
-  | { what: "ref-add" } | { what: "ref-value" | "ref-name"; mark: string };
+  | { what: "ref-add" } | { what: "ref-value" | "ref-name"; mark: string }
+  /* (B53) an axis's min, max or step from a cell */
+  | { what: "axis"; ax: "x" | "y" | "y2"; key: "min" | "max" | "step" };
 /** the kinds of cells that are one cell (a name, a reference line's value or name) */
-export const oneCell = (w: ChartRefWhat | null | undefined) => w?.what === "name" || w?.what === "ref-add" || w?.what === "ref-value" || w?.what === "ref-name";
+export const oneCell = (w: ChartRefWhat | null | undefined) => w?.what === "name" || w?.what === "ref-add" || w?.what === "ref-value" || w?.what === "ref-name" || w?.what === "axis";
 /** the change the chosen cells make (null: the series or group is gone meanwhile) */
 export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatch | null {
   switch (w.what) {
@@ -234,13 +252,16 @@ export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatc
     case "ref-add": return addRefPatch(it, ref);
     case "ref-value": return markPatch(it, w.mark, { value: { ...ref, range: ref.range.split(":")[0] } });
     case "ref-name": return markPatch(it, w.mark, { name: { ...ref, range: ref.range.split(":")[0] } });
+    case "axis": return axisCellPatch(it, w.ax, w.key, { ...ref, range: ref.range.split(":")[0] });
   }
 }
 export const REF_TITLE: Record<ChartRefWhat["what"], string> = { add: "Chart: add a series", vals: "Chart: the series' numbers", xs: "Chart: the series' x values",
   target: "Chart: the series' targets", name: "Chart: the series' name", "group-add": "Chart: add a category group", cats: "Chart: the group's categories",
-  "ref-add": "Chart: add a reference line", "ref-value": "Chart: the reference line's value", "ref-name": "Chart: the reference line's name" };
+  "ref-add": "Chart: add a reference line", "ref-value": "Chart: the reference line's value", "ref-name": "Chart: the reference line's name",
+  axis: "Chart: the axis's bound from a cell" };
 export const REF_HINT: Record<ChartRefWhat["what"], string> = { add: "Drag across the numbers of the new series – any sheet, a linked workbook's too.",
   vals: "Drag across the series' numbers.", xs: "Drag across the x values, one per number of the series.", target: "Drag across the targets, one per number of the series.",
   name: "Click the cell with the series' name: the legend follows it.", "group-add": "Drag across the names of the new group's categories.", cats: "Drag across the group's category names.",
   "ref-add": "Click the cell with the line's value (a budget, an ambition): the line follows the workbook.", "ref-value": "Click the cell with the line's value: the line follows the workbook.",
-  "ref-name": "Click the cell with the line's name: its label follows the workbook." };
+  "ref-name": "Click the cell with the line's name: its label follows the workbook.",
+  axis: "Click the cell with the number: the axis follows the workbook, a reload and a scenario." };

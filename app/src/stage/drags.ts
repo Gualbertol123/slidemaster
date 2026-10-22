@@ -15,6 +15,7 @@ import { areaFor, computeLayout, freeKey, freeOf, geomOf, GX, GY, itemBoxOf, lay
 import { resizeMarks, snapEdge, snapMove, snapTargets as coreTargets, snapTol, type SnapMarks, type SnapTargets } from "@slide-builder/core/render/snap";
 import { routeOf } from "@slide-builder/core/render/line-dl";
 import { lineNow } from "../editor/lines";
+import { nudgePatch } from "../editor/chart-panel";
 import { curSlide } from "../editor/edit";
 import { selCols, selRows, setColWidth, setRowHeight, stretchTable } from "../editor/tables";
 import { requestsIssued, setStage, stage } from "./data";
@@ -439,4 +440,29 @@ export function noteMove(R: RuntimeSlide, key: string, box: Rect, others: Rect[]
     const { span: _s, ...rest } = cur;
     change("Move text box", [{ op: "slide.patch", id: R.id, patch: { notes: { [key]: { ...rest, x: nx, y: ny, w, h } } } } as Op]);
   });
+}
+
+/** (B53) a chart's label dragged on the stage (the selected chart's title, a point value, a reference line's, gap arrow's
+    or pill's label, a caption): a dashed ghost of its box follows the pointer; on the drop the label's offset from where
+    the chart puts it (ChartItem.nudge, a fraction of the chart's box: it follows the data and a resize) – one op, one
+    undo step. A click that does not move (under 3 px) changes nothing and is a click: `click` (the stage selects the mark
+    or point under it, as without a label – B53 review) */
+export function labelDrag(R: RuntimeSlide, id: string, key: string, box: Rect, itemBox: Rect, host: HTMLElement, e: PointerEvent, click?: () => void) {
+  if (e.button !== 0) return;
+  const sc = slideScale(), sx = e.clientX, sy = e.clientY;
+  const ghost = document.createElement("div");
+  ghost.className = "labelghost"; ghost.dataset.label = key;
+  ghost.style.cssText = `position:absolute;left:${box.x - itemBox.x}px;top:${box.y - itemBox.y}px;width:${box.w}px;height:${box.h}px;outline:1px dashed #0A66D8;pointer-events:none`;
+  host.appendChild(ghost);
+  let dx = 0, dy = 0;
+  follow(ev => {
+    dx = (ev.clientX - sx) / sc; dy = (ev.clientY - sy) / sc;
+    ghost.style.transform = `translate(${dx}px,${dy}px)`;
+  }, () => {
+    ghost.remove();
+    if (Math.hypot(dx, dy) < 3) { click?.(); return; }
+    const it = R.cfg.items?.[id];
+    if (!it || it.kind !== "chart") return;
+    change("Move chart label", [{ op: "item.patch", slide: R.id, id, patch: nudgePatch(it, key, dx, dy, itemBox) } as Op]);
+  }, () => ghost.remove());
 }

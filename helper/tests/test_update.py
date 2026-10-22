@@ -301,6 +301,26 @@ class UseBelowFormat5Test(unittest.TestCase):
         calls, out = self.use("4.9.0", "n")
         self.assertEqual(calls, ["activate"])
 
+    def test_format_8_decks_are_listed_below_4_11(self):
+        # B53: a deck holding 4.11 objects (incident-format-8.json) is read-only in 4.10, and in 4.6-4.9 too: named once
+        d = "backend/data/v4/decks/"
+        write(self.root, {"app/4.10.1/MANIFEST.json": "{}", "app/4.11.0/MANIFEST.json": "{}", "app/4.8.0/MANIFEST.json": "{}",
+                          d + "Targets.xlsx-0123456789/snapshot.json": json.dumps({"format": 8, "workbook": "Targets.xlsx"}),
+                          d + "Targets.xlsx-0123456789/incident-format-7.json": "{}",
+                          d + "Targets.xlsx-0123456789/incident-format-8.json": "{}"})
+        self.assertIn("Targets.xlsx", update.format5_decks(self.root))
+        self.assertEqual(update.format5_decks(self.root, (update.FORMAT8_MARKER,)), ["Targets.xlsx"])
+        calls, out = self.use("4.10.1", "n")
+        self.assertIn("These 1 deck(s) use Slide Builder 4.11 objects", out)
+        self.assertEqual(out.count("  Targets.xlsx"), 1)
+        self.assertEqual(calls[-1][0], "refused")
+        calls, out = self.use("4.8.0", "n")
+        self.assertIn("These 1 deck(s) use Slide Builder 4.11 objects", out)
+        self.assertEqual(out.count("  Targets.xlsx"), 1)
+        self.assertEqual(calls[-1][0], "refused")
+        calls, out = self.use("4.11.0", "n")
+        self.assertEqual(calls, ["activate"])
+
     def test_format_7_decks_are_listed_below_4_10(self):
         # B52: a deck holding 4.10 objects (incident-format-7.json) is read-only in 4.9, and in 4.6-4.8 and below 4.6 too
         d = "backend/data/v4/decks/"

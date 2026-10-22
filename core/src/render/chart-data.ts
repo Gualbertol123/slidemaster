@@ -218,6 +218,8 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
     for (const t of k.text.matchAll(CELL_TOKEN)) out.add(tokenSheet(t[1]));
   // (B52) the cells a reference line reads: its value and its name
   for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k === "object") { add(k.value); add(k.name); }
+  // (B53) the cells an axis's bounds and major unit are read from
+  for (const a of Object.values(it.axes && typeof it.axes === "object" ? it.axes : {})) if (a && typeof a === "object" && a.cells && typeof a.cells === "object") { add(a.cells.min); add(a.cells.max); add(a.cells.step); }
   out.delete("");
   return [...out].sort();
 }

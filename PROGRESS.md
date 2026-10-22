@@ -241,6 +241,23 @@ numbers measured twice). Measured numbers go into the step's line.
   `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
   `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions 4.10.0 (CHANGELOG dated 2026-10-22).
 
+- [x] B53 · Chart labels: room for the plot, places for every label, labels dragged on the slide, an axis's bounds from
+  cells, the "12000" fix (product owner 2026-10-22, three pictures: "the line is smoother, there are circles at every
+  datapoint, we have a clear space management problem … give me more options to place the labels … the scale values for
+  the axis to also be able to be taken from excel"; branch `v4/B53-chart-labels` on main 50ecbc1 = 4.10.2) — (commit:
+  see the branch; runs: by the orchestrator). Space: the right reserve is the measured labels only (the card's padding
+  used, a gap label measured on its difference), the plot's top lowered for a value label above the highest point, no
+  legend for one series with targets (target-lines deck, slide 1: plot 1167 → 1179 px wide in Excel, 1143 → 1167 in Liquid
+  Glass; the picture's example +7.9 % plot area). Places: series labels "auto", `points[i].pos`, ref `pos` below /
+  inside, gap `labelSide` / `from` / `capPos`, pills `pos` point / above / below and `capPos`; `nudge` per chart (screen-only
+  "label" hits; stage drag, one step; PowerPoint c:dLbl manualLayout); `axes.*.cells` {min, max, step}; ref values in
+  General shown in the axis's format (ADR-015 amendment). Format 8 (ADR-019 amendment: `needsV8` / `docNeedsV8` from
+  4.10.1's frozen lists, `incident-format-8.json`, `/format8`, `X-SB-Deck-Formats` 4,5,6,7,8, update.py, capture-v3,
+  compat-old 4.10 + m53 / m53-before). Vectors `b53.json`. Tests: core `chart-labels.test.ts` (27), `docsync.test.ts`
+  format 8, helper `Format8Tests` / HTTP format 8 / `test_update`, app `chart-labels-panel.test.tsx`, e2e B53-01,
+  pptxcheck 6 / 6 (`chart-labels` CHART_PPTX_OUT); snapshots: B52's target-lines (room) and chart-series' screen-only
+  label hits; page budget `page-budget/b53.json` (+21,675 measured with the review fixes). Version 4.11.0 (CHANGELOG unreleased).
+
 - [x] 4.10.1 · .xlsb that failed with "a string is longer than its record" (owner's report 2026-10-22, "Dashboard.xlsb",
   Sheets step; branch `v4/xlsb-string-fix` on main a6d5ce3) — (commit: see the branch; runs: by the orchestrator). Root
   cause: BrtDXF's XFProp 0x26 (xfPropNumFmt) is an XLWideString filling the property (MS-XLSB 2.5.162; the id is the

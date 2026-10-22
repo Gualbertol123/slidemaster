@@ -17,13 +17,14 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "shape", "icon", "text", "fill", "border", "radius", "tail",
   "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke"] as const;
-const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt"] as const;
+const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge"] as const;
 const ITEM_KINDS = ["chart", "shape", "line"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
 const MARK_KINDS = ["arrow", "line", "band", "icon", "text", "ref", "gap", "change"];
 const MARK_KEYS = ["kind", "a", "b", "style", "icon", "size", "text", "fmt", "dy",
-  "value", "name", "axis", "show", "pos", "ref", "caption", "num", "pct", "abs", "signs", "pairs", "off"];
+  "value", "name", "axis", "show", "pos", "ref", "caption", "num", "pct", "abs", "signs", "pairs", "off",
+  /* 4.11 (B53) */ "labelSide", "from", "capPos"];
 /** every mark entry of a marks map (a patch's or an item's) is one this page draws whole */
 const marksKnown = (m: unknown) => !isObj(m) || Object.values(m).every(k => k === null || !isObj(k) || (MARK_KINDS.includes(k.kind as string) && Object.keys(k).every(x => MARK_KEYS.includes(x))));
 /* slide.add / table.add (4.6, 09 §2.8): the slide types and table kinds this page draws (a later page's are skipped) */
@@ -335,6 +336,49 @@ const presetNeedsV7 = (p: Record<string, unknown>) => Array.isArray(p.slides) &&
 /** the same on a document (fold.ts nextSnapshot writes such a deck as format 7; a 4.10 page opening one below 7 raises it) */
 export function docNeedsV7(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
   return isObj(doc.preset) && presetNeedsV7(doc.preset as unknown as Record<string, unknown>);
+}
+/* ---- format 8 (ADR-019 amendment of 2026-10-22 for B53, 4.11) ----
+   4.10.x keeps a chart's maps whole but draws B53's label places, axis cells and dragged labels its own way: a series'
+   "auto" labels at the right, a point's own place, a reference line's label "below" / "inside" at the right end, a gap's
+   label side and direction, the pills' new rows, an axis's bounds from cells (as automatic ones) – and it skips the item's
+   `nudge` (its compaction would lose it). A deck that receives or holds one is raised to format 8 exactly as to 7 (marker
+   incident-format-8.json – an incident to every 4.0–4.10 helper –, the wait, tail, CAS, the Lamport jump). 4.10.1's
+   lists, FROZEN (git show c504829:core/src/model/ops.ts ITEM_KEYS / ITEM_MAPS / MARK_KEYS, types.ts ChartAxis, ChartSeries
+   labels.pos and points, ChartMark pos) – never add to them: later keys and values go to the lists at the top, and are
+   then needsV8 by themselves. */
+const V410_ITEM = V48_ITEM;          // (4.10's item keys and maps are 4.8's)
+const V410_MARK_KEYS = ["kind", "a", "b", "style", "icon", "size", "text", "fmt", "dy",
+  "value", "name", "axis", "show", "pos", "ref", "caption", "num", "pct", "abs", "signs", "pairs", "off"];
+/** the `pos` values 4.10.1 draws, per mark kind (unset is always fine) */
+const V410_MARK_POS: Record<string, string[]> = { ref: ["right", "left", "above"], gap: ["right", "left"], change: ["axis", "line"] };
+const V410_AXIS_KEYS = ["show", "min", "max", "step", "num", "title", "grid", "fmt", "line"];
+const V410_LABEL_POS = ["above", "below", "left", "right", "center", "inEnd", "inBase", "outEnd"];
+const V410_POINT_KEYS = ["color", "marker", "label", "total"];
+const markV8 = (k: unknown) => isObj(k) && (Object.keys(k).some(x => !V410_MARK_KEYS.includes(x))
+  || (k.pos !== undefined && k.pos !== null && !!V410_MARK_POS[k.kind as string] && !V410_MARK_POS[k.kind as string].includes(k.pos as string)));
+const serV8 = (s: unknown) => isObj(s) && ((isObj(s.labels) && s.labels.pos !== undefined && s.labels.pos !== null && !V410_LABEL_POS.includes(s.labels.pos as string))
+  || (isObj(s.points) && Object.values(s.points).some(p => isObj(p) && Object.keys(p).some(x => !V410_POINT_KEYS.includes(x)))));
+const axisV8 = (a: unknown) => isObj(a) && Object.keys(a).some(x => !V410_AXIS_KEYS.includes(x) && a[x] !== null && !(isObj(a[x]) && !Object.keys(a[x] as object).length));
+const some = (m: unknown, f: (x: unknown) => boolean) => isObj(m) && Object.values(m).some(f);
+/** an item (or an item.patch) holding what 4.10.1 does not draw whole: a later key (`nudge`), a later series label place
+    or point key, axis key (`cells`), mark key or place */
+const itemV8 = (p: unknown) => isObj(p) && (Object.keys(p).some(k => !V410_ITEM.includes(k) && p[k] !== null && !(isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))) || some(p.marks, markV8) || some(p.sers, serV8) || some(p.axes, axisV8));
+const itemsV8 = (items: unknown) => some(items, itemV8);
+/** an op 4.10.1 does not apply or draw whole: the deck must be format 8 before it is appended – an item.patch writing such
+    content, a slide.add or preset.set carrying it. Removing it (null) is not: 4.10 applies that whole */
+export function needsV8(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>, p = o.patch;
+  switch (o.op) {
+    case "item.patch": return itemV8(p);
+    case "slide.add": return isObj(o.slide) && itemsV8(o.slide.items);
+    case "preset.set": return isObj(o.preset) && presetNeedsV8(o.preset);
+  }
+  return false;
+}
+const presetNeedsV8 = (p: Record<string, unknown>) => Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV8(s.items));
+/** the same on a document (fold.ts nextSnapshot writes such a deck as format 8; a 4.11 page opening one below 8 raises it) */
+export function docNeedsV8(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  return isObj(doc.preset) && presetNeedsV8(doc.preset as unknown as Record<string, unknown>);
 }
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */

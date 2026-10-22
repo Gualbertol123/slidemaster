@@ -45,6 +45,7 @@ export interface MarkFrame {
 /** the marks' nodes over the data, the bands under it (a band tints the plot, not the bars: on the slide and under the
     native chart), a hit per mark, the Issues lines */
 export interface MarksOut { nodes: Node[]; under: Node[]; hits: Node[]; issues: string[];
+  /** (B53) the hits of the labels the stage can drag ("label", id "<item>|<nudge key>") */ labels: Node[];
   /** (S14.6) each arrow / line mark as the PowerPoint export writes it: one plain line shape from a to b (not shortened)
       with native a:headEnd (end a) / a:tailEnd (end b); `drop` = its nodes the export's overlay leaves out (the line and
       the heads PowerPoint draws itself – a limiter's "bar" tick stays a node: PowerPoint has no such end) */
@@ -102,7 +103,7 @@ const box = (nodes: Node[]): Box | null => {
 /** every mark's nodes (in id order: a later id on top), a hit per mark, and the Issues lines (a mark whose place or icon
     is not found; a quoted cell that cannot be read) */
 export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCtx, m: Metrics): MarksOut {
-  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [], arrows: [], native: [] };
+  const out: MarksOut = { nodes: [], under: [], hits: [], issues: [], arrows: [], native: [], labels: [] };
   // (a mark switched off – B52's `off` – is kept, not drawn)
   const list = Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {}).filter(([, k]) => k && typeof k === "object" && !k.off).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   for (const [mid, k] of list) {
@@ -111,10 +112,12 @@ export function markNodes(it: ChartItem, id: string, F: MarkFrame, ctx: RenderCt
       const T = F.targets;
       if (!T) continue;                                          // (not on this kind of chart: seriesLayout says so once)
       let r: TargetOut;
-      if (k.kind === "ref") { const R = T.refs.get(mid); if (!R) continue; r = refNodes(R, m, T.refLabelX); }
+      if (k.kind === "ref") { const R = T.refs.get(mid); if (!R) continue; r = refNodes(R, m, T.refLabelX, T); }
       else r = k.kind === "gap" ? gapNodes(mid, k, T, m) : changeNodes(mid, k, T, m);
       out.issues.push(...r.issues);
       if (!r.nodes.length) continue;
+      // (B53) each of its labels the stage can drag (after the mark's own hit: a click selects the mark, a drag moves the label)
+      for (const L of r.labels || []) out.labels.push({ t: "hit", kind: "label", id: `${id}|${L.key}`, x: L.box.x, y: L.box.y, w: L.box.w, h: L.box.h, label: L.key });
       out.nodes.push(...r.nodes); out.native.push(...r.native);
       if (r.arrow) out.arrows.push({ ...r.arrow, head: r.arrow.head as Head | undefined, tail: r.arrow.tail as Head | undefined });
       const b = box(r.nodes);

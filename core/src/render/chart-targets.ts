@@ -14,8 +14,8 @@
    every row of the embedded workbook – the first row the number, the others `=` that cell, so Edit Data moves it), its
    label a text box; the gap arrow one line shape with a native head (chart-overlay.ts), its label text boxes; the pills
    rounded rectangles and text boxes – all placed from this one layout, so screen, PDF, PNG and PowerPoint agree. */
-import type { ChartItem, ChartMark, DataRef } from "../model/types";
-import type { Node, Stroke } from "../dl/types";
+import type { ChartAxis, ChartItem, ChartMark, DataRef } from "../model/types";
+import type { Node, Stroke, TextNode } from "../dl/types";
 import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
 import type { LineSem } from "../pptx/chart-sem";
@@ -62,24 +62,50 @@ function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; 
   const c = T.S.get(T.g.r1, T.g.c1), v = !gone && c && c.t === "n" && typeof c.v === "number" && Number.isFinite(c.v) ? c.v : null;
   return { v, fmt: c?.fmt || "General", text: gone ? "" : shown(T.S, T.g.r1, T.g.c1, ctx).trim(), source: T.source, gone };
 }
+/** a cell's format that says nothing of how to show its number (Excel's General) */
+const isGeneral = (f: string) => !f || /^general$/i.test(f.trim());
+/** a value axis with its bounds and major unit read from cells (`cells`: each over the typed number; B53). A cell
+    without a number leaves that setting to the typed one (else automatic) and says so */
+export function axisFromCells(A: ChartAxis | undefined, ctx: RenderCtx, name: string, issues: string[]): ChartAxis | undefined {
+  const C = A && A.cells && typeof A.cells === "object" ? A.cells : null;
+  if (!A || !C) return A;
+  const out: ChartAxis = { ...A };
+  for (const key of ["min", "max", "step"] as const) {
+    const ref = C[key];
+    if (!isRef(ref)) continue;
+    const c = cellOf(ref, ctx);
+    if (c && c.v !== null && (key !== "step" || c.v > 0)) out[key] = c.v;
+    else issues.push(`the ${name} axis's ${key === "step" ? "major unit" : key}: ${c ? (c.gone ? `${c.source} is emptied by the version shown` : `no ${key === "step" ? "positive number" : "number"} in ${c.source}`) : `${refTarget(ref, ctx).source} not found`}`);
+  }
+  // (B53 review) a min not below the max: the bounds read from cells go back to the typed ones (else automatic)
+  if (typeof out.min === "number" && typeof out.max === "number" && out.min >= out.max && (isRef(C.min) || isRef(C.max))) {
+    issues.push(`the ${name} axis's min (${out.min}) is not below its max (${out.max}): ${isRef(C.min) && isRef(C.max) ? "both are" : isRef(C.min) ? "the min is" : "the max is"} typed or automatic instead`);
+    for (const key of ["min", "max"] as const) if (isRef(C[key])) { if (typeof A[key] === "number") out[key] = A[key]; else delete out[key]; }
+  }
+  return out;
+}
 /** the marks of the chart that are on, in id order (a later id on top) */
 export const marksOf = (it: ChartItem) => Object.entries(it.marks && typeof it.marks === "object" ? it.marks : {})
   .filter(([, k]) => k && typeof k === "object" && !k.off).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-/** every reference line that is on: its value (a cell's number; a typed number – `fallbackFmt`, the series' format, when
-    it has none of its own), its name, the axis it stands on */
-export function refValues(it: ChartItem, ctx: RenderCtx, fallbackFmt: string): RefVal[] {
+/** every reference line that is on: its value (a cell's number; a typed number), its name, the axis it stands on. Its text:
+    the mark's number format, else the cell's – but a cell in General (and a typed value) takes `fallbackFmt`, the format
+    its axis's tick labels show (B53: an Ambition cell of 12000 in General beside an axis of "12.000" reads "12.000"; a
+    line without a name shows its value alone) */
+export function refValues(it: ChartItem, ctx: RenderCtx, fallbackFmt: string | ((axis: "y" | "y2") => string)): RefVal[] {
+  const fb = (ax: "y" | "y2") => (typeof fallbackFmt === "function" ? fallbackFmt(ax) : fallbackFmt) || "General";
   const out: RefVal[] = [];
   let n = 0;
   for (const [id, k] of marksOf(it)) {
     if (k.kind !== "ref") continue;
     const num = typeof k.num === "string" && k.num.trim() ? k.num : "";
-    const r: RefVal = { id, k, v: null, text: "", fmt: num || fallbackFmt || "General", name: "", axis: k.axis === "y2" ? "y2" : "y", n: n++ };
+    const axis = k.axis === "y2" ? "y2" : "y";
+    const r: RefVal = { id, k, v: null, text: "", fmt: num || fb(axis), name: "", axis, n: n++ };
     if (isRef(k.value)) {
       const c = cellOf(k.value, ctx);
       if (!c) r.issue = `reference line '${id}': ${refTarget(k.value, ctx).source} not found`;
       else if (c.gone) r.issue = `reference line '${id}': ${c.source} is emptied by the version shown`;
       else if (c.v === null) r.issue = `reference line '${id}': no number in ${c.source}`;
-      else { r.v = c.v; r.fmt = num || c.fmt; }
+      else { r.v = c.v; r.fmt = num || (isGeneral(c.fmt) ? fb(axis) : c.fmt); }
     } else if (typeof k.value === "number" && Number.isFinite(k.value)) r.v = k.value;
     else r.issue = `reference line '${id}': no value (a cell or a number)`;
     if (r.v !== null) r.text = tickText(r.v, r.fmt);
@@ -92,14 +118,18 @@ export function refValues(it: ChartItem, ctx: RenderCtx, fallbackFmt: string): R
 
 /** a reference line as drawn: its value's place, look, label */
 export interface RefLine { id: string; v: number; y: number; x1: number; x2: number; line: LineSem; stroke: Stroke; name: string; text: string; fmt: string; axis: "y" | "y2";
-  label: { text: string; st: St; pos: "right" | "left" | "above" } | null;
+  label: { text: string; st: St; pos: RefPos } | null;
   /** a series of the native PowerPoint chart (else a plain line shape of its overlay) */ series: boolean }
+/** where a reference line's label stands: after the plot's right end (default, Excel's), on the line inside the plot's
+    right end ("inside", on the card's ground), above the left end ("left"), above or below the right end */
+export type RefPos = "right" | "left" | "above" | "below" | "inside";
+const REF_POS: readonly string[] = ["right", "left", "above", "below", "inside"];
 /** a reference line's label: what it shows, in its style (the line's colour, bold unless its fmt says) */
-export function refLabel(r: RefVal, color: string, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St): { text: string; st: St; pos: "right" | "left" | "above" } | null {
+export function refLabel(r: RefVal, color: string, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St): { text: string; st: St; pos: RefPos } | null {
   const show = r.k.show || "both";
   const text = show === "none" ? "" : show === "name" ? r.name : show === "value" ? r.text : [r.name, r.text].filter(Boolean).join(" ");
   if (!text) return null;
-  const pos = r.k.pos === "left" || r.k.pos === "above" ? r.k.pos : "right";
+  const pos = (REF_POS.includes(r.k.pos as string) ? r.k.pos : "right") as RefPos;
   return { text, st: withFmt({ ...lab, weight: 700, color }, r.k.fmt), pos };
 }
 /** a reference line's look: its own, else the design's (the first line the design's ink, the others its grey), dashed */
@@ -131,24 +161,35 @@ export interface TargetFrame {
   /** the reference lines as drawn (seriesLayout), by id; those not drawn (no value, a 100 % axis: said once there) */ refs: Map<string, RefLine>; refOff?: Set<string>;
   /** the series drawn, by id */ series: Map<string, SerPts>;
   look: TargetLook;
+  /** (B53) a dragged label's offset in px (0, 0 when none) – keys as ChartItem.nudge's; the card's ground behind an
+      "inside" label (the card's fill and opacity); the top of the row under the category labels (pills "below") */ nudge?: (key: string) => { x: number; y: number }; ground?: { fill: string; a: number }; below?: number;
 }
 export interface TargetOut { nodes: Node[]; issues: string[];
+  /** (B53) the labels the stage can drag: their nudge key and box */ labels?: { key: string; box: { x: number; y: number; w: number; h: number } }[];
   /** the gap arrow as the export writes it (one line shape with native ends): from the line (a) to the point (b) */
   arrow?: { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: string; tail?: string; size?: "s" | "m" | "l"; drop: Node[] };
   /** nodes the PowerPoint export leaves out: a reference line's line (the native chart's own series draws it) */ native: Node[] }
 
 /** a reference line's nodes: the line across the plot (or between the first and the last category's centres – where
     PowerPoint's series can draw it, chart-series.ts refSpan) and its label */
-export function refNodes(R: RefLine, m: Metrics, labelX: number): TargetOut {
+export function refNodes(R: RefLine, m: Metrics, labelX: number, F?: Pick<TargetFrame, "nudge" | "ground">): TargetOut {
   const line: Node = { t: "line", x1: r2(R.x1), y1: r2(R.y), x2: r2(R.x2), y2: r2(R.y), stroke: R.stroke };
-  const nodes: Node[] = [line];
+  const nodes: Node[] = [line], out: TargetOut = { nodes, issues: [], native: R.series ? [line] : [], labels: [] };
   if (R.label) {
-    const L = R.label, lh = lineH(L.st);
-    if (L.pos === "right") nodes.push(textNode(m, L.text, labelX, R.y - lh / 2, L.st, "left"));
-    else if (L.pos === "left") nodes.push(textNode(m, L.text, R.x1 + 4, R.y - lh - 2, L.st, "left"));
-    else nodes.push(textNode(m, L.text, R.x2 - 4, R.y - lh - 2, L.st, "right"));
+    const L = R.label, lh = lineH(L.st), key = "r:" + R.id, d = F?.nudge?.(key) ?? { x: 0, y: 0 };
+    const [x, top, al]: [number, number, "left" | "right"] = L.pos === "right" ? [labelX, R.y - lh / 2, "left"] : L.pos === "left" ? [R.x1 + 4, R.y - lh - 2, "left"]
+      : L.pos === "below" ? [R.x2 - 4, R.y + 2, "right"] : L.pos === "inside" ? [R.x2 - 6, R.y - lh / 2, "right"] : [R.x2 - 4, R.y - lh - 2, "right"];
+    const t = placed(m, L.text, x + d.x, top + d.y, L.st, al);
+    // ("inside": on the line, the card's ground behind the text so the dashes do not cross it)
+    if (L.pos === "inside") nodes.push({ t: "rect", x: r2(t.box.x - 4), y: r2(t.box.y), w: r2(t.box.w + 8), h: r2(t.box.h), fill: { solid: parseColor(F?.ground?.fill || "#FFFFFF").c, ...(F?.ground && F.ground.a < 1 ? { a: F.ground.a } : {}) } });
+    nodes.push(t.node); out.labels!.push({ key, box: t.box });
   }
-  return { nodes, issues: [], native: R.series ? [line] : [] };
+  return out;
+}
+/** a text node and its line box */
+function placed(m: Metrics, text: string, x: number, top: number, st: St, al: "left" | "center" | "right"): { node: TextNode; box: { x: number; y: number; w: number; h: number } } {
+  const n = textNode(m, text, x, top, st, al), w = n.w;
+  return { node: n, box: { x: r2(al === "center" ? x - w / 2 : al === "right" ? x - w : x), y: r2(top), w: r2(w), h: lineH(st) } };
 }
 /** the last point of a series with a value (i -1), or point i (counted in its group) */
 function pointOf(S: SerPts, i: number): number | null {
@@ -159,9 +200,11 @@ function pointOf(S: SerPts, i: number): number | null {
 /** the default series of a gap or change mark: the first line series drawn, else the first series */
 const firstSeries = (F: TargetFrame) => [...F.series.keys()][0];
 
-/** a gap arrow: from the reference line down / up to beside the point, the difference and the caption beside it */
+/** a gap arrow: from the reference line down / up to beside the point (or, `from` "point", from beside the point to the
+    line), the difference and the caption beside it – on the arrow's right or left (`labelSide`), the caption under or
+    over the difference (`capPos`) */
 export function gapNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics): TargetOut {
-  const out: TargetOut = { nodes: [], issues: [], native: [] };
+  const out: TargetOut = { nodes: [], issues: [], native: [], labels: [] };
   const sid = k.a && "s" in k.a ? String(k.a.s) : firstSeries(F), S = sid ? F.series.get(sid) : undefined;
   if (!S) { out.issues.push(`gap '${id}': series '${sid ?? ""}' not found`); return out; }
   const R = typeof k.ref === "string" ? F.refs.get(k.ref) : undefined;
@@ -172,11 +215,12 @@ export function gapNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics): 
   if (i === null) return out;                                   // a gap in the data: nothing to point at
   const p = S.anchors[i]!, v = S.vals[i]!, d = v - R.v;
   const own = HEX.test(k.style?.color || "") ? k.style!.color!.toUpperCase() : null, color = signColor(k, d, F.look, own, F.ink);
-  const side = k.pos === "left" ? -1 : 1, dx = Math.max(12, Math.min(36, F.slot * .25)), x = p.x + side * dx;
+  const side = k.pos === "left" ? -1 : 1, dx = gapDx(F.slot), x = p.x + side * dx;
   const L = lineStyleOf({ ...(k.style || {}), color }, color, 1.5), dash = dashOf(L);
   const stroke: Stroke = { w: L.w, paint: solid(L.color), cap: "butt", ...(dash ? { dash } : {}) };
   const heads = k.style?.heads && typeof k.style.heads === "object" ? k.style.heads : { b: "triangle" as const };
-  const pa = { x, y: R.y }, pb = { x, y: p.y };
+  // (end a where it starts – the line, or with `from` "point" the point –, end b where its head points by default)
+  const onLine = { x, y: R.y }, atPoint = { x, y: p.y }, [pa, pb] = k.from === "point" ? [atPoint, onLine] : [onLine, atPoint];
   if (Math.abs(pb.y - pa.y) > 1) {
     const h = headed(pa, pb, stroke, heads), line: Node = { t: "line", x1: r2(h.a.x), y1: r2(h.a.y), x2: r2(h.b.x), y2: r2(h.b.y), stroke };
     out.nodes.push(line, ...h.nodes);
@@ -186,27 +230,52 @@ export function gapNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics): 
       drop: [line, ...(ea ? h.nodes.slice(0, nA) : []), ...(eb ? h.nodes.slice(nA, nA + nB) : [])] };
   }
   // the label: the difference (bold, larger) and the caption (small) beside the arrow's middle
-  const fmt = typeof k.num === "string" && k.num.trim() ? k.num : R.fmt || S.fmt;
-  const text = signed(d, fmt) + (k.pct && R.v ? ` (${signedPct(d / Math.abs(R.v))})` : "");
-  const big = F.withFmt({ ...F.lab, size: Math.round(F.lab.size * 1.4), weight: 700, color }, k.fmt), small: St = { ...F.lab, size: Math.max(6, Math.round(F.lab.size * .8)), weight: 400, color };
-  const caption = typeof k.caption === "string" ? k.caption : "gap";
-  const lb = lineH(big), ls = caption ? lineH(small) : 0, top = (pa.y + pb.y) / 2 - (lb + ls) / 2, lx = x + side * 6, al = side > 0 ? "left" : "right";
-  out.nodes.push(textNode(m, text, lx, top, big, al));
-  if (caption) out.nodes.push(textNode(m, caption, lx, top + lb, small, al));
+  const G = gapText(k, d, R.v, R.fmt || S.fmt, F.lab, F.withFmt, color), caption = G.caption, big = G.big, small = G.small;
+  const lside = k.labelSide === "left" ? -1 : k.labelSide === "right" ? 1 : side;
+  const lb = lineH(big), ls = caption ? lineH(small) : 0, nd = F.nudge?.("g:" + id) ?? { x: 0, y: 0 };
+  const top = (onLine.y + atPoint.y) / 2 - (lb + ls) / 2 + nd.y, lx = x + lside * 6 + nd.x, al = lside > 0 ? "left" : "right";
+  const capOver = k.capPos === "above" && !!caption;
+  const T = placed(m, G.text, lx, capOver ? top + ls : top, big, al);
+  out.nodes.push(T.node);
+  let box = T.box;
+  if (caption) {
+    const C = placed(m, caption, lx, capOver ? top : top + lb, small, al);
+    out.nodes.push(C.node);
+    const x0 = Math.min(box.x, C.box.x), x1 = Math.max(box.x + box.w, C.box.x + C.box.w);
+    box = { x: x0, y: r2(top), w: r2(x1 - x0), h: lb + ls };
+  }
+  out.labels!.push({ key: "g:" + id, box });
   return out;
 }
-/** how wide a gap mark's label runs past its point (the plot leaves room on the right for it) */
-export function gapLabelW(k: ChartMark, R: RefVal | undefined, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St, m: Metrics): number {
+/** how far beside its point a gap arrow stands */
+export const gapDx = (slot: number) => Math.max(12, Math.min(36, slot * .25));
+/** a gap's label: its text (the signed difference, its % of the line), caption and styles (colour unset) */
+function gapText(k: ChartMark, d: number, ref: number, fmt0: string, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St, color = lab.color) {
+  const fmt = typeof k.num === "string" && k.num.trim() ? k.num : fmt0;
+  const text = signed(d, fmt) + (k.pct && ref ? ` (${signedPct(d / Math.abs(ref))})` : "");
+  const big = withFmt({ ...lab, size: Math.round(lab.size * 1.4), weight: 700, color }, k.fmt), small: St = { ...lab, size: Math.max(6, Math.round(lab.size * .8)), weight: 400, color };
+  return { text, caption: typeof k.caption === "string" ? k.caption : "gap", big, small };
+}
+/** how wide a gap mark's label runs past its point's arrow, on each side (the plot leaves room on the right for it):
+    measured on the label it will show – the difference `d` of its point (B53: no longer a sample as wide as the line's
+    own value) */
+export function gapLabelW(k: ChartMark, R: RefVal | undefined, lab: St, withFmt: (st: St, f: ChartMark["fmt"]) => St, m: Metrics, d?: number | null): number {
   if (!R || R.v === null) return 0;
-  const big = withFmt({ ...lab, size: Math.round(lab.size * 1.4), weight: 700 }, k.fmt), small: St = { ...lab, size: Math.max(6, Math.round(lab.size * .8)), weight: 400 };
-  const sample = MINUS + tickText(Math.abs(R.v), typeof k.num === "string" && k.num.trim() ? k.num : R.fmt) + (k.pct ? " (−00.0%)" : "");
-  const caption = typeof k.caption === "string" ? k.caption : "gap";
-  return Math.max(m.run(sample, font(big)).w, caption ? m.run(caption, font(small)).w : 0) + 6;
+  const G = gapText(k, d ?? -Math.abs(R.v), R.v, R.fmt, lab, withFmt);
+  const text = d === undefined || d === null ? MINUS + tickText(Math.abs(R.v), typeof k.num === "string" && k.num.trim() ? k.num : R.fmt) + (k.pct ? " (−00.0%)" : "") : G.text;
+  return Math.max(m.run(text, font(G.big)).w, G.caption ? m.run(G.caption, font(G.small)).w : 0) + 6;
 }
 
-/** change pills: one between each pair of consecutive points of the series (or the last pair), the change in it */
+/** the height of a row of change pills (the layout leaves it under the category labels for `pos` "below") */
+export function pillRowH(F: Pick<TargetFrame, "lab" | "withFmt">, k: ChartMark): number {
+  return lineH(F.withFmt({ ...F.lab, size: Math.max(6, Math.round(F.lab.size * .82)), weight: 600 }, k.fmt)) + 6;
+}
+/** change pills: one between each pair of consecutive points of the series (or the last pair), the change in it – in a
+    row just above the plot's floor ("axis", default), under the line between the two points ("line"), under the later
+    point ("point"), in a row along the plot's top ("above") or under the category labels ("below"); the caption above
+    the row's left (default) or right end, or under the row (`capPos`) */
 export function changeNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics): TargetOut {
-  const out: TargetOut = { nodes: [], issues: [], native: [] };
+  const out: TargetOut = { nodes: [], issues: [], native: [], labels: [] };
   const sid = k.a && "s" in k.a ? String(k.a.s) : firstSeries(F), S = sid ? F.series.get(sid) : undefined;
   if (!S) { out.issues.push(`change '${id}': series '${sid ?? ""}' not found`); return out; }
   const pairs: [number, number][] = [];
@@ -216,22 +285,33 @@ export function changeNodes(id: string, k: ChartMark, F: TargetFrame, m: Metrics
   const fmt = typeof k.num === "string" && k.num.trim() ? k.num : S.fmt, abs = k.abs !== false, pct = k.pct !== false;
   const own = HEX.test(k.style?.color || "") ? k.style!.color!.toUpperCase() : null;
   const st0 = F.withFmt({ ...F.lab, size: Math.max(6, Math.round(F.lab.size * .82)), weight: 600 }, k.fmt), lh = lineH(st0), h = lh + 6, P = F.plot;
-  let rowTop = Infinity;
+  const nd = (key: string) => F.nudge?.(key) ?? { x: 0, y: 0 };
+  let rowTop = Infinity, rowBottom = -Infinity, rowLeft = Infinity, rowRight = -Infinity;
   for (const [a, b] of list) {
     const va = S.vals[a]!, vb = S.vals[b]!, d = vb - va, A = S.anchors[a]!, B = S.anchors[b]!;
     const parts = [abs ? signed(d, fmt) : "", pct && va ? (abs ? `(${signedPct(d / Math.abs(va))})` : signedPct(d / Math.abs(va))) : ""].filter(Boolean);
     if (!parts.length) continue;
     const text = parts.join(" "), color = signColor(k, d, F.look, own, F.ink), st = { ...st0, color };
-    const tw = m.run(text, font(st)).w, w = Math.min(Math.max(tw + 16, h * 2), Math.max(h, F.slot - 6)), cx = (A.x + B.x) / 2;
-    const cy = k.pos === "line" ? Math.min(P.y + P.h - h / 2 - 2, Math.max(A.y, B.y) + h / 2 + 14) : P.y + P.h - h / 2 - 8;
+    const tw = m.run(text, font(st)).w, w = Math.min(Math.max(tw + 16, h * 2), Math.max(h, F.slot - 6)), key = `c:${id}:${b - S.start}`, o = nd(key);
+    const cx = (k.pos === "point" ? B.x : (A.x + B.x) / 2) + o.x;
+    const cy = (k.pos === "line" ? Math.min(P.y + P.h - h / 2 - 2, Math.max(A.y, B.y) + h / 2 + 14)
+      : k.pos === "point" ? Math.min(P.y + P.h - h / 2 - 2, B.y + B.r + h / 2 + 4)
+        : k.pos === "above" ? P.y + h / 2 + 2
+          : k.pos === "below" && F.below !== undefined ? F.below + h / 2 + 2 : P.y + P.h - h / 2 - 8) + o.y;
     out.nodes.push({ t: "rect", x: r2(cx - w / 2), y: r2(cy - h / 2), w: r2(w), h: r2(h), r: r2(h / 2), fill: { solid: parseColor(tintOf(color, F.look.tint)).c } });
     out.nodes.push(textNode(m, text, cx, cy - lh / 2, st, "center"));
-    rowTop = Math.min(rowTop, cy - h / 2);
+    out.labels!.push({ key, box: { x: r2(cx - w / 2), y: r2(cy - h / 2), w: r2(w), h: r2(h) } });
+    rowTop = Math.min(rowTop, cy - h / 2 - o.y); rowBottom = Math.max(rowBottom, cy + h / 2 - o.y);
+    rowLeft = Math.min(rowLeft, cx - w / 2 - o.x); rowRight = Math.max(rowRight, cx + w / 2 - o.x);
   }
   const caption = typeof k.caption === "string" ? k.caption : "";
   if (caption && Number.isFinite(rowTop)) {
-    const cs: St = { ...F.lab, size: Math.max(6, Math.round(F.lab.size * .72)), weight: 400, italic: true, color: F.look.muted };
-    out.nodes.push(textNode(m, caption, P.x + 4, rowTop - lineH(cs) - 2, cs, "left"));
+    const cs: St = { ...F.lab, size: Math.max(6, Math.round(F.lab.size * .72)), weight: 400, italic: true, color: F.look.muted }, ch = lineH(cs), o = nd(`c:${id}:cap`);
+    // (the default: above the row at the plot's left, as before 4.11)
+    const [x, top, al]: [number, number, "left" | "right"] = k.capPos === "right" ? [Math.min(P.x + P.w - 4, rowRight), rowTop - ch - 2, "right"]
+      : k.capPos === "below" ? [Math.max(P.x + 4, rowLeft), rowBottom + 2, "left"] : [P.x + 4, rowTop - ch - 2, "left"];
+    const C = placed(m, caption, x + o.x, top + o.y, cs, al);
+    out.nodes.push(C.node); out.labels!.push({ key: `c:${id}:cap`, box: C.box });
   }
   return out;
 }

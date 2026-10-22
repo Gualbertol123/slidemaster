@@ -35,7 +35,7 @@ import { barSlots, gapOf, lightOf, outerRadius, overlapOf, stackBars, type Stack
 import { stackAreas } from "./chart-area";
 import { dashOf, lineStroke, linePath, lineStyleOf, markerNode, markerOf, markerPx, polyHitsBox, runs, strokeNear, type Pt } from "./chart-lines";
 import { markNodes, type Anchor, type MarkArrow, type MarkFrame } from "./chart-marks";
-import { gapLabelW, marksOf, refLabel, refStyle, refValues, targetLook, type RefLine } from "./chart-targets";
+import { axisFromCells, gapDx, gapLabelW, marksOf, pillRowH, refLabel, refStyle, refValues, targetLook, type RefLine } from "./chart-targets";
 import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
@@ -46,6 +46,7 @@ import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
 
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
+const frac4 = (v: number) => Math.round(v * 10000) / 10000 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** what the design gives a series chart besides chart-dl.ts's ChartLook */
 interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
@@ -82,6 +83,11 @@ interface Bar { s: number; i: number; v: number; x: number; y: number; w: number
   /** the bar's segment in axis values (a 100 % share is to − from) */ from: number; to: number;
   /** "actual inside target": the outlined target bar over it (same x and width) */ target: { y: number; h: number } | null }
 interface Lab { s: number; i: number; text: string; x: number; top: number; st: St; align: "left" | "center" | "right"; inside: boolean }
+/** (B53) a label's nudge (ChartItem.nudge, fractions of the chart's box) in px; unset or broken: none */
+function nudger(it: ChartItem, unit: { w: number; h: number }): (key: string) => { x: number; y: number } {
+  const N = it.nudge && typeof it.nudge === "object" ? it.nudge : {}, f = (v: unknown) => Number.isFinite(+(v as number)) ? Math.max(-1, Math.min(1, +(v as number))) : 0;
+  return key => { const o = Object.prototype.hasOwnProperty.call(N, key) ? N[key] : null; return o && typeof o === "object" ? { x: r2(f(o.dx) * unit.w), y: r2(f(o.dy) * unit.h) } : { x: 0, y: 0 }; };
+}
 /** a line or area series as drawn: its paths (one per run of values; an area's closed), stroke, marker, points */
 interface Trace { s: number; kind: "line" | "area"; axis: Axis; d: PathCmd[][]; stroke: LineSem | null; smooth: boolean; marker: MarkerSem | null; fill: string;
   /** per category of the chart: the point (null = a gap; an area's blank is drawn as zero and flagged `blank`: no label,
@@ -115,6 +121,10 @@ export interface SeriesLayout {
   /** a waterfall: each category's column (null = a gap), the up / down / total colours, the kinds its legend lists */
   fall: { steps: (Step | null)[]; colors: Record<StepKind, string>; legend: StepKind[] } | null;
   /** a waterfall's connectors (drawn under the data, as under the native chart) */ connectors: { x1: number; x2: number; y: number; line: LineSem }[];
+  /* 4.11 (B53) */
+  /** the frame the chart is laid out in (PowerPoint's chart space: a dragged point label's manualLayout is a fraction of it) */ frame: Box;
+  /** the title's drag offset, px */ titleNudge: { x: number; y: number };
+  /** the hits of the labels the stage can drag ("label", id "<item>|<key>"; on screen only) */ labelHits: Node[];
 }
 export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number;
   /** the Excel designs' template (ChartLook.trend): the lines' default width, areas as lines */ trend?: { w: number; areaAsLine: boolean } }
@@ -125,16 +135,25 @@ const kindOf = (s: SerData, dir: "col" | "bar"): Kind => dir === "bar" ? "bar" :
 /** a line point's label place, as PowerPoint names it (t / b / l / r / ctr; Excel's default for a line is right) */
 const linePos = (raw: unknown): "t" | "b" | "l" | "r" | "ctr" => raw === "above" || raw === "outEnd" ? "t" : raw === "below" || raw === "inBase" ? "b" : raw === "left" ? "l" : raw === "center" || raw === "inEnd" ? "ctr" : "r";
 const FLIP = { t: "b", b: "t", l: "r", r: "l", ctr: null } as const;
+/** (B53) a line point's "auto" label place: below a dip (both neighbours higher), else above */
+const autoPos = (vals: (number | null)[], i: number): "t" | "b" => {
+  const v = vals[i], nb = [vals[i - 1], vals[i + 1]].filter((x): x is number => typeof x === "number");
+  return v !== null && v !== undefined && nb.length > 0 && nb.every(x => x > v) ? "b" : "t";
+};
 
 /** where every part of a series chart goes inside its frame (the box less the card's padding) */
-export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle, id = ""): SeriesLayout | { why: "missing" | "empty"; source: string } {
+export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle, id = "", unit: { w: number; h: number } = frame): SeriesLayout | { why: "missing" | "empty"; source: string } {
   const data0 = seriesData(it, ctx);
   if (!data0.ok) return { why: data0.why, source: data0.source };
   // (S14.4: a scatter chart's series are all scatter series, on one pair of axes; a waterfall draws its first series)
   const scatter = it.type === "scatter", fall = it.type === "waterfall";
   const data = fall && data0.series.length > 1 ? { ...data0, series: data0.series.slice(0, 1) } : data0;
   const dir = it.type === "bar" ? "bar" : "col", mode: StackMode = !scatter && !fall && (it.stack === "stacked" || it.stack === "percent") ? it.stack : "none";
-  const look = axisLook(ctx), A = it.axes || {}, ser = data.series;
+  // (B53) an axis's bounds and major unit from cells, over the typed ones
+  const look = axisLook(ctx), A0 = it.axes || {}, ser = data.series, axIssues: string[] = [];
+  const A: typeof A0 = A0.y?.cells || A0.y2?.cells || A0.x?.cells ? { ...A0, y: axisFromCells(A0.y, ctx, "value", axIssues), y2: axisFromCells(A0.y2, ctx, "right", axIssues), x: axisFromCells(A0.x, ctx, "x", axIssues) } : A0;
+  const nudge = nudger(it, unit), screen = !ctx.forExport, labelHits: Node[] = [];
+  const hitOf = (key: string, b: Box) => { if (screen && id) labelHits.push({ t: "hit", kind: "label", id: `${id}|${key}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)), label: key }); };
   const colors = ser.map((s, k) => s.color || (k < sty.colors.length ? sty.colors[k] : sty.colors[k % sty.colors.length]));
   const kinds: Kind[] = ser.map(s => scatter ? "line" : fall ? "bar" : kindOf(s, dir));
   // the axis each series stands on: y2 only beside a y series (Excel's secondary axis needs a primary one)
@@ -156,9 +175,11 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const title = (typeof it.title === "string" ? it.title : ser.length === 1 ? ser[0].name : "").trim();
   const titleSt = withFmt(sty.ttl, it.titleFmt);
   let titleBox: Box | null = null, rule: SeriesLayout["rule"] = null;
+  const titleNudge = title ? nudge("title") : { x: 0, y: 0 };
   if (title) {
     const lh = lineH(titleSt), w = Math.min(W0, m.run(title, font(titleSt)).w), al = it.titleFmt?.align;
-    titleBox = { x: al === "left" ? X0 : al === "right" ? X0 + W0 - w : X0 + (W0 - w) / 2, y: Y0, w, h: lh };
+    titleBox = { x: (al === "left" ? X0 : al === "right" ? X0 + W0 - w : X0 + (W0 - w) / 2) + titleNudge.x, y: Y0 + titleNudge.y, w, h: lh };
+    hitOf("title", titleBox);
     area = { ...area, y: area.y + lh + 8, h: Math.max(10, area.h - lh - 8) };
     const rl = lineOrNone(it.titleRule, null);
     if (rl) { rule = { x1: X0, x2: X0 + W0, y: r2(Y0 + lh + 4 + rl.w / 2), line: rl }; area = { ...area, y: area.y + 8 + rl.w, h: Math.max(10, area.h - 8 - rl.w) }; }
@@ -201,7 +222,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // (B52) the reference lines (column, line, area and combo charts): their values from their cells, held by their axis's
   // scale; the room their labels take on the right
   const refOk = dir === "col" && !scatter && !fall, refIssues: string[] = [];
-  const refVals = refOk ? refValues(it, ctx, ser[0]?.fmt || "General") : [];
+  // (a cell in General, a typed value: in the format its axis's tick labels show – B53)
+  const refVals = refOk ? refValues(it, ctx, ax => (ax === "y2" && has2 ? P2 : P1).num) : [];
   if (!refOk && marksOf(it).some(([, k]) => k.kind === "ref" || k.kind === "gap" || k.kind === "change"))
     refIssues.push("reference lines, gap arrows and change pills are drawn on column, line, area and combo charts only");
   // (a 100 % axis shows shares: an absolute value has no place on it – the line, and a gap arrow to it, are not drawn)
@@ -221,10 +243,38 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const named = data.groups.length > 1 && data.groups.some(g => g.label) && dir === "col";
   let plot: Box, scale: Scale, tk: { v: number; text: string }[], skip = 1, y2: ValAxis | null = null, xAxis: SeriesLayout["xAxis"] = null;
   const mkTicks = (s: Scale, f: string) => ticks(s).map(v => ({ v, text: tickText(v, f) }));
+  /** what a line's labels above its points lack above the plot (px; the highest label's top less the point's distance from
+      the plot's top) – on the left axis */
+  const labelRoomAbove = (S: Scale, h: number) => {
+    let need = 0;
+    const span = S.max - S.min || 1;
+    ser.forEach((s, k) => {
+      if (kinds[k] !== "line" || scatter || axes[k] !== "y" || stackL.has(k)) return;
+      const L = s.src.labels;
+      if (!L || !Array.isArray(L.show) || !L.show.some(w => w === "value" || w === "name" || w === "category")) return;
+      const st = withFmt(sty.lab, L.fmt), mk = markers[k], rr = mk ? markerPx(mk) / 2 + 2 : (strokes[k]?.w ?? 2) / 2 + 2;
+      s.vals.forEach((v, i) => {
+        if (v === null) return;
+        const pp = s.src.points?.[String(i - s.start)];
+        if (pp && pp.label === null) return;
+        const q = pp && typeof pp === "object" && pp.pos ? linePos(pp.pos) : L.pos === "auto" ? autoPos(s.vals, i) : linePos(L.pos);
+        if (q === "t") need = Math.max(need, lineH(st) + rr - h * Math.max(0, S.max - v) / span);
+      });
+    });
+    return need;
+  };
   if (dir === "col") {
     const lh2 = val2Show ? lineH(val2St) : 0;
-    const top = area.y + (valShow || val2Show ? Math.ceil(Math.max(valShow ? vlh : 0, lh2) / 2) : 4), catH = catShow ? clh + 6 + (named ? clh + 4 : 0) : 0, h = Math.max(10, area.y + area.h - catH - top);
+    // (B53) change pills in a row under the category labels: their row's height below them
+    const pillRow = refOk ? Math.max(0, ...marksOf(it).filter(([, k]) => k.kind === "change" && k.pos === "below").map(([, k]) => pillRowH({ lab: sty.lab, withFmt }, k) + 4)) : 0;
+    let top = area.y + (valShow || val2Show ? Math.ceil(Math.max(valShow ? vlh : 0, lh2) / 2) : 4);
+    const catH = (catShow ? clh + 6 + (named ? clh + 4 : 0) : 0) + pillRow;
+    let h = Math.max(10, area.y + area.h - catH - top);
     scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent });
+    // (B53) a line's value label above its highest point stays inside the frame (not over the title): the plot's top
+    // comes down by what it lacks, measured on the label
+    const need = labelRoomAbove(scale, h) - (top - area.y);
+    if (need > .5) { top += need; h = Math.max(10, h - need); scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent }); }
     tk = mkTicks(scale, num);
     const yw = valShow ? Math.max(...tk.map(t => tw(t.text, valSt))) + 8 : 0;
     let y2w = 4;
@@ -233,13 +283,29 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
       if (val2Show) y2w = Math.max(...t2.map(t => tw(t.text, val2St))) + 8;
       y2 = { scale: s2, ticks: t2, num: P2.num, st: val2St, show: val2Show, grid: A.y2?.grid === true ? look.grid : null, percent: P2.percent };
     }
-    // (B52) the reference lines' labels after the plot's right end, and the gap arrows' labels past their last slot
+    // (B52) the reference lines' labels after the plot's right end, and the gap arrows' labels past their last slot – only
+    // the measured width of the labels that are there (B53: a gap's own difference, not a sample as wide as the line's value;
+    // a label on the arrow's left, or an arrow left of its point, takes none)
+    // (B53: no fixed margin – a label may reach the box's edge through the card's own padding when nothing stands beside
+    // the plot, and the right axis's 4 px gap is not added to the labels' room)
+    const padR = area.x + area.w >= frame.x + frame.w - .5 ? Math.max(0, (unit.w - frame.w) / 2) : 0;
     let room = 0;
-    for (const r of refVals) { const L = r.v !== null ? refLab(r) : null; if (L && L.pos === "right") room = Math.max(room, tw(L.text, L.st) + 8); }
-    const slot0 = Math.max(1, (area.w - yw - y2w - room) / N);
-    for (const [, k] of marksOf(it)) if (refOk && k.kind === "gap" && (k.pos || "right") === "right")
-      room = Math.max(room, gapLabelW(k, refVals.find(r => r.id === k.ref), sty.lab, withFmt, m) + Math.max(12, Math.min(36, slot0 * .25)) + 6 - slot0 / 2 - y2w);
-    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - y2w - room), h };
+    for (const r of refVals) { const L = r.v !== null ? refLab(r) : null; if (L && L.pos === "right") room = Math.max(room, tw(L.text, L.st) + 6 - padR); }
+    const slot0 = Math.max(1, (area.w - yw - (has2 ? y2w + room : Math.max(y2w, room))) / N);
+    for (const [, k] of marksOf(it)) if (refOk && k.kind === "gap") {
+      const R = refVals.find(r => r.id === k.ref), sid = k.a && "s" in k.a ? String(k.a.s) : ser[0]?.id, sk = ser.findIndex(x => x.id === sid);
+      if (!R || R.v === null || sk < 0) continue;
+      const S = ser[sk], at = k.a && "s" in k.a ? +k.a.i : -1;
+      let i = at >= 0 ? S.start + Math.floor(at) : -1;
+      if (at < 0) for (let j = S.vals.length - 1; j >= 0; j--) if (S.vals[j] !== null) { i = j; break; }
+      const v = i >= 0 ? S.vals[i] : null;
+      if (v === null || v === undefined) continue;
+      const side = k.pos === "left" ? -1 : 1, lside = k.labelSide === "left" ? -1 : k.labelSide === "right" ? 1 : side;
+      const ext = side * gapDx(slot0) + (lside > 0 ? 6 + gapLabelW(k, R, sty.lab, withFmt, m, v - R.v) : 0);
+      room = Math.max(room, (i + .5) * slot0 + ext - N * slot0 - y2w - padR);
+    }
+    const right = has2 ? y2w + room : Math.max(y2w, room);
+    plot = { x: area.x + yw, y: top, w: Math.max(10, area.w - yw - right), h };
     if (scatter) {
       // the numeric x axis: its labels centred on their ticks, the first and the last half outside the plot
       const X = xAxisOf(ser, A.x, plot.w, (f, S) => Math.max(...ticks(S).map(v => tw(tickText(v, f), catSt))));
@@ -363,7 +429,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     const pts: PointLabelSem[] = [];
     if (kinds[k] !== "bar") {
       // a line's or an area's labels: at the point (an area's in the middle of its band)
-      const tr = traces.find(t => t.s === k)!, area = tr.kind === "area", want = area ? "ctr" : linePos(L?.pos), rr = tr.marker ? markerPx(tr.marker) / 2 + 2 : (tr.stroke?.w || 2) / 2 + 2;
+      // (B53: "auto" – PowerPoint's series place above, each point's own where it differs)
+      const tr = traces.find(t => t.s === k)!, area = tr.kind === "area", semPos = area ? "ctr" : L?.pos === "auto" ? "t" : linePos(L?.pos), rr = tr.marker ? markerPx(tr.marker) / 2 + 2 : (tr.stroke?.w || 2) / 2 + 2;
       const placed: Box[] = [];
       tr.pts.forEach((p, i) => {
         if (!p) return;
@@ -371,6 +438,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         if (p.blank) { pts.push({ i, hide: true }); return; }
         const pp = s.src.points?.[String(i - s.start)];
         if (pp && pp.label === null) { pts.push({ i, hide: true }); return; }
+        const want = area ? "ctr" : pp && typeof pp === "object" && pp.pos ? linePos(pp.pos) : L?.pos === "auto" ? autoPos(tr.pts.map(x => x ? x.v : null), i) : semPos;
         // (a scatter point's "category" is its x, as Excel's X value)
         const text = pp && typeof pp.label === "string" ? pp.label : show.map(w => w === "value" ? valueText(i, p.v) : w === "name" ? s.name : w === "category" ? (scatter ? s.xTexts?.[i] : data.cats[i]) || "" : "").filter(t => t).join(", ");
         if (!text) { pts.push({ i, hide: true }); return; }
@@ -401,16 +469,20 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         // right → above, below – S14.3 review 9)
         if (hits(b, want)) {
           const f = area ? null : FLIP[want], cross = want === "l" || want === "r" ? ["t", "b"] as const : want === "ctr" ? [] as const : ["r", "l"] as const;
+          // (TODO-free note: the series' own place is kept where it fits; an "auto" one tries the other three alike)
           const alt = (f ? [f] : []).concat(area ? [] : cross);
           q = alt.find(x => !hits(boxAt(x), x)) ?? null; if (q) b = boxAt(q);
         }
         if (!q) { pts.push({ i, hide: true }); return; }
         placed.push(b);
-        labs.push({ s: k, i, text, x: b.x0, top: b.y, st, align: b.align, inside: false });
-        const ownText = !!pp && typeof pp.label === "string";
-        if (ownText || q !== want) pts.push({ i, ...(ownText ? { text } : {}), ...(q !== want ? { pos: q } : {}) });
+        // (B53) a dragged label: where it was dropped, from where the layout puts it
+        const key = `v:${s.id}:${i - s.start}`, o = nudge(key);
+        labs.push({ s: k, i, text, x: b.x0 + o.x, top: b.y + o.y, st, align: b.align, inside: false });
+        hitOf(key, { x: b.x + o.x, y: b.y + o.y, w: b.w, h: b.h });
+        const ownText = !!pp && typeof pp.label === "string", moved = o.x !== 0 || o.y !== 0;
+        if (ownText || q !== semPos || moved) pts.push({ i, ...(ownText ? { text } : {}), ...(q !== semPos ? { pos: q } : {}), ...(moved ? { dx: frac4(o.x / frame.w), dy: frac4(o.y / frame.h) } : {}) });
       });
-      labels.push({ show: show.filter((w): w is "value" | "name" | "category" => w === "value" || w === "name" || w === "category"), pos: area ? null : want, num: numFmt, font: fontSem(st), points: pts });
+      labels.push({ show: show.filter((w): w is "value" | "name" | "category" => w === "value" || w === "name" || w === "category"), pos: area ? null : semPos, num: numFmt, font: fontSem(st), points: pts });
       return;
     }
     const raw = L?.pos, wantB: Pos = raw === "inEnd" ? "inEnd" : raw === "center" ? "ctr" : raw === "inBase" || raw === "below" || raw === "left" ? "inBase" : raw === "outEnd" || raw === "above" || raw === "right" ? "outEnd" : mode === "none" ? "outEnd" : "ctr";
@@ -418,6 +490,9 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     const pos: Pos = mode !== "none" && wantB === "outEnd" ? "inEnd" : wantB;
     for (const b of bars.filter(b => b.s === k)) {
       const p = s.src.points?.[String(b.i - s.start)];
+      // (B53) the point's own place: above / right its outside end (inside end on a stack), below / left its inside base
+      const own0 = p && typeof p === "object" ? p.pos : undefined;
+      const bp: Pos = own0 === "center" ? "ctr" : own0 === "below" || own0 === "left" ? "inBase" : own0 === "above" || own0 === "right" ? (mode !== "none" ? "inEnd" : "outEnd") : pos;
       let text: string;
       if (p && p.label === null) { pts.push({ i: b.i, hide: true }); continue; }
       if (p && typeof p.label === "string") text = p.label;
@@ -428,7 +503,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         text = show.map(w => w === "value" ? valueText(b.i, b.v) : w === "name" ? s.name : w === "category" ? data.cats[b.i] || "" : w === "ofTarget" ? ofT() : tickText(share ?? 0, "0%")).filter(t => t).join(", ");
       }
       if (!text) { pts.push({ i: b.i, hide: true }); continue; }
-      let inside = pos !== "outEnd", white = inside && !own && lum(b.color) < .6, lst = white ? { ...st, color: "#FFFFFF" } : st;
+      let inside = bp !== "outEnd", white = inside && !own && lum(b.color) < .6, lst = white ? { ...st, color: "#FFFFFF" } : st;
       const w = tw(text, lst), lh = lineH(lst);
       // an inside label that does not fit its bar is left out (Excel would draw it over the edge)
       const len = dir === "col" ? b.h : b.w, across = dir === "col" ? b.w : b.h;
@@ -437,7 +512,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
       if (dir === "col") {
         x = b.x + b.w / 2;
         const up = b.dir === "up", end = up ? b.y : b.y + b.h, start = up ? b.y + b.h : b.y;
-        top = pos === "outEnd" ? (up ? end - lh - 2 : end + 2) : pos === "inEnd" ? (up ? end + 3 : end - lh - 3) : pos === "inBase" ? (up ? start - lh - 3 : start + 3) : b.y + (b.h - lh) / 2;
+        top = bp === "outEnd" ? (up ? end - lh - 2 : end + 2) : bp === "inEnd" ? (up ? end + 3 : end - lh - 3) : bp === "inBase" ? (up ? start - lh - 3 : start + 3) : b.y + (b.h - lh) / 2;
         // a waterfall's label stays inside the plot (S14.4 review 1): a decrease ending on the axis's minimum, an increase
         // up to its maximum would put it under the category labels or over the title – and PowerPoint drops a label
         // whose carrier point is outside the axis's bounds. It goes beyond the column's other end, else inside its end
@@ -445,8 +520,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         const lo = plot.y, hi = plot.y + plot.h - lh, ok = (t: number) => t >= lo - .01 && t <= hi + .01;
         if (fall && !ok(top)) {
           const flip = up ? start + 2 : start - lh - 2, inEnd = up ? end + 3 : end - lh - 3;
-          if (pos === "outEnd" && ok(flip)) top = flip;
-          else if (pos === "outEnd" && b.h >= lh + 4 && w <= b.w + 8 && ok(inEnd)) {
+          if (bp === "outEnd" && ok(flip)) top = flip;
+          else if (bp === "outEnd" && b.h >= lh + 4 && w <= b.w + 8 && ok(inEnd)) {
             top = inEnd; inside = true; white = !own && lum(b.color) < .6;
             if (white) lst = { ...st, color: "#FFFFFF" };
           } else top = Math.max(lo, Math.min(hi, top));
@@ -454,16 +529,18 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
       } else {
         top = b.y + (b.h - lh) / 2;
         const right = b.dir === "right", end = right ? b.x + b.w : b.x, start = right ? b.x : b.x + b.w;
-        if (pos === "ctr") x = b.x + b.w / 2;
-        else if (pos === "outEnd") { x = right ? end + 4 : end - 4; align = right ? "left" : "right"; }
-        else if (pos === "inEnd") { x = right ? end - 4 : end + 4; align = right ? "right" : "left"; }
+        if (bp === "ctr") x = b.x + b.w / 2;
+        else if (bp === "outEnd") { x = right ? end + 4 : end - 4; align = right ? "left" : "right"; }
+        else if (bp === "inEnd") { x = right ? end - 4 : end + 4; align = right ? "right" : "left"; }
         else { x = right ? start + 4 : start - 4; align = right ? "left" : "right"; }
       }
-      labs.push({ s: k, i: b.i, text, x, top, st: lst, align, inside });
+      const key = `v:${s.id}:${b.i - s.start}`, o = nudge(key), moved = o.x !== 0 || o.y !== 0;
+      labs.push({ s: k, i: b.i, text, x: x + o.x, top: top + o.y, st: lst, align, inside });
+      { const lw = tw(text, lst); hitOf(key, { x: (align === "center" ? x - lw / 2 : align === "right" ? x - lw : x) + o.x, y: top + o.y, w: lw, h: lineH(lst) }); }
       // PowerPoint: our own texts (a point's label; a share or an ofTarget, which a bar chart's labels cannot show) as
       // static text
       const ownText = (p && typeof p.label === "string") || show.includes("percent") || show.includes("ofTarget");
-      if (ownText || white) pts.push({ i: b.i, ...(ownText ? { text } : {}), ...(white ? { color: "#FFFFFF" } : {}) });
+      if (ownText || white || bp !== pos || moved) pts.push({ i: b.i, ...(ownText ? { text } : {}), ...(white ? { color: "#FFFFFF" } : {}), ...(bp !== pos ? { pos: bp } : {}), ...(moved ? { dx: frac4(o.x / frame.w), dy: frac4(o.y / frame.h) } : {}) });
     }
     labels.push({ show: show.filter((w): w is "value" | "name" | "category" | "percent" => w !== "ofTarget"), pos, num: numFmt, font: fontSem(st), points: pts });
   });
@@ -506,20 +583,26 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     // (a hidden series is not drawn: its marks are not either, and that is no mistake – no anchors, no Issues line)
     series: new Map([...Object.keys(it.sers || {}).map((k): [string, { anchors: (Anchor | null)[]; start: number }] => [k, { anchors: [], start: 0 }]), ...ser.map((s, k): [string, { anchors: (Anchor | null)[]; start: number }] => [s.id, { anchors: anchors[k], start: s.start }])]),
     vp: (v, ax) => ax === "y2" && !y2 ? null : vps[ax](v), ink: sty.ink, lab: sty.lab, withFmt, ...(xAxis ? { xp } : {}),
-    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refOff, refLabelX,
+    ...(refOk ? { targets: { plot, slot, ink: sty.ink, lab: sty.lab, withFmt, look: tlook, refs: new Map(refs.map(r => [r.id, r])), refOff, refLabelX, nudge, ground: { fill: look.card.fill, a: look.card.a },
+      ...(dir === "col" && catShow ? { below: r2(plot.y + plot.h + clh + 6 + (named ? clh + 4 : 0)) } : dir === "col" ? { below: r2(plot.y + plot.h + 4) } : {}),
       // (a stacked series' points stand on the stack's top, not on its own value: stacked)
       series: new Map(ser.map((s, k) => [s.id, { anchors: anchors[k], vals: s.vals, start: s.start, fmt: s.fmt, stacked: stackL.has(k) || (mode !== "none" && kinds[k] !== "line") }])) } } : {}),
   };
   const mk = markNodes(it, id, F, ctx, m);
   const extra = data0.series.slice(ser.length).map(s => `'${s.name}' is not drawn: a waterfall draws one series`);
-  const issues = [...data.issues, ...extra, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues];
+  if (screen) labelHits.push(...mk.labels);
+  // (B53 review) an axis's own max not above its min (typed, or a max below the automatic minimum): autoScale dropped it
+  for (const [nm, ax, S] of [["value", A.y, scale], ["right", A.y2, y2?.scale]] as const)
+    if (ax && S && typeof ax.max === "number" && Number.isFinite(ax.max) && ax.max !== S.max) axIssues.push(`the ${nm} axis's max (${ax.max}) is not above its min (${S.min}): automatic instead`);
+  const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
     hidden: ser.flatMap((s, k) => entries.some(e => e.key === s.id) ? [] : [k]),
     kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows, native: mk.native }, refs, refSpan,
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
-    fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null };
+    fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null,
+    frame, titleNudge, labelHits };
 }
 
 /** PowerPoint draws a chart's groups on the secondary axis over those on the primary one; the slide draws areas, then
@@ -572,8 +655,10 @@ export function arrowPlaces(L: SeriesLayout): number[] {
 export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics, sty: SeriesStyle): Node[] {
   const out: Node[] = [], { plot, dir, scale } = L, span = scale.max - scale.min || 1;
   if (L.title) {
-    const al = L.titleBox && L.titleBox.x <= frame.x + .01 && L.titleBox.w < frame.w - .01 ? "left" : L.titleBox && L.titleBox.x + L.titleBox.w >= frame.x + frame.w - .01 && L.titleBox.w < frame.w - .01 ? "right" : "center";
-    out.push(textNode(m, ellipsis(m, L.title, L.titleSt, frame.w), al === "left" ? frame.x : al === "right" ? frame.x + frame.w : frame.x + frame.w / 2, frame.y, L.titleSt, al));
+    const tx = L.titleBox ? L.titleBox.x - (L.titleNudge?.x || 0) : 0;
+    const al = L.titleBox && tx <= frame.x + .01 && L.titleBox.w < frame.w - .01 ? "left" : L.titleBox && tx + L.titleBox.w >= frame.x + frame.w - .01 && L.titleBox.w < frame.w - .01 ? "right" : "center";
+    const n = L.titleNudge || { x: 0, y: 0 };
+    out.push(textNode(m, ellipsis(m, L.title, L.titleSt, frame.w), (al === "left" ? frame.x : al === "right" ? frame.x + frame.w : frame.x + frame.w / 2) + n.x, frame.y + n.y, L.titleSt, al));
   }
   out.push(...cardNodes(L));
   const vpOf = (S: Scale) => { const sp = S.max - S.min || 1; return (v: number) => { const t = Math.max(0, Math.min(1, (v - S.min) / sp)); return dir === "col" ? plot.y + plot.h - t * plot.h : plot.x + t * plot.w; }; };
@@ -645,6 +730,8 @@ export function seriesNodes(L: SeriesLayout, id: string, frame: Box, m: Metrics,
     tr.pts.forEach((p, i) => { if (p && !p.blank) out.push({ t: "hit", kind: "point", id: `${id}:${s.id}:${i - s.start}`, x: r2(p.x - hs / 2), y: r2(p.y - hs / 2), w: hs, h: hs, label: `${s.name} · ${(L.xAxis ? s.xTexts?.[i] : L.data.cats[i]) || i + 1}: ${s.texts[i] || tickText(p.v, s.fmt)}` }); });
   }
   out.push(...L.marks.hits);
+  // (B53) the labels the stage drags (on screen only: none in an export's list)
+  if (L.labelHits) out.push(...L.labelHits);
   return out;
 }
 

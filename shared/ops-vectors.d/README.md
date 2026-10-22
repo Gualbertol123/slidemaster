@@ -7,7 +7,8 @@ its closing `]`). A later milestone adds its own `mNN.json`; a step built beside
 B49, a comment's border – `Note.frame` inside a slide's `notes` map; `b50.json`: B50, a comment in the macro's
 structure – `auto.mode: "macro"` and `auto.sections`; `b51.json`: B51, the contents slide's title and list in a free
 layout – boxes `c:title` / `c:toc` of a slide's `free` entry, format 6; `b52.json`: B52, a chart's reference lines, gap
-arrows and change pills – marks of kinds `ref` / `gap` / `change` and their keys, format 7).
+arrows and change pills – marks of kinds `ref` / `gap` / `change` and their keys, format 7; `b53.json`: B53, label
+places, labels dragged on the stage (`nudge`) and an axis's bounds from cells (`cells`), format 8).
 
 Each file is a JSON array of cases in the format of `shared/ops-vectors.json` (an operation case: `name`, `doc`, `ops`,
 `expect`; a fold case: `name`, `fold`, `expect`). `core/tests/vectors.ts` reads the main file and then every

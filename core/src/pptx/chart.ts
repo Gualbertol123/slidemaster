@@ -149,8 +149,11 @@ function barLabels(L: NonNullable<BarSerSem["labels"]>, face: (css: string) => s
   const pts = L.points.map(p => {
     if (p.hide) return `<c:dLbl><c:idx val="${p.i}"/><c:delete val="1"/></c:dLbl>`;
     const f = p.color ? { ...L.font, color: p.color } : L.font, at = p.pos ? posOf(p.pos) : pos;
-    if (p.text !== undefined) return `<c:dLbl><c:idx val="${p.i}"/>${rich(p.text, f, face)}${NONE_SP}${at}${flags(1, 0, 0)}</c:dLbl>`;
-    return `<c:dLbl><c:idx val="${p.i}"/>${numFmt}${NONE_SP}${txPr(f, face)}${at}${own}${sep}</c:dLbl>`;
+    // (B53) a label dragged on the stage: its offset from its place, as fractions of the chart space (CT_DLbl: c:layout
+    // right after c:idx)
+    const lay = p.dx || p.dy ? `<c:layout><c:manualLayout><c:x val="${frac(p.dx || 0)}"/><c:y val="${frac(p.dy || 0)}"/></c:manualLayout></c:layout>` : "";
+    if (p.text !== undefined) return `<c:dLbl><c:idx val="${p.i}"/>${lay}${rich(p.text, f, face)}${NONE_SP}${at}${flags(1, 0, 0)}</c:dLbl>`;
+    return `<c:dLbl><c:idx val="${p.i}"/>${lay}${numFmt}${NONE_SP}${txPr(f, face)}${at}${own}${sep}</c:dLbl>`;
   }).join("");
   return `<c:dLbls>${pts}${numFmt}${NONE_SP}${txPr(L.font, face)}${pos}${own}${sep}</c:dLbls>`;
 }

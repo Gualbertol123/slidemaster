@@ -181,7 +181,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
   const { base, lab, ttl } = stylesOf(it, ctx, look);
   // a series chart (4.7, S14.2: columns and bars) is laid out by chart-series.ts; a chart without series is a pie
   const frame = { x: x + look.pad, y: y + look.pad, w: Math.max(10, w - 2 * look.pad), h: Math.max(10, h - 2 * look.pad) };
-  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id) : null;
+  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id, { w, h }) : null;
   const data: ChartData = SL ? ("why" in SL ? { ok: false, source: SL.source, why: SL.why } : { ok: true, source: "", series: SL.title, slices: [] }) : chartData(it, ctx);
   const label = SL && !("why" in SL) ? SL.title : data.ok ? titleOf(it, data) : "";
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label } : {}) };
@@ -341,7 +341,7 @@ export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string
 function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook, m: Metrics): ChartSem | null {
   const { lab, ttl } = stylesOf(it, ctx, look), rk = ctx.style.radius / 100, pad = look.pad;
   const frame = { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) };
-  const L = seriesLayout(it, frame, ctx, m, seriesStyle(look, lab, ttl, rk));
+  const L = seriesLayout(it, frame, ctx, m, seriesStyle(look, lab, ttl, rk), "", { w: box.w, h: box.h });
   if ("why" in L) return null;
   const bars = seriesSem(L), first = bars.series[0];
   // (S14.6: the arrow and line marks as line shapes with native ends over the chart – chart-overlay.ts)

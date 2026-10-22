@@ -15,12 +15,13 @@ import { ctx, style } from "../state/app";
 import type { ChartAxis, ChartItem, DataRef, ItemPatch, LegendAt, LineOrNone, SeriesType } from "@slide-builder/core/model/types";
 import { chartLook } from "@slide-builder/core/render/chart-dl";
 import { seriesData } from "@slide-builder/core/render/chart-data";
+import { legendAtOf } from "@slide-builder/core/render/chart-legend";
 import { refText, selectItem } from "../editor/charts";
 import type { ItemSel } from "../state/store";
 import { isConsult } from "@slide-builder/core/model/designs";
 import {
   COMBO_TYPES, addMarkPatch, allGroups, allSeries, axisPatch, groupPatch, labelsPatch, legendAtPatch, legendHidePatch, markAtText,
-  markFits, markPatch, moveSeriesPatch, numOrNull, pointPatch, removeGroupPatch, removeMarkPatch, removeSeriesPatch, seriesPatch, stackPatch, type ChartRefWhat, type MarkKind, type PointSet,
+  markFits, markPatch, moveSeriesPatch, numOrNull, pointPatch, removeGroupPatch, axisCellPatch, nudgeResetPatch, removeMarkPatch, removeSeriesPatch, seriesPatch, stackPatch, type ChartRefWhat, type MarkKind, type PointSet,
 } from "../editor/chart-panel";
 import { chartChange } from "../editor/chart-send";
 import { Input } from "./Input";
@@ -30,7 +31,9 @@ import { ChartTargets } from "./ChartTargetsPanel";
 const LEGEND_AT: [LegendAt, string][] = [["right", "Right"], ["left", "Left"], ["top", "Top"], ["bottom", "Bottom"], ["top-right", "Top right"], ["inside-tl", "Inside, top left"], ["inside-tr", "Inside, top right"], ["none", "None"]];
 const LABEL_SHOW = [["value", "Values"], ["name", "Series"], ["category", "Categories"], ["percent", "Shares"], ["ofTarget", "% of target"]] as const;
 const POS_BAR = [["", "Default"], ["outEnd", "Outside end"], ["inEnd", "Inside end"], ["center", "Centre"], ["inBase", "Inside base"]] as const;
-const POS_LINE = [["", "Default (right)"], ["above", "Above"], ["below", "Below"], ["left", "Left"], ["right", "Right"], ["center", "Centre"]] as const;
+const POS_LINE = [["", "Default (right)"], ["auto", "Auto (avoid overlaps)"], ["above", "Above"], ["below", "Below"], ["left", "Left"], ["right", "Right"], ["center", "Centre"]] as const;
+/** (B53) a point's own label place */
+const POS_POINT = [["", "As the series'"], ["above", "Above"], ["below", "Below"], ["left", "Left"], ["right", "Right"], ["center", "Centre"]] as const;
 const MARKERS = ["", "circle", "square", "diamond", "triangle", "none"] as const;
 const DIVIDERS = [["none", "No line"], ["solid", "Line"], ["dashed", "Dashed"], ["dotted", "Dotted"]] as const;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -121,11 +124,11 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
     {cur && sel.point && !stalePoint && <PointBox c={c} sid={cur[0]} i={sel.point.i} fall={fall} line={typeOf(cur[1].type) === "line" || scatter} set={set} />}
 
     <details className="sec" id="chartAxes"><summary>Axes</summary>
-      {(scatter ? ["x", "y"] : usesY2 ? ["y", "y2", "x"] : ["y", "x"]).map(ax => <AxisRow key={ax} c={c} ax={ax as "x" | "y" | "y2"} cat={ax === "x" && !scatter} grid={ax === "y" && !isConsult(design)} set={set} />)}
+      {(scatter ? ["x", "y"] : usesY2 ? ["y", "y2", "x"] : ["y", "x"]).map(ax => <AxisRow key={ax} c={c} id={id} ax={ax as "x" | "y" | "y2"} cat={ax === "x" && !scatter} grid={ax === "y" && !isConsult(design)} set={set} />)}
     </details>
 
     <details className="sec" id="chartLegend"><summary>Legend</summary>
-      <div className="row"><span className="lbl">Place</span><select id="chartLegendAt" value={c.legendAt || (c.legend === "bottom" ? "bottom" : c.legend === "none" ? "none" : "right")} onChange={e => set("Chart legend", legendAtPatch((e.target as HTMLSelectElement).value as LegendAt))}>
+      <div className="row"><span className="lbl">Place</span><select id="chartLegendAt" value={legendAtOf(c)} onChange={e => set("Chart legend", legendAtPatch((e.target as HTMLSelectElement).value as LegendAt))}>
         {LEGEND_AT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
       <div className="row hides">{(fall ? [["up", "Increase"], ["down", "Decrease"], ["total", "Total"]] as [string, string][] : sers.filter(([, s]) => !s.hide).map(([sid, s]): [string, string] => [sid, typeof s.name === "string" && s.name ? s.name : sid]))
         .map(([key, l]) => <label key={key} className="chk"><Input type="checkbox" data-hide={key} checked={!c.legendHide?.[key]} onCommit={e => set("Legend entry", legendHidePatch(key, !(e.target as HTMLInputElement).checked))} />{l}</label>)}</div>
@@ -161,6 +164,10 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
         {k === "arrow" ? "+ Arrow from the floor" : k === "icon" ? "+ Icon above" : k === "text" ? "+ Text above" : k === "line" ? "+ Line to the next" : "+ Band to the next"}</button>; })}</div>
     </details>
 
+    {/* (B53) labels dragged on the stage: how many, and all back at their places in one step */}
+    <div className="row"><span className="lbl">Moved labels</span><span className="note" id="chartNudgeN">{Object.keys(c.nudge || {}).length || "none"}</span>
+      <button className="btn small" id="chartNudgeReset" disabled={!Object.keys(c.nudge || {}).length} title="Every label dragged on the slide back where the chart puts it" onClick={() => set("Labels back in place", nudgeResetPatch())}>Reset</button>
+      <span className="note">Drag a label on the slide to move it.</span></div>
     <div className="row"><label className="chk"><Input type="checkbox" id="chartFrame" checked={!!c.frame && c.frame !== "none"} onCommit={e => set("Chart frame", { frame: (e.target as HTMLInputElement).checked ? { color: "#D9D9D9", w: 1 } : null })} />Frame</label>
       <label className="chk"><Input type="checkbox" id="chartRule" checked={!!c.titleRule && c.titleRule !== "none"} onCommit={e => set("Title rule", { titleRule: (e.target as HTMLInputElement).checked ? { w: 1.5 } : null })} />Line under the title</label></div>
   </div>;
@@ -187,11 +194,13 @@ function PointBox({ c, sid, i, fall, line, set }: { c: ChartItem; sid: string; i
       {(p.color || p.marker) && <button className="btn small" data-a="preset" title="The series' colours again" onClick={() => set("Point colour of the series", pointPatch(c, sid, i, { color: null, marker: null }))}>↺</button>}</div>
     <div className="row"><span className="lbl">Label</span><Field className="nm" data-a="plabel" title="This point's own label (empty = as the series')" placeholder="As the series'" value={typeof p.label === "string" ? p.label : ""} onCommit={v => set("Point label", pointPatch(c, sid, i, { label: v.trim() ? v : undefined }))} />
       <label className="chk"><Input type="checkbox" data-a="pnolabel" checked={p.label === null} onCommit={e => set((e.target as HTMLInputElement).checked ? "Hide point label" : "Show point label", pointPatch(c, sid, i, { label: (e.target as HTMLInputElement).checked ? null : undefined }))} />No label</label></div>
+    {line && <div className="row"><span className="lbl">Place</span><select data-a="ppos" title="This point's label place (B53)" value={p.pos || ""} onChange={e => set("Point label place", pointPatch(c, sid, i, { pos: (e.target as HTMLSelectElement).value || null }))}>
+      {POS_POINT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>}
     {fall && <div className="row"><label className="chk"><Input type="checkbox" data-a="ptotal" checked={p.total === true} onCommit={e => set("Waterfall total", pointPatch(c, sid, i, { total: (e.target as HTMLInputElement).checked || null }))} />A total (stands on the axis)</label></div>}
   </div>;
 }
 
-function AxisRow({ c, ax, cat, grid, set }: { c: ChartItem; ax: "x" | "y" | "y2"; cat: boolean; grid: boolean; set: (l: string, p: ItemPatch | null) => void }) {
+function AxisRow({ c, id, ax, cat, grid, set }: { c: ChartItem; id: string; ax: "x" | "y" | "y2"; cat: boolean; grid: boolean; set: (l: string, p: ItemPatch | null) => void }) {
   const A: ChartAxis = c.axes?.[ax] || {}, name = ax === "x" ? (cat ? "Categories" : "X axis") : ax === "y" ? "Left axis" : "Right axis";
   const up = (label: string, p: Partial<Record<keyof ChartAxis, unknown>>) => set(`${name}: ${label}`, axisPatch(c, ax, p));
   return <div className="axis" data-ax={ax}>
@@ -199,9 +208,13 @@ function AxisRow({ c, ax, cat, grid, set }: { c: ChartItem; ax: "x" | "y" | "y2"
       {!cat && <label className="chk"><Input type="checkbox" data-a="grid" checked={A.grid ?? grid} onCommit={e => up("gridlines", { grid: (e.target as HTMLInputElement).checked })} />Gridlines</label>}</div>
     {/* (4.10.2) Min / Max / Step: three equal columns, each label above its box – tidy at any panel width */}
     {!cat && <div className="mms">
-      <label><span className="lbl">Min</span><Num value={A.min} title="The axis's minimum" onCommit={v => up("minimum", { min: v })} /></label>
-      <label><span className="lbl">Max</span><Num value={A.max} title="The axis's maximum" onCommit={v => up("maximum", { max: v })} /></label>
-      <label><span className="lbl">Step</span><Num value={A.step} title="The step between its labels" onCommit={v => up("step", { step: v === null || v > 0 ? v : null })} /></label></div>}
+      <label><span className="lbl">Min</span><Num value={A.min} title="The axis's minimum (empty = automatic)" onCommit={v => up("minimum", { min: v })} /></label>
+      <label><span className="lbl">Max</span><Num value={A.max} title="The axis's maximum (empty = automatic)" onCommit={v => up("maximum", { max: v })} /></label>
+      <label><span className="lbl">Step</span><Num value={A.step} title="The step between its labels (empty = automatic)" onCommit={v => up("step", { step: v === null || v > 0 ? v : null })} /></label>
+      {/* (B53) each from a cell: over the typed number, following the workbook */}
+      {(["min", "max", "step"] as const).map(k => { const r = A.cells?.[k]; return <span key={k} className="mmcell" data-cell={k}>
+        {r ? <><code title={"From " + refText(r)}>{refText(r)}</code><button className="btn small" data-a={"nocell-" + k} title="Typed (or automatic) again" onClick={() => set(`${name}: ${k} typed`, axisCellPatch(c, ax, k, null))}>×</button></>
+          : <button className="btn small" data-a={"cell-" + k} title={`The ${k === "step" ? "step" : k + "imum"} from a cell: it follows the workbook, a reload and a scenario`} onClick={() => pick(id, { what: "axis", ax, key: k })}>Cell…</button>}</span>; })}</div>}
     {!cat && <div className="row"><span className="lbl">Format</span><Field className="nm" data-a="num" title="Its number format, as Excel writes it (#,##0 · 0.0% …); empty = its cells'" placeholder="As the cells" value={A.num || ""} onCommit={v => up("number format", { num: v.trim() || null })} /></div>}
   </div>;
 }

@@ -33,3 +33,16 @@ export function chartHitAt(nodes: DisplayList, item: string, x: number, y: numbe
 export function selectedHit(nodes: DisplayList, item: string, sel: { point?: { s: string; i: number } | null; mark?: string | null }): ChartHit | null {
   return chartHits(nodes, item).find(h => sel.mark ? h.mark === sel.mark : !!sel.point && !!h.point && h.point.s === sel.point.s && h.point.i === sel.point.i) ?? null;
 }
+/** (B53) the draggable label under (x, y) – a "label" hit, id "<item>|<key>" – the smallest box first */
+export function labelHitAt(nodes: DisplayList, item: string, x: number, y: number, M: Matrix = [1, 0, 0, 1, 0, 0]): { key: string; box: ChartHit["box"] } | null {
+  let best: { key: string; box: ChartHit["box"] } | null = null;
+  for (const n of nodes) {
+    if (n.t === "group") { const h = labelHitAt(n.children, item, x, y, n.transform ? mul(M, n.transform) : M); if (h && (!best || h.box.w * h.box.h < best.box.w * best.box.h)) best = h; continue; }
+    if (n.t !== "hit" || n.kind !== "label" || !n.id.startsWith(item + "|")) continue;
+    const xs = [n.x, n.x + n.w].map(v => M[0] * v + M[4]), ys = [n.y, n.y + n.h].map(v => M[3] * v + M[5]);
+    const box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]), h: Math.abs(ys[1] - ys[0]) };
+    if (x < box.x || x > box.x + box.w || y < box.y || y > box.y + box.h) continue;
+    if (!best || box.w * box.h < best.box.w * best.box.h) best = { key: n.id.slice(item.length + 1), box };
+  }
+  return best;
+}
