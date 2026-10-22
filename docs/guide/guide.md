@@ -1,20 +1,11 @@
 # Slide Builder 4 – the guide
 
 For the team: the people who make the decks, the product owner and the maintainer.
-Program version 4.6.0 (`helper/slidebuilder/__init__.py`): everything of 4.1–4.6, which reach the shared folder together
-as 4.6. Written on 21 October 2026. Every picture is a screenshot of the program, taken on the test workbooks of the
-repository.
-
-<!-- Placeholders for the parts being merged after 4.6 (a later pass fills them in, here and in guide.html; each is an
-     HTML comment of exactly these words where its text goes):
-     "4.7: charts"                            part 4, Charts – M14: the new chart kinds (CHANGELOG 4.7.0)
-     "4.8: lines, icons, snapping"           part 4, Shapes and icons / Free layout – M15 (CHANGELOG 4.8.0)
-     "4.9: tables"                           part 3, three places: Slides (the slide list's Delete slide / Duplicate
-                                               slide, Q12), Cells (per-cell number display – decimals −/+, %, thousands –
-                                               and vertical alignment, Q9; the painter on a multi-selection, Q19) and
-                                               Tables (the same for whole tables)
-     "template, comments B48–B50"            part 3, Automated comments and Designs – the ISP template for Excel and
-                                               Excel Refined (B48), comment borders (B49), the macro comments (B50) -->
+Program version 4.9.0: everything of 4.1–4.6 (which reached the shared folder together as 4.6), 4.7 (charts, the Intesa
+Sanpaolo template, the macro's comments), 4.8 (lines, icons, snapping) and 4.9 (tables). Written on 22 October 2026. Every
+picture is a screenshot of the program, taken on the test workbooks of the repository (those of 4.6; the parts of 4.7–4.9
+have none yet). From 4.8 the toolbar buttons show line icons in place of the symbols this guide prints (✦ ↻ ⚙ ⤺ 🗑 …);
+their words and tooltips are the same.
 
 ---
 
@@ -141,7 +132,10 @@ to the deck, keyed by sheet and cell; the workbook is not touched.
   (PDF, PNG of every slide, PowerPoint, every version × design, Run for each value); page numbers and the index count
   only the slides shown. Exporting or copying the current slide still exports a hidden one. Hidden in Glass, a slide
   still shows in Navy. One undo step each.
-<!-- 4.9: tables -->
+* **Duplicate slide, Delete slide** (4.9): right-click a slide › *Duplicate slide* puts a copy right after it (tables,
+  texts, formats, charts, callouts, free layout, looks, hidden designs) and shows it. *Delete slide* – or Delete on a slide
+  selected in the list – asks first; its tables stay in the deck (*Add table ▾* puts them back). The cover and the
+  contents slide are not duplicated; a deck keeps at least one slide. One undo step each.
 
 ### The text toolbar (first row)
 One toolbar for any text: cells, a text box, the notes section, the title, subtitle, cover note or date. The grey
@@ -163,12 +157,20 @@ middle / bottom for text boxes; *Clear format*; *Format* (the format painter); *
   in Excel)* brings the workbook's borders back. They change the slide only. Excel, Refined and the consulting designs'
   ruled tables draw them; Glass and the other consulting table styles draw no borders.
 * **Format painter** (*Format*): click it, then click or drag over cells to copy size, bold, italic, colours,
-  highlight, alignment, role, conditional formats, colour scales, and the gridlines and borders set on the slide.
-  Double-click keeps it on; Esc stops.
+  highlight, alignment and vertical alignment, number display, role, conditional formats, colour scales, and the
+  gridlines and borders set on the slide (a date keeps its date format). Double-click keeps it on; Esc stops. **Several
+  at once** (4.9): Ctrl+click or Ctrl+drag ranges of any table of the slide, then let go of Ctrl – all are painted, one
+  undo step. With a chart, callout, icon or line selected it copies that object's look (never its data, text or place)
+  onto others of its kind.
 * **Formula bar.** The name box shows the cell; type there and press Enter. *↺ Excel value* goes back to the
   workbook's own text. A text you typed applies only while Excel's value stays the same; if the figure changes in
   the workbook, your text pauses and the Issues panel says so.
-<!-- 4.9: tables -->
+* **Number display** (4.9, text toolbar): *Fewer decimals*, *More decimals*, *Percent (on / off)*, *Thousands separator
+  (on / off)* change how the selected cells show their numbers, over Excel's format; *Clear format* goes back to it.
+  Top / middle / bottom now place a cell's text too. Ctrl+click several ranges: the text toolbar changes them all.
+* **Excel's conditional formats** (4.9) are drawn in every design as Excel shows them: colour scales, data bars, icon
+  sets, top / bottom, above / below average, duplicates, text, dates and formula rules. In PowerPoint the bars and
+  icons are shapes grouped with the real table. What is still not reproduced is named in the Issues panel.
 
 ### Tables
 * **W / H** set the width of the selected columns and the height of the rows in pixels; *Excel size* goes back to
@@ -193,8 +195,16 @@ middle / bottom for text boxes; *Clear format*; *Format* (the format painter); *
   selection; green for positive / red for negative, or low red → high green; on the cell colour or the number colour;
   reverse; with a preview. Scales are listed and can be removed with ✕.
 
+* **Hide ▾** (4.9, ribbon 2): *Hide rows*, *Hide columns* – the selected ones, on this slide only: the table closes up
+  there and in every export; the workbook is not changed. A thin double mark shows the gap – a click unhides it –, and
+  *Unhide all on this table*. Totals stay Excel's ("Σ incl. hidden rows", on screen only); a chart of that table on
+  the slide skips the hidden rows.
+* **For this version ▾** (4.9, ribbon 2, with a version chosen in the top bar): *Delete rows*, *Delete columns* – that
+  version leaves them out and its tables close up; the full deck and the other versions keep them –, *Empty cells*
+  (as the wizard's *Remove*), *Restore selection*, *Restore all of "…"*. Wizard step 4 has *Delete rows* and *Delete
+  columns* too (struck through on the sheet, ✕ restores). A table keeps at least one row and column. One undo step each.
+
 Table sizes belong to the design they were made in: a table can be wide in Glass and narrow in Excel.
-<!-- 4.9: tables -->
 
 ### Text boxes and the notes section
 * **Text box ↑ ↓ ← →** adds a box above, below, left or right of the selected table and opens it for writing. On the
@@ -212,16 +222,24 @@ Table sizes belong to the design they were made in: a table can be wide in Glass
 ### Automated comments (✎ Comment…)
 A comment written from the table's own numbers, in the style of an analyst. It is rewritten every time the slide is
 drawn, so it follows new figures, your edits and the version you look at.
-* *Summary* (default): one paragraph per block of the table, e.g. "Total Banks Loans: +192 mln (+0,2%) w/w · −43 mln
+* *Report – as the macro* (the default for a new comment): the Budget Performance / Weekly Momentum bullets as the
+  Excel macro writes them – top contributors, concentration ("largely driven by …"), the downside, an alert.
+* *Summary – short, joint*: one paragraph per block of the table, e.g. "Total Banks Loans: +192 mln (+0,2%) w/w · −43 mln
   vs Budget… Slightly positive week, driven by BIB (+36 mln) and ISP RO (+36 mln)."
-* *Detailed*: one section per comparison found in the headers.
+* *Detailed – one section per comparison* found in the headers.
 * Options: which tables; which comparisons to join (Budget, previous week, end of month, quarter, beginning of
   year…); title, names at the start, bullets; length; how many names per side; ignore movements below a value; the
   unit after amounts (default "mln"); what the rows are (countries, banks…); which rows to include; where it goes
   (beside all tables, or above / below / left / right of this table), its width, a bubble. A live preview shows the
   result. *Insert comment* (greyed while no comparison is found), later *Update*; *Remove comment*.
 * If you edit a comment's text by hand it becomes ordinary fixed text; *Update* never overwrites a text you typed.
-<!-- template, comments B48–B50 -->
+* **Sections** (4.7, as the macro): tick the comparisons to write, ↑ ↓ to order them. Each has *Include* – *Always*,
+  *Only in the last week of the month*, *Only in the first week of the month* or *Only from day … of the month* (e.g.
+  vs monthly Budget only at month end), judged by the latest period's date in the headers ("written on" / "left out
+  on" that date) –, *Alert at* (−5 % vs Budget, −1 % otherwise), a *Heading*, and *YoY clause*, *Concentration*,
+  *Downside bullet*, *Alert sentence*. Comments written before 4.7 keep their text until you switch them.
+* **Border** (4.7): *Thickness* – *Design*, *None* or 0.5–3 px – and *Colour* – *Auto* (the design's; in Excel and
+  Refined the template's grey), a swatch or any colour.
 
 ### Designs
 * **Glass**, **Excel**, **Refined** as in part 1.
@@ -236,7 +254,10 @@ drawn, so it follows new figures, your edits and the version you look at.
   (band, tint, white), and the KPI line's or panel's font, size, bold and colour from the text toolbar. A change applies
   to the current slide (a dot marks a part the slide sets itself); *Apply to all* makes it the deck's; *Deck's* brings the
   slide back to the deck's look. One undo step each.
-<!-- template, comments B48–B50 -->
+* **Excel and Refined follow the Intesa Sanpaolo template** (4.7): the cover's blue band, the logo above the title (26 pt
+  bold blue, the subtitle grey), the page number top right (on unless the deck turned it off; none on the cover), the
+  logo bottom right, Century Gothic, the contents slide, tilted-square bullets, outlined boxes, the template's colours.
+  Long titles shrink before they are cut. Glass, Navy and Red are unchanged.
 
 ### Design… – themes, colours, text styles, fonts
 * **Apply to:** *This design only* or *All designs*: each design can have its own look.
@@ -301,7 +322,27 @@ snapping), drag its corner to resize it, Del removes it – one undo step each. 
 labels (names, values, percent); the legend (right, below, none); the title (from the data, or your own); a colour for
 each slice (↺ back to the design's); *Change the cells…*; where its numbers come from; *Delete chart*. Each design draws
 it in its own look. Labels sit inside a slice when they fit, else outside with a leader line.
-<!-- 4.7: charts -->
+
+**Chart types (4.7).** The panel's *Type*: Pie, Donut, Column, Bar, Line, Area, Combo, Scatter, Waterfall (a pie becomes
+a chart of its own numbers, and can go back). *Stack*: *Side by side*, *Stacked*, *100 %*; *Gap* and *Overlap* as in Excel.
+* **Series.** *+ Add series…* takes more cells in the sheet view – any sheet, a linked workbook. Each series: its colour
+  (↺ the design's again), its name (typed, or *From a cell…*), ↑ ↓, ×; ▸ opens *Numbers*, *X values* (scatter), *Type*
+  (combo) and *Axis* (*Left* / *Right*: a second value axis), *Target* (columns and bars: the target outlined over the
+  value, labelled "97 %"), a smoothed line and markers, labels (value, name, category, percent) and their place,
+  *Hidden (kept, not drawn)*. Hidden rows are left out; a blank cell is a gap in a line, zero in an area.
+* **Points and marks.** Click a point (a ring shows it): its colour, marker colour and label; in a waterfall *A total
+  (stands on the axis)*. At that point, *Marks*: *+ Arrow from the floor*, *+ Icon above*, *+ Text above* (it can quote
+  `{Sheet!C7}`), *+ Line to the next*, *+ Band to the next* – they follow the data.
+* **Axes** (*Min*, *Max*, *Step*, *Format*; empty = Excel's automatic), *Gridlines*; the **legend** (Right, Left, Top,
+  Bottom, Top right, inside, None; single entries hidden); **Category groups** (*+ Add category group…*: e.g. the weeks,
+  then the month-end targets, with a divider and their names under the axis); *Frame*, *Line under the title*.
+* **Waterfall**: steps on the running total in the design's positive and negative colours (Increase / Decrease /
+  Total). **Scatter**: points at their x and y, an optional line.
+* **Colours.** A chart starts in its design's colours and follows the design you switch to (Excel and Refined: the
+  template's chart colours, 2 pt lines, areas as lines). A colour you set for a series, point or slice stays in every
+  design; ↺ gives back the design's.
+* Each change is one undo step; two people changing two series both keep theirs. A stack per series is not offered:
+  PowerPoint stacks a whole chart.
 
 ### Shapes and icons (callouts)
 *Insert shape ▾* adds a rectangle, rounded rectangle, pill, circle, arrow or speech bubble, or one of 17 icons. Double-
@@ -310,7 +351,19 @@ the cell as the workbook formats it, and follows reloads and scenarios (`{'Sheet
 `{[Peers.xlsx]Peer!F7}` for a linked workbook). With a shape selected, ribbon 2 sets its fill, border (colour, weight,
 dashed, dotted, none) and text (size, bold, colour, alignment). Without a fill of its own a shape takes the design's
 material (glass, a framed box, a card).
-<!-- 4.8: lines, icons, snapping -->
+
+**Icons (4.8).** *Insert shape ▾ › More icons…*: about 6,200 icons (Tabler Icons), searched by name in English or
+Italian – "banca", "obiettivo", "freccia su", "stretta di mano" –, *Outline* or *Filled*, by category or *Recent*, in
+the colour, size and line chosen there (no internet needed). A selected icon has *Change icon…*, its size and line
+width. An icon this version does not have shows an info icon (i) and an Issues line.
+
+**Lines (4.8).** *Insert line ▾*: line, arrow, double arrow, elbow, curve, bracket, range marker, limiter, divider,
+callout line. Drag the line to move it, its round handles to move its ends (Shift: straight, 45° or upright), the
+middle handle for an elbow's bend or a curve. **Hold Ctrl while dragging an end** to attach it to a table, text box,
+shape or icon: it follows that object, in every design; *Detach* frees both ends. The ribbon sets the kind (*Straight*,
+*Elbow*, *Curve*, *Bracket*, *Range marker*), colour, weight and style, each end (*None*, *Open arrow*, *Arrow*, *Stealth
+arrow*, *Dot*, *Diamond*, *Tick (limiter)*) and a label, which can quote `{Sheet!C7}`. When an attached object is
+deleted the end stays: "Line n: its end lost its object".
 
 ### Free layout
 *Free layout* (ribbon 2) switches the current slide, in the current design, to a layout where every table, text box,
@@ -320,7 +373,12 @@ proportions); drag a text box, chart or shape by its body to move it and by an e
 other boxes' edges, the content area and the slide's middle – hold Alt for no snapping. *Reset layout* (or *Free
 layout* again) asks "Back to automatic layout?"; your free places are kept and come back when you switch it on again.
 Each design has its own free layout. One undo step each.
-<!-- 4.8: lines, icons, snapping -->
+
+**Snapping (4.8)** – for every object in every layout: moving or sizing a table (free layout), text box, chart, shape,
+icon or line lines it up with the slide's edges, centre lines and margins, the other objects' edges and centres, the
+tables' column and row borders and other lines' ends, each shown in pink; it offers equal gaps (marked in px) and, when
+resizing, another object's width or height. Hold Alt for none. The guides are on screen only; an object stays exactly
+where it is dropped, in the PDF and PowerPoint too.
 
 ---
 
@@ -369,8 +427,10 @@ Each design has its own free layout. One undo step each.
 (`<value> - <version> - <design>.pdf` with versions). Pictures in a PDF add " (images)". A name in use gets " (2)".
 
 **PowerPoint.** Titles, subtitles, footers and page numbers are the layout's placeholders; every table is a real
-PowerPoint table; pie and donut charts are PowerPoint charts with their data (*Edit Data* works); shapes hold their
-text; the workbook's pictures and the logo are pictures; everything else – Glass's cards and capsules, the consulting
+PowerPoint table; every chart (column, bar, line, area, scatter, combo on two axes, waterfall, pie, donut) is a
+PowerPoint chart with its data (*Edit Data* works; its numbers use the separators of the PC that opens it, the slide's are
+the workbook's); a chart's arrows and lines are PowerPoint lines; icons are editable shapes and lines are line shapes with
+PowerPoint's arrowheads (not attached there); shapes hold their text; the workbook's pictures and the logo are pictures; everything else – Glass's cards and capsules, the consulting
 designs' bars and rules – is editable shapes. Each file has a slide master and one layout per kind of slide (cover,
 contents, content), with the design's colours and fonts. No connector shapes, no links outside the file. Positions and
 sizes are the slide's, so it looks like the PDF; PowerPoint draws a chart's labels and pie size and its shadows its own
@@ -508,6 +568,7 @@ not know. Never delete this file.
 | Callout 1: Nowhere!B2 not found (shown as #REF) | the quoted cell's sheet is gone: quote the cell again |
 | N objects of a newer Slide Builder … | this window is an older version: close the black window and start Slide Builder again |
 | Picture(s) … that could not be read / conditional formats not reproduced | that element is left out |
+| Line n: its end lost its object | its object was deleted: attach the end again (Ctrl) |
 | N edited cells · M text edits paused | Excel's value changed under your text (new figures or rows inserted); check and retype |
 | Logo "logo.png" not found in the folder | choose the logo again in ⚙ Options |
 | Linked workbook "…" not found in the folder | put the file back in the folder |
@@ -563,7 +624,7 @@ not know. Never delete this file.
 | version | the same deck with some cells removed, for another audience (e.g. Chief, All) |
 | design | how tables are drawn: Glass (Liquid Glass), Excel, Refined (Excel Refined), Navy (Consulting Navy), Red (Consulting Red) |
 | look | in Navy and Red, how tables and the headline are drawn (exhibit, cards, ruled; KPI line, panel…), per slide or the deck's |
-| chart | a pie or donut drawn from cells of the workbook; it follows the workbook |
+| chart | a pie, column, line, waterfall… drawn from cells of the workbook; it follows the workbook |
 | shape | a rectangle, pill, arrow, bubble… or an icon with text, which can quote a cell as `{Sheet!C7}` (a callout) |
 | free layout | a slide whose tables, boxes, charts and shapes stay where you dragged them, in one design |
 | hidden slide | a slide left out of a design's exports, page numbers and index, still in the list (grayed) |

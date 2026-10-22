@@ -11,10 +11,10 @@
      Pictures: screenshots taken with Playwright on a temp folder holding tests/corpus/workbooks/weekly.xlsx, deck20.xlsx
      and recalc/Banks.xlsx + Peers.xlsx, at 1500 × 900: those of 4.0–4.2 by hand (branch docs/guide, from v4/M7-recalc),
      those of 4.3–4.6 by docs/guide/shots.mjs on 4.6.0 (main, 2026-10-21).
-     Placeholders for the parts merged after 4.6 – a later pass fills each in where its comment stands, and in guide.md:
-     "4.7: charts" (part 4, Charts), "4.8: lines, icons, snapping" (part 4, Shapes and Free layout), "4.9: tables"
-     (part 3, three places: Slides, Cells, Tables), "template, comments B48–B50" (part 3, Automated comments, Designs).
-     guide.md has each of them at the same places, one for one; docs/guide/check.mjs checks it. -->
+     The parts of 4.7–4.9 (marked "(4.7)", "(4.8)", "(4.9)" in the text) were written on 2026-10-22 from the branches'
+     code and CHANGELOG: v4/M14-charts (4.7.0, with B48–B50 of main 71d8806), v4/M15-lines-icons (4.8.0), and for 4.9.0
+     m16/hidden-rebased, m16/delete-versions-rebased, m16/painter-main, m16/excel-cf-main, v4/slide-menu; they have no
+     screenshots yet. -->
 
 <!-- ===================================================== COVER ===================================================== -->
 <!-- sources: helper/slidebuilder/__init__.py VERSION = "4.6.0"; CHANGELOG 4.1.0–4.6.0 (4.6.0 brings them all); the cover's
@@ -32,13 +32,15 @@
     <div class="bar"></div>
     <p class="sub">The guide: what the program does, every function it has, and how it works underneath.</p>
     <div class="caps">
-      <span class="glass chip cap" data-shadow="chip">Program 4.6.0</span>
-      <span class="glass chip cap" data-shadow="chip">Guide of 21 October 2026</span>
+      <span class="glass chip cap" data-shadow="chip">Program 4.9.0</span>
+      <span class="glass chip cap" data-shadow="chip">Guide of 22 October 2026</span>
       <span class="glass chip cap" data-shadow="chip">For the team</span>
     </div>
   </div>
   <div class="foot">For the people who make the decks, the product owner and the maintainer. Every picture is a screenshot of
-    the program, taken on the test workbooks of the repository. The cover uses Slide Builder's own wallpaper and glass.</div>
+    the program (4.6), taken on the test workbooks of the repository; the parts of 4.7–4.9 are marked so. From 4.8 the toolbar buttons show
+    line icons in place of the symbols this guide prints (✦ ↻ ⚙ ⤺ 🗑 …); their words and tooltips are the same. The cover uses Slide
+    Builder's own wallpaper and glass.</div>
 </section>
 
 <!-- ===================================================== 1 ===================================================== -->
@@ -265,7 +267,10 @@
         edit it. It is left out of that design's exports: PDF, PNG of every slide, PowerPoint, every version × design, Run for each value.
         Page numbers and the index count only the slides shown. Exporting or copying the <i>current</i> slide still exports a hidden one.
         Hidden in Glass, a slide still shows in Navy. One undo step each.</p></div>
-      <!-- 4.9: tables -->
+      <div class="entry"><h3>Duplicate slide, Delete slide (4.9)</h3><p>Right-click a slide › <span class="ui">Duplicate slide</span> puts a copy right after it
+        (tables, texts, formats, charts, callouts, free layout, looks, hidden designs) and shows it. <span class="ui">Delete slide</span> – or Delete on a slide
+        selected in the list – asks first; its tables stay in the deck (<span class="ui">Add table ▾</span> puts them back). The cover and the contents slide are
+        not duplicated; a deck keeps at least one slide. One undo step each.</p></div>
     </div>
     <figure style="margin-top:0"><div class="shot"><img src="img/slide-menu.jpg" alt="The slide list's right-click menu"></div>
       <figcaption><b>Right-click</b> on a slide.</figcaption></figure>
@@ -311,8 +316,7 @@
       <div class="entry"><h3>Highlight</h3><p>A capsule behind the value in Glass; green and red keep their positive / negative
         meaning. <span class="ui">Remove highlight</span> takes it away.</p></div>
       <div class="entry"><h3>Role</h3><p>How Glass draws the selected cells: <i>Auto</i> (detected from the Excel formatting),
-        <i>Header</i>, <i>Total</i> (a highlighted tile), <i>Body</i>, <i>Note</i>.</p>
-        <figure style="width:44mm;margin:1mm 0 0"><div class="shot"><img src="img/role-menu.jpg" alt="Role menu"></div></figure></div>
+        <i>Header</i>, <i>Total</i> (a highlighted tile), <i>Body</i>, <i>Note</i>.</p></div>
       <div class="entry"><h3>Merge, Unmerge</h3><p>Joins the selected cells (the top-left value is kept) or splits merges, also
         those that come from Excel.</p></div>
       <div class="entry"><h3>Borders ▾</h3><p>The selected cells' borders, as Excel's Borders menu: Bottom, Top, Left, Right, All
@@ -321,12 +325,19 @@
         the consulting designs' ruled tables draw them; Glass and the other consulting table styles draw no borders.</p>
         <figure style="width:74mm;margin:1mm 0 0"><div class="shot"><img src="img/borders-menu.jpg" alt="Borders menu"></div></figure></div>
       <div class="entry"><h3>Format painter</h3><p><span class="ui">Format</span>, then click or drag over cells to copy size, bold,
-        italic, colours, cell colour, highlight, alignment, role, conditional formats, colour scales, and the gridlines and borders set on
-        the slide. A double-click keeps it on; Esc stops. It is greyed until cells are selected.</p></div>
+        italic, colours, cell colour, highlight, alignment and vertical alignment, number display, role, conditional formats, colour scales,
+        and the gridlines and borders set on the slide (a date keeps its date format). A double-click keeps it on; Esc stops. <b>Several at
+        once</b> (4.9): Ctrl+click or Ctrl+drag ranges of any table of the slide, then let go of Ctrl – all are painted, one undo step. With a
+        chart, callout, icon or line selected it copies that object's look (never its data, text or place) onto others of its kind.</p></div>
       <div class="entry"><h3>Formula bar</h3><p>The name box shows the cell; type in the bar and press Enter (Esc cancels).
         <span class="ui">↺ Excel value</span> goes back to the workbook's own text. A text you typed applies only while Excel's
         value stays what it was: if the figure changes in the workbook, your text pauses and the Issues panel says so.</p></div>
-      <!-- 4.9: tables -->
+      <div class="entry"><h3>Number display (4.9)</h3><p>On the text toolbar: <span class="ui">Fewer decimals</span>, <span class="ui">More decimals</span>, <span class="ui">Percent (on / off)</span>,
+        <span class="ui">Thousands separator (on / off)</span> change how the selected cells show their numbers, over Excel's format; <span class="ui">Clear format</span> goes back to
+        it. Top / middle / bottom now place a cell's text too. Ctrl+click several ranges: the text toolbar changes them all.</p></div>
+      <div class="entry"><h3>Excel's conditional formats (4.9)</h3><p>Drawn in every design as Excel shows them: colour scales, data bars, icon sets,
+        top / bottom, above / below average, duplicates, text, dates and formula rules. In PowerPoint the bars and icons are shapes grouped with the
+        real table. What is still not reproduced is named in the Issues panel.</p></div>
     </div>
   </div>
 </section>
@@ -378,26 +389,32 @@
         lines of the table – <i>As in Excel</i>, <i>All</i> or <i>None</i> – and, for the <b>selected cells</b>, light lines:
         <i>H</i> (above and below each cell), <i>V</i> (left and right), <i>Outline</i> (around the selection), in a colour and a
         weight (0.5–3 px); <i>Clear</i> removes them. They never change a border: where a design draws a border, the border shows.</p></div>
-      <div class="fig-row" style="grid-template-columns:24mm 1fr">
-        <figure style="margin:0"><div class="shot"><img src="img/pos-menu.jpg" alt="Position menu"></div></figure>
-        <figure style="margin:0"><div class="shot"><img src="img/grid-menu.jpg" alt="Gridlines menu"></div></figure>
-      </div>
     </div>
     <div>
       <div class="entry"><h3>Colour scale</h3><p>Deeper green or red the bigger the number: across each row, down each column or over the
         whole selection; <i>+ green / − red</i> or <i>low red → high green</i>; on the cell colour or the number colour;
         <i>Reverse</i>; with a preview. <span class="ui">Apply to selection</span>. The scales of a table are listed in the same
         menu and removed with ✕.</p></div>
-      <figure style="width:62mm"><div class="shot"><img src="img/scale-menu.jpg" alt="Colour scale menu"></div></figure>
       <div class="entry"><h3>Sizes…</h3><p>Pick slides and tables, then <span class="ui">Make same size</span> (width, height, as the
         largest, the smallest or the first), copy column widths and row heights from one table to others, align the tables of
         the chosen slides, or <span class="ui">Reset to Excel sizes</span>.</p></div>
-      <figure style="width:56mm"><div class="shot"><img src="img/sizes.jpg" alt="Sizes dialog"></div></figure>
       <div class="entry"><h3>Add table ▾</h3><p>Lists the deck's tables – those on no slide first, each with a small sketch – and puts one
         on the current slide (on a free layout in the first empty spot). <span class="ui">New table from cells…</span> makes one from cells
         picked on a sheet. One undo step each.</p></div>
-      <figure style="width:62mm"><div class="shot"><img src="img/add-table.jpg" alt="Add table menu"></div></figure>
-      <!-- 4.9: tables -->
+    </div>
+  </div>
+  <div class="cols">
+    <div>
+      <div class="entry"><h3>Hide ▾ (4.9)</h3><p><span class="ui">Hide rows</span>, <span class="ui">Hide columns</span>: the selected ones, on this slide only – the table closes
+        up there and in every export; the workbook is not changed. A thin double mark shows the gap (a click unhides it), and
+        <span class="ui">Unhide all on this table</span>. Totals stay Excel's ("Σ incl. hidden rows", on screen only); a chart of that table on the slide skips the
+        hidden rows.</p></div>
+    </div>
+    <div>
+      <div class="entry"><h3>For this version ▾ (4.9)</h3><p>With a version chosen in the top bar: <span class="ui">Delete rows</span>, <span class="ui">Delete columns</span> – that
+        version leaves them out and its tables close up; the full deck and other versions keep them –, <span class="ui">Empty cells</span> (as the wizard's
+        <i>Remove</i>), <span class="ui">Restore selection</span>, <span class="ui">Restore all of “…”</span>. Wizard step 4 has <span class="ui">Delete rows</span> and <span class="ui">Delete columns</span> too
+        (struck through on the sheet, ✕ restores). A table keeps at least one row and column. One undo step each.</p></div>
     </div>
   </div>
   <p class="note">Table sizes belong to the design they were made in: a table can be wide in Glass and narrow in Excel. The tables
@@ -434,13 +451,23 @@
   </div>
 
   <h2>Automated comments (✎ Comment…)</h2>
-  <div style="display:grid;grid-template-columns:1fr 82mm;gap:5mm">
+  <div>
+        <figure style="float:right;width:82mm;margin:0 0 3mm 5mm">
+      <div class="shot" data-crop="210 45 1785 1150"><img src="img/comment.jpg" alt="The comment dialog">
+        <i class="co" data-at="182 170">1</i><i class="co" data-at="182 214">2</i><i class="co" data-at="182 270">3</i>
+        <i class="co" data-at="182 446">4</i><i class="co" data-at="182 496">5</i><i class="co" data-at="182 700">6</i>
+        <i class="co" data-at="182 812">7</i><i class="co" data-at="845 180">8</i><i class="co" data-at="1585 1110">9</i>
+      </div>
+      <figcaption><b>✎ Comment…</b> on the weekly table: the summary of loans and deposits.</figcaption>
+    </figure>
     <div>
       <p>A commentary written from the table's own numbers, like an analyst would. It is rewritten every time the slide is drawn, so it
         follows new figures, your edits and the version you look at.</p>
       <ul>
-        <li>(1) The table, when the slide has several. (2) <i>Summary</i> (default): one paragraph per block of the table; <i>Detailed</i>:
-          one section per comparison found in the headers (a hint appears when there are none).</li>
+        <li>(1) The table, when the slide has several. (2) <i>Report – as the macro</i> (the default for a new comment): the Budget
+          Performance / Weekly Momentum bullets as the Excel macro writes them – top contributors, concentration ("largely driven by …"), the
+          downside, an alert; <i>Summary – short, joint</i>: one paragraph per block of the table; <i>Detailed – one section per comparison</i>
+          found in the headers (a hint appears when there are none). (The picture shows 4.6's dialog.)</li>
         <li>(3) Which tables the comment covers; the "Found:" line says what it recognised: blocks, totals, rows, the latest period.</li>
         <li>(4) A title of your own. (5) Which comparisons to join – those found in the headers, such as Budget, previous week, end of month,
           quarter, beginning of year. (6) Title, names at the start of each paragraph, bullet points.</li>
@@ -451,18 +478,18 @@
           found) – later <i>Update</i>, or <i>Remove comment</i>. <i>Also on N similar tables</i> appears when other tables have the same shape.</li>
         <li>Editing the comment's text by hand turns it into fixed text (a toast says so); Update never overwrites a text you typed.</li>
       </ul>
-      <!-- template, comments B48–B50 -->
     </div>
-        <figure style="margin-top:0">
-      <div class="shot" data-crop="210 45 1785 1150"><img src="img/comment.jpg" alt="The comment dialog">
-        <i class="co" data-at="182 170">1</i><i class="co" data-at="182 214">2</i><i class="co" data-at="182 270">3</i>
-        <i class="co" data-at="182 446">4</i><i class="co" data-at="182 496">5</i><i class="co" data-at="182 700">6</i>
-        <i class="co" data-at="182 812">7</i><i class="co" data-at="845 180">8</i><i class="co" data-at="1585 1110">9</i>
-      </div>
-      <figcaption><b>✎ Comment…</b> on the weekly table: the summary of loans and deposits.</figcaption>
-    </figure>
 
   </div>
+  <ul>
+    <li><b>Sections</b> (4.7, as the macro): tick the comparisons to write, ↑ ↓ to order them. Each has <span class="ui">Include</span> – <i>Always</i>,
+      <i>Only in the last week of the month</i>, <i>Only in the first week of the month</i> or <i>Only from day … of the month</i> (e.g. vs
+      monthly Budget only at month end), judged by the latest period's date in the headers ("written on" / "left out on" that date) –,
+      <span class="ui">Alert at</span> (−5 % vs Budget, −1 % otherwise), a <span class="ui">Heading</span>, and <span class="ui">YoY clause</span>, <span class="ui">Concentration</span>, <span class="ui">Downside bullet</span>,
+      <span class="ui">Alert sentence</span>. Comments written before 4.7 keep their text until you switch them.</li>
+    <li><b>Border</b> (4.7): <span class="ui">Thickness</span> – <i>Design</i>, <i>None</i> or 0.5–3 px – and <span class="ui">Colour</span> – <i>Auto</i> (the design's; in Excel and
+      Refined the template's grey), a swatch or any colour.</li>
+  </ul>
 </section>
 
 <section>
@@ -485,9 +512,19 @@
     the KPI line's or panel's font, size, bold and colour from the text toolbar. A change applies to the current slide (a dot marks a part the slide
     sets itself); <span class="ui">Apply to all</span> makes it the deck's, <span class="ui">Deck's</span> brings the slide back to it. One undo step each.</p>
   <figure style="width:110mm"><div class="shot"><img src="img/looks.jpg" alt="The consulting look in ribbon 2"></div></figure>
-  <!-- template, comments B48–B50 -->
+  <p><b>Excel and Refined follow the Intesa Sanpaolo template</b> (4.7): the cover's blue band, the logo above the title (26 pt bold blue, the
+    subtitle grey), the page number top right (on unless the deck turned it off; none on the cover), the logo bottom right, Century Gothic, the
+    contents slide, tilted-square bullets, outlined boxes, the template's colours. Long titles shrink before they are cut. Glass, Navy and Red are
+    unchanged.</p>
 
-  <div style="display:grid;grid-template-columns:1fr 92mm;gap:5mm">
+  <div>
+    <figure style="float:right;width:92mm;margin:0 0 3mm 5mm">
+      <div class="shot" data-crop="360 130 1640 1070"><img src="img/design-colours.jpg" alt="Design dialog, colours">
+        <i class="co" data-at="338 262">1</i><i class="co" data-at="338 371">2</i><i class="co" data-at="338 470">3</i>
+        <i class="co" data-at="1012 560">4</i><i class="co" data-at="338 693">5</i><i class="co" data-at="338 955">6</i>
+        <i class="co" data-at="338 1032">7</i>
+      </div>
+    </figure>
     <div>
       <p><span class="ui">Design…</span> (the button with the theme's swatch) holds the deck's look.</p>
       <ul>
@@ -502,26 +539,17 @@
         <li>(7) <span class="ui">Use as default for new decks</span>: this look becomes the start of every new deck on the folder.</li>
       </ul>
     </div>
-    <figure style="margin-top:0">
-      <div class="shot" data-crop="360 130 1640 1070"><img src="img/design-colours.jpg" alt="Design dialog, colours">
-        <i class="co" data-at="338 262">1</i><i class="co" data-at="338 371">2</i><i class="co" data-at="338 470">3</i>
-        <i class="co" data-at="1012 560">4</i><i class="co" data-at="338 693">5</i><i class="co" data-at="338 955">6</i>
-        <i class="co" data-at="338 1032">7</i>
-      </div>
-    </figure>
   </div>
 
   <div class="cols">
-    <figure><div class="shot"><img src="img/design-styles.jpg" alt="Text styles"></div>
-      <figcaption><b>Text styles.</b> One row per kind of text, deck-wide: slide titles, subtitles and text boxes (font, size, bold, italic,
+    <p><b>Text styles.</b> One row per kind of text, deck-wide: slide titles, subtitles and text boxes (font, size, bold, italic,
         colour, alignment; text boxes also line spacing), tables (the font), the contents list (font, size, colour), page numbers &amp; footer
         (font, bold, italic, colour); <i>Reset</i> per row. A format given to a single cell,
-        box or title stays on top. A larger title pushes the subtitle and tables down.</figcaption></figure>
-    <figure><div class="shot"><img src="img/design-fonts.jpg" alt="Fonts"></div>
-      <figcaption><b>Fonts.</b> The shared font library: add a Google font (fetched once by Slide Builder's helper into the folder, then
+        box or title stays on top. A larger title pushes the subtitle and tables down.</p>
+    <p><b>Fonts.</b> The shared font library: add a Google font (fetched once by Slide Builder's helper into the folder, then
         available to everybody and in exports), suggestions, or upload your own files (.ttf .otf .woff .woff2; a variable font is stored as its fixed styles). If the office network refuses
         a download, the message says what to do. Previews come from a cache on the shared folder. The library lists each font with a sample,
-        its styles and who added it, removes one after a question, and is refreshed about every 30 s.</figcaption></figure>
+        its styles and who added it, removes one after a question, and is refreshed about every 30 s.</p>
   </div>
 </section>
 
@@ -581,7 +609,7 @@
   <div class="opener"><div class="card glass" data-shadow="card">
     <span class="glass chip cap num" data-shadow="chip">Part 4</span>
     <h1>Charts, shapes and free layout</h1>
-    <p class="lead">Objects of your own on the slide: pies drawn from the workbook, shapes and icons with text, and slides laid out by hand.</p>
+    <p class="lead">Objects of your own on the slide: charts drawn from the workbook, shapes, icons and lines, and slides laid out by hand.</p>
   </div></div>
 
   <h2>Charts</h2>
@@ -607,7 +635,32 @@
         when they fit, else outside with a leader line.</p>
     </div>
   </div>
-  <!-- 4.7: charts -->
+  <h3>Chart types (4.7)</h3>
+  <p>The panel's <span class="ui">Type</span>: Pie, Donut, Column, Bar, Line, Area, Combo, Scatter, Waterfall (a pie becomes a chart of its own numbers, and can
+    go back). <span class="ui">Stack</span>: <i>Side by side</i>, <i>Stacked</i>, <i>100 %</i>; <span class="ui">Gap</span> and <span class="ui">Overlap</span> as in Excel.</p>
+  <div class="cols">
+    <div><ul>
+      <li><b>Series.</b> <span class="ui">+ Add series…</span> takes more cells in the sheet view – any sheet, a linked workbook. Each series: its colour (↺ the
+        design's again), its name (typed, or <span class="ui">From a cell…</span>), ↑ ↓, ×; ▸ opens <span class="ui">Numbers</span>, <span class="ui">X values</span> (scatter), <span class="ui">Type</span> (combo) and
+        <span class="ui">Axis</span> (<i>Left</i> / <i>Right</i>: a second value axis), <span class="ui">Target</span> (columns and bars: the target outlined over the value,
+        labelled "97 %"), a smoothed line and markers, labels (value, name, category, percent) and their place, <i>Hidden (kept, not drawn)</i>.
+        Hidden rows are left out; a blank cell is a gap in a line, zero in an area.</li>
+      <li><b>Points and marks.</b> Click a point (a ring shows it): its colour, marker colour and label; in a waterfall <i>A total (stands on the
+        axis)</i>. At that point, <span class="ui">Marks</span>: <span class="ui">+ Arrow from the floor</span>, <span class="ui">+ Icon above</span>, <span class="ui">+ Text above</span> (it can quote
+        <code>{Sheet!C7}</code>), <span class="ui">+ Line to the next</span>, <span class="ui">+ Band to the next</span> – they follow the data.</li>
+    </ul></div>
+    <div><ul>
+      <li><span class="ui">Axes</span> (<span class="ui">Min</span>, <span class="ui">Max</span>, <span class="ui">Step</span>, <span class="ui">Format</span>; empty = Excel's automatic), <span class="ui">Gridlines</span>; the <span class="ui">Legend</span> (Right,
+        Left, Top, Bottom, Top right, inside, None; single entries hidden); <span class="ui">Category groups</span> (<span class="ui">+ Add category group…</span>: e.g. the weeks,
+        then the month-end targets, with a divider and their names under the axis); <span class="ui">Frame</span>, <span class="ui">Line under the title</span>.</li>
+      <li><b>Waterfall</b>: steps on the running total in the design's positive and negative colours (Increase / Decrease / Total).
+        <b>Scatter</b>: points at their x and y, an optional line.</li>
+      <li><b>Colours.</b> A chart starts in its design's colours and follows the design you switch to (Excel and Refined: the template's chart
+        colours, 2 pt lines, areas as lines). A colour you set for a series, point or slice stays in every design; ↺ gives back the design's.</li>
+      <li>Each change is one undo step; two people changing two series both keep theirs. A stack per series is not offered: PowerPoint stacks a
+        whole chart.</li>
+    </ul></div>
+  </div>
 
   <h2>Shapes and icons</h2>
   <div style="display:grid;grid-template-columns:1fr 58mm;gap:5mm;align-items:start">
@@ -627,7 +680,23 @@
   <figure><div class="shot" data-crop="0 123 2000 277"><img src="img/shape-ribbon.jpg" alt="Ribbon 2 with a shape selected"></div>
     <figcaption><b>Ribbon 2 with a shape selected</b>: <i>Shape</i> fill, <i>Border ▾</i>, A− A+, bold, text colour, alignment, <span class="ui">Quote a
       cell…</span>, <span class="ui">Text</span>.</figcaption></figure>
-  <!-- 4.8: lines, icons, snapping -->
+  <div class="cols">
+    <div>
+      <div class="entry"><h3>Icons (4.8)</h3><p><span class="ui">Insert shape ▾ › More icons…</span>: about 6,200 icons (Tabler Icons), searched by name in English or
+        Italian – "banca", "obiettivo", "freccia su", "stretta di mano" –, <i>Outline</i> or <i>Filled</i>, by category or <i>Recent</i>, in the
+        colour, size and line chosen there (no internet needed). A selected icon has <span class="ui">Change icon…</span>, its size and line width. An icon this
+        version does not have shows an info icon (i) and an Issues line.</p></div>
+    </div>
+    <div>
+      <div class="entry"><h3>Lines (4.8)</h3><p><span class="ui">Insert line ▾</span>: line, arrow, double arrow, elbow, curve, bracket, range marker, limiter, divider,
+        callout line. Drag the line to move it, its round handles to move its ends (Shift: straight, 45° or upright), the middle handle for an
+        elbow's bend or a curve. <b>Hold Ctrl while dragging an end</b> to attach it to a table, text box, shape or icon: it follows that object, in
+        every design; <span class="ui">Detach</span> frees both ends. The ribbon sets the kind (<i>Straight</i>, <i>Elbow</i>, <i>Curve</i>, <i>Bracket</i>,
+        <i>Range marker</i>), colour, weight and style, each end (<i>None</i>, <i>Open arrow</i>, <i>Arrow</i>, <i>Stealth arrow</i>, <i>Dot</i>,
+        <i>Diamond</i>, <i>Tick (limiter)</i>) and a label, which can quote <code>{Sheet!C7}</code>. When an attached object is deleted the end
+        stays: "Line n: its end lost its object".</p></div>
+    </div>
+  </div>
 </section>
 
 <section>
@@ -646,7 +715,10 @@
         <li>Each design has its own free layout, as the designs draw tables at different sizes. Exports and thumbnails show the slide as the
           stage does. Every drag is one undo step.</li>
       </ul>
-      <!-- 4.8: lines, icons, snapping -->
+      <p><b>Snapping (4.8)</b> – for every object in every layout: moving or sizing a table (free layout), text box, chart, shape, icon or line
+        lines it up with the slide's edges, centre lines and margins, the other objects' edges and centres, the tables' column and row borders and
+        other lines' ends, each shown in pink; it offers equal gaps (marked in px) and, when resizing, another object's width or height. Hold Alt for
+        none. The guides are on screen only; an object stays exactly where it is dropped, in the PDF and PowerPoint too.</p>
     </div>
     <figure style="margin-top:0"><div class="shot"><img src="img/d-glass-items.jpg" alt="A slide with a chart and a shape"></div>
       <figcaption><b>The same slide</b> with the chart and a pill shape moved into the free space; the shape's text is
@@ -741,18 +813,16 @@
       <figure style="margin:1mm 0 2mm;display:flow-root"><div class="shot" style="max-width:96mm"><img src="img/toast.jpg" alt="Export toast"></div></figure>
       <h3>PowerPoint</h3>
       <p>Titles, subtitles, footers and page numbers are the layout's placeholders; every table is a real PowerPoint table (its cells' fills, borders
-        and texts); pie and donut charts are PowerPoint charts with their data (<i>Edit Data</i> works); shapes are PowerPoint shapes holding their
-        text; the workbook's pictures and the logo are pictures; everything else – Glass's frosted cards, capsules and shadows, the consulting
+        and texts); every chart (column, bar, line, area, scatter, combo on two axes, waterfall, pie, donut) is a PowerPoint chart with its data
+        (<i>Edit Data</i> works; its numbers use the separators of the PC that opens it, the slide's are the workbook's); a chart's arrows and lines
+        are PowerPoint lines; icons are editable shapes and lines are line shapes with PowerPoint's arrowheads (not attached there); shapes are
+        PowerPoint shapes holding their text; the workbook's pictures and the logo are pictures; everything else – Glass's frosted cards, capsules and shadows, the consulting
         designs' bars and rules – is editable shapes. Each file has a slide master and one layout per kind of slide (cover, contents, content), made
         from the deck, with the design's colours and fonts. No connector shapes, no links outside the file.</p>
       <p>Positions and sizes are the slide's, so the file looks like the PDF; PowerPoint draws a chart's labels and pie size and its shadows its
         own way. Fonts are named, not embedded; the toast names a font of the deck's library that PowerPoint may replace.</p>
     </div>
     <div>
-      <figure style="width:76mm"><div class="menu2">
-        <div class="shot half"><img src="img/export-menu.jpg" alt="The export menu, top"></div>
-        <div class="shot half low"><img src="img/export-menu.jpg" alt="The export menu, bottom"></div></div>
-      <figcaption><b>Export ▾</b>, in two halves. The <i>every version</i> items are greyed: this deck has no versions yet.</figcaption></figure>
       <h3>What to expect</h3>
       <p>Unsaved changes are saved first, so the export always shows them. The work runs in the background; the window keeps responding. On
         the 20-slide test deck: a Glass PDF in about 1.4 s and 1.3 MB, an Excel PDF in about 0.4 s and 0.3 MB; a Glass PowerPoint file in about
@@ -798,7 +868,11 @@
   </div>
 
   <h2>The Formulas line</h2>
-  <div style="display:grid;grid-template-columns:1fr 50mm;gap:5mm">
+  <div style="display:flow-root">
+    <div style="float:right;width:50mm;margin:0 0 2mm 5mm">
+    <figure style="margin-top:0"><div class="shot"><img src="img/formulas.jpg" alt="The Formulas line"></div>
+      <figcaption><b>Banks.xlsx</b> after <i>Check</i>, with an error value reported above it.</figcaption></figure>
+    </div>
     <div>
       <p>At the bottom of the side panel, <span class="ui">Check</span> recomputes every formula of the workbook – and of the folder's workbooks
         it links to – and compares each result with the value Excel saved in the file. The check changes nothing. The line then reads, for
@@ -815,14 +889,20 @@
       </table>
       <p class="note">Outside a scenario the slides show the values Excel saved. The formula engine starts only when needed, so opening a deck is as fast as before.</p>
     </div>
-    <figure style="margin-top:0"><div class="shot"><img src="img/formulas.jpg" alt="The Formulas line"></div>
-      <figcaption><b>Banks.xlsx</b> after <i>Check</i>, with an error value reported above it.</figcaption></figure>
   </div>
 </section>
 
 <section>
   <h2>Run for each value</h2>
-  <div style="display:grid;grid-template-columns:1fr 78mm;gap:5mm;align-items:start">
+  <div style="display:flow-root">
+    <div style="float:right;width:78mm;margin:0 0 2mm 5mm">
+    <div>
+      <figure style="margin-top:0"><div class="shot"><img src="img/scenario.jpg" alt="Run for each value"></div>
+        <figcaption><b>Run for each value…</b> on Banks.xlsx: the bank of the control sheet, three values.</figcaption></figure>
+      <figure><div class="shot"><img src="img/scenario-banner.jpg" alt="The preview banner"></div>
+        <figcaption><b>Preview</b> of Bank C.</figcaption></figure>
+    </div>
+    </div>
     <div>
       <p><span class="ui">Export ▾ › Run for each value…</span> sets an input cell (e.g. the bank of a control sheet) to each value of a list
         and saves one file per value, design and version; the workbook is recalculated for each value and <b>nothing is saved</b>.</p>
@@ -841,12 +921,6 @@
         scenario. Named ranges are recalculated; the Formulas line lists any it cannot ("names not recalculated: …"). Measured: one value in
         about half a second from the click, 20 values in about 3.2 s.</p>
     </div>
-    <div>
-      <figure style="margin-top:0"><div class="shot"><img src="img/scenario.jpg" alt="Run for each value"></div>
-        <figcaption><b>Run for each value…</b> on Banks.xlsx: the bank of the control sheet, three values.</figcaption></figure>
-      <figure><div class="shot"><img src="img/scenario-banner.jpg" alt="The preview banner"></div>
-        <figcaption><b>Preview</b> of Bank C.</figcaption></figure>
-    </div>
   </div>
 </section>
 
@@ -863,6 +937,21 @@
   </div></div>
 
   <h2>The pieces</h2>
+  <div class="cols" style="margin-bottom:2mm">
+    <div>
+      <p><b>The shared folder</b> holds the workbooks, the exports, the program and all saved state. It is the only connection between PCs: the
+        helpers never talk to each other.</p>
+      <p><b>The helper</b> is a small Python program that runs on each PC while Slide Builder is open – the console window. It hands the
+        workbook's bytes to the page, appends changes to journal files, keeps snapshots, saves exports, fonts and logos, and converts old
+        <code>.xls</code> files through Excel. It understands none of the slides, and it answers only on the PC itself (127.0.0.1).</p>
+    </div>
+    <div>
+      <p><b>The page in Edge</b> does all the work: it reads the workbook, lays out the tables, draws the slides and writes the PDF and PowerPoint
+        files. It is one file of the program; nothing is installed on the PC beyond Python.</p>
+      <p><b>The worker</b> is a background part of the page that owns the open workbook and the deck, so the window never freezes while a big
+        workbook is read. Up to three export workers write PDFs and pictures side by side, and stop after a minute without work.</p>
+    </div>
+  </div>
   <svg class="dia" viewBox="0 0 680 250" role="img" aria-label="The PCs, the helper, the page and the shared folder">
     <defs>
       <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EAF2FF"/><stop offset="1" stop-color="#F1EBFF"/></linearGradient>
@@ -914,21 +1003,6 @@
     <text x="348" y="94" font-size="7.5" fill="#1C4F8C" text-anchor="middle">files</text>
     <text x="350" y="200" font-size="7.5" fill="#1C4F8C" text-anchor="middle">files</text>
   </svg>
-  <div class="cols" style="margin-top:2mm">
-    <div>
-      <p><b>The shared folder</b> holds the workbooks, the exports, the program and all saved state. It is the only connection between PCs: the
-        helpers never talk to each other.</p>
-      <p><b>The helper</b> is a small Python program that runs on each PC while Slide Builder is open – the console window. It hands the
-        workbook's bytes to the page, appends changes to journal files, keeps snapshots, saves exports, fonts and logos, and converts old
-        <code>.xls</code> files through Excel. It understands none of the slides, and it answers only on the PC itself (127.0.0.1).</p>
-    </div>
-    <div>
-      <p><b>The page in Edge</b> does all the work: it reads the workbook, lays out the tables, draws the slides and writes the PDF and PowerPoint
-        files. It is one file of the program; nothing is installed on the PC beyond Python.</p>
-      <p><b>The worker</b> is a background part of the page that owns the open workbook and the deck, so the window never freezes while a big
-        workbook is read. Up to three export workers write PDFs and pictures side by side, and stop after a minute without work.</p>
-    </div>
-  </div>
 
   <h2>Saving: journals and snapshots</h2>
   <svg class="dia" viewBox="0 0 680 118" role="img" aria-label="The journey of one edit">
@@ -1054,6 +1128,7 @@
         <tr><td class="wrap">Callout 1: Nowhere!B2 not found (shown as #REF)</td><td class="wrap">the quoted cell's sheet is gone: quote the cell again</td></tr>
         <tr><td class="wrap">N objects of a newer Slide Builder …</td><td class="wrap">this window runs an older version: close its black window, start Slide Builder again</td></tr>
         <tr><td class="wrap">Pictures that could not be read · conditional formats not reproduced</td><td class="wrap">that element is left out</td></tr>
+        <tr><td class="wrap">Line n: its end lost its object</td><td class="wrap">its object was deleted: attach the end again (Ctrl)</td></tr>
         <tr><td class="wrap">N edited cells · M text edits paused</td><td class="wrap">Excel's value changed under your text (new figures, rows inserted above): check and retype</td></tr>
         <tr><td class="wrap">Logo "logo.png" not found in the folder</td><td class="wrap">choose the logo again in ⚙ Options</td></tr>
         <tr><td class="wrap">Linked workbook "…" not found in the folder</td><td class="wrap">put the file back in the folder</td></tr>
@@ -1116,7 +1191,7 @@
     <dt>version</dt><dd>the same deck with some cells removed, for another audience (e.g. <i>Chief</i>, <i>All</i>)</dd>
     <dt>design</dt><dd>how tables are drawn: Glass (Liquid Glass), Excel, Refined (Excel Refined), Navy (Consulting Navy), Red (Consulting Red)</dd>
     <dt>look</dt><dd>in Navy and Red, how tables and the headline are drawn (exhibit, cards, ruled; KPI line, panel…), per slide or the deck's</dd>
-    <dt>chart</dt><dd>a pie or donut drawn from cells of the workbook; it follows the workbook</dd>
+    <dt>chart</dt><dd>a pie, column, line, waterfall… drawn from cells of the workbook; it follows the workbook</dd>
     <dt>shape</dt><dd>a rectangle, pill, arrow, bubble… or an icon, with text that can quote a cell as <code>{Sheet!C7}</code> (a callout)</dd>
     <dt>free layout</dt><dd>a slide whose tables, boxes, charts and shapes stay where you dragged them, in one design</dd>
     <dt>hidden slide</dt><dd>a slide left out of a design's exports, page numbers and index; still in the list, grayed</dd>

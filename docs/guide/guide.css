@@ -24,12 +24,12 @@
   @bottom-right { content: counter(page); font: 600 8pt var(--font); color: #1C4F8C; vertical-align: middle; text-align: center;
     width: 10mm; height: 5.4mm; margin-top: 5mm; border-radius: 3mm; background: linear-gradient(180deg, #EEF3FD, #E4EBFA);
     border: 1px solid #D3DDF2; }
-  @bottom-left { content: "Program 4.6.0 \00B7  guide of 21 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
+  @bottom-left { content: "Program 4.9.0 \00B7  guide of 22 October 2026"; font: 400 6.5pt var(--font); color: #9AA2B2; vertical-align: middle; margin-top: 5mm; }
 }
 @page cover { margin: 0; @top-left { content: none; border: 0 } @top-right { content: none; border: 0 } @bottom-right { content: none; background: none; border: 0 } @bottom-left { content: none } }
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-variant-emoji: text; font-synthesis-weight: none; margin: 0; font: 400 8.8pt/1.38 var(--font); color: var(--ink); background: #fff; }
+body { font-variant-emoji: text; font-synthesis-weight: none; margin: 0; font: 400 8.8pt/1.34 var(--font); color: var(--ink); background: #fff; }
 p { margin: 0 0 1.4mm; }
 b, strong { font-weight: 600; }
 code, .k { font: 500 8.2pt Consolas, "Cascadia Mono", monospace; background: var(--band); border: 1px solid var(--rule2); border-radius: 4px; padding: 0 3px; color: var(--x2); white-space: nowrap; }
