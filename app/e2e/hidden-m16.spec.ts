@@ -123,11 +123,14 @@ test.describe.serial("hidden rows and columns per slide (S16.1)", () => {
     await expect(page.locator(".hidrc.hcol")).toHaveCount(1);
     await expect.poll(() => undoSteps(page)).toBe(u0 + 4);
     // bob, at the same time, hides another row of the same table on the first slide: both rows end up hidden
+    // (anna goes back to the first slide herself: she is on the second one, where she hid Since – the spec waited for
+    // the first slide's thumbnail to be chosen without anybody choosing it)
+    await show(page, k);
     const bob = await browser.newPage();
     await openReport(bob, BOB);
     await show(bob, k);
     await select(bob, "Zeta");
-    await Promise.all([hideMenu(bob, "hideRows"), (async () => { await page.locator(`.thumb.on[data-i="${k}"]`).waitFor(); await select(page, "Epsilon"); await hideMenu(page, "hideRows"); })()]);
+    await Promise.all([hideMenu(bob, "hideRows"), (async () => { await select(page, "Epsilon"); await hideMenu(page, "hideRows"); })()]);
     await pollFile(() => Object.keys(hiddenOf(S.id) || {}).sort(), { timeout: 20_000 }).toEqual([tid + ":r10", tid + ":r11", tid + ":r7", tid + ":r8"]);
     await expect(cell(page, "Zeta")).toHaveCount(0, { timeout: 15_000 });
     await expect(cell(bob, "Epsilon")).toHaveCount(0, { timeout: 15_000 });
@@ -145,18 +148,26 @@ test.describe.serial("hidden rows and columns per slide (S16.1)", () => {
     expect(t[k][0].cols).toBe(t[k + 1][0].cols + 1);
     expect(t[k][0].text).not.toMatch(/\bBeta\b|\bZeta\b/);
     expect(t[k + 1][0].text).toMatch(/\bBeta\b/);
-    // the double mark brings rows back (one step); Unhide all the rest (one step)
+    // the double mark brings rows back (one step). Beta–Gamma (7–8) and Epsilon–Zeta (10–11) close up at ONE place –
+    // Delta's row 9 between them is Excel's own hidden row – so there is one mark, for the four rows (the spec expected
+    // two marks); undo puts them back, then Unhide all (one step)
     await show(page, k);
+    await expect(page.locator(".hidrc.hrow")).toHaveCount(1);
+    await expect(page.locator(".hidrc.hrow")).toHaveAttribute("data-keys", [7, 8, 10, 11].map(r => `${tid}:r${r}`).join(" "));
     const u1 = await undoSteps(page);
     await page.locator(".hidrc.hrow").first().click();
     await expect.poll(() => undoSteps(page)).toBe(u1 + 1);
-    await pollFile(() => Object.keys(hiddenOf(S.id) || {}).length, { timeout: 10_000 }).toBe(2);
+    await pollFile(() => hiddenOf(S.id), { timeout: 10_000 }).toBeNull();
+    await expect(cell(page, "Beta")).toHaveCount(1);
+    await page.click("#undoBtn");
+    await pollFile(() => Object.keys(hiddenOf(S.id) || {}).length, { timeout: 10_000 }).toBe(4);
+    await expect(cell(page, "Beta")).toHaveCount(0);
     await hideMenu(page, "unhideAll");
     await pollFile(() => hiddenOf(S.id), { timeout: 10_000 }).toBeNull();
     await expect(cell(page, "Beta")).toHaveCount(1);
     await expect(page.locator(".hidrc")).toHaveCount(0);
     await page.click("#undoBtn");
-    await pollFile(() => Object.keys(hiddenOf(S.id) || {}).length, { timeout: 10_000 }).toBe(2);
+    await pollFile(() => Object.keys(hiddenOf(S.id) || {}).length, { timeout: 10_000 }).toBe(4);
     await page.click("#redoBtn");
     await pollFile(() => hiddenOf(S.id), { timeout: 10_000 }).toBeNull();
     // the deck holds a key 4.8.0 does not know: format 6 (AUDIT-3 COMPAT-1), its marker incident-format-6.json
