@@ -166,6 +166,8 @@ export function selStatus(): string {
   if (textSel && isLookText(textSel)) return `${LOOK_TEXT_LABEL[textSel]} selected · its font, size and colour above, its parts in the Headline group (this slide)`;
   if (textSel) return `${SLIDE_TEXT_LABEL[textSel]} selected · double-click or Enter to edit the text`;
   if (!it) return `Slide ${deck.cur + 1} of ${deck.slides.length}`;
-  const e = editOf(it);
+  const e = editOf(it), n = (get().selection.sel?.more?.length ?? 0) + 1;
+  // several Ctrl+click ranges: which controls reach them all (S16.3 second review, 6)
+  if (n > 1) return `${its.length} cells in ${n} ranges selected · text, colour and number controls: all ranges · borders, merges, roles, rows, columns, charts: the current range only`;
   return `${its.length} cell${its.length > 1 ? "s" : ""} selected` + (e.text !== undefined && e.orig !== it.text ? " · text edit paused (Excel value changed)" : e.text !== undefined ? ` · Excel value: “${it.text}”` : "");
 }

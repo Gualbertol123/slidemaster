@@ -168,6 +168,27 @@ describe("drawn: every design puts the text where its cell says (PDF and PNG dra
     expect(top).toBeLessThan(own); expect(bot).toBeGreaterThan(own); expect(mid).toBeCloseTo(own, 1);
   });
 
+  it("Liquid Glass (second review, 5): a longer number display on a narrow column (Decimals+ ×4) is fitted from the new text and kept in its cell", async () => {
+    const narrow: Op = { op: "table.patch", id: TABLE, patch: { sizes: { glass: { cols: { "4": 72 } } } } } as Op;
+    let code = "#,##0"; for (let k = 0; k < 4; k++) code = stepNum(code, "dec+")!;
+    expect(code).toBe("#,##0.0000");
+    const plan = async (ops: Op[]) => {
+      const t = await table("glass", [narrow, ...ops]), p = glassPlan(t.L, t.c, {}), g = p.texts.find(x => keyOf(x.it) === "D8")!;
+      return { g, dl: glassText(g, M) };
+    };
+    const own = await plan([]), long = await plan([C("D8", { num: code })]);
+    // the plan's item is the reformatted one: the fit (fitPx) works from the text shown, not from the workbook's
+    expect(long.g.it.text).toMatch(/^76\.777,\d{4}$/);
+    expect(String(long.g.it.text).length).toBeGreaterThan(String(own.g.it.text).length);
+    expect(long.g.size).toBeLessThan(own.g.size);
+    // still too wide at the smallest size: drawn inside its cell's clip, never over the next cell
+    const clip = flat(long.dl).find(n => n.t === "group" && n.clip && texts(n.children).some(x => x.src === long.g.it.text));
+    const box = clip && clip.t === "group" ? clip.clip! : null;
+    expect(box).toBeTruthy();
+    for (const k of ["x", "y", "w", "h"] as const) expect(box![k], k).toBeCloseTo(long.g[k], 1);
+    expect(long.g.w).toBeLessThan(80);
+  });
+
   it("drawnVAlign (review 1): where each design draws a cell – the ribbon and the painter compare with this, not with Excel's word", async () => {
     // Liquid Glass: Excel's bottom (the workbook default) and centre are drawn in the middle; only a bottom set on the slide at the bottom
     expect(drawnVAlign("glass", { valign: "bottom" })).toBe("middle");

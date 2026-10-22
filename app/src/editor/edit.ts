@@ -44,9 +44,13 @@ export function setSel(t: number, anchor: { r: number; c: number }, active: { r:
 }
 /** Ctrl+click: a new range in the same table, the selected ones kept (another table: a new selection) */
 export function addSel(t: number, cell: { r: number; c: number }) {
-  const cur = get().selection.sel;
-  setSel(t, cell, cell, cur && cur.t === t ? selRanges(cur) : undefined);
+  const cur = get().selection.sel, more = cur && cur.t === t ? selRanges(cur) : undefined;
+  setSel(t, cell, cell, more);
+  // the first Ctrl+click of a multi-selection (not the painter's targets) says what reaches every range (S16.3 second review, 6)
+  if (more && !cur!.more?.length && !get().selection.painter) toast(MULTI_NOTE);
 }
+/** what a multi-selection's ranges get: the text, colour and number controls act on all of them, the table tools on the current one */
+export const MULTI_NOTE = "Several ranges selected: font, size, bold, italic, text colour, alignment, cell colour, highlight, number display and Clear formatting change all of them. Borders, merges, roles, rows and columns, charts and the other table tools change only the current range (the last one clicked).";
 export function clearSel() { patch("selection", { sel: null }); }
 export function moveSel(dr: number, dc: number, extend: boolean) {
   const sel = get().selection.sel, T = selTable(); if (!sel || !T) return;

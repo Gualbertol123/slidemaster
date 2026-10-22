@@ -267,5 +267,20 @@ export function flushPainter() {
   if (ops.length) change("Paste format", ops);
   if (p.sticky) patch("selection", { painter: { ...p, pend: undefined } }); else stopPainter();
 }
-addEventListener("keyup", e => { if (e.key === "Control" || e.key === "Meta") flushPainter(); });
-addEventListener("blur", () => flushPainter());
+/* Ctrl let go while a cell drag is still on – the mouse not yet released (S16.3 second review, 1): the paste waits for the
+   pointerup, so the range being dragged joins the targets and everything goes in as one change, one undo step (flushed at
+   the keyup, a painter that is not sticky would be off before that range was painted; a sticky one would paste a second
+   time, onto the targets kept in the selection's Ctrl+click ranges) */
+let dragging = false, flushOnUp = false;
+/** the stage: a cell drag (click or drag over cells) began */
+export function cellDragStart() { dragging = true; }
+/** the stage: that drag ended (`ctrl`: Ctrl held at the pointerup) – the painter pastes, or notes a target */
+export function cellDragEnd(ctrl: boolean) {
+  const flush = flushOnUp; dragging = flushOnUp = false;
+  if (!get().selection.painter) return;
+  applyPainter(ctrl || flush);
+  if (flush && !ctrl) flushPainter();
+}
+function ctrlUp() { if (dragging && get().selection.painter && !get().selection.painter!.obj) flushOnUp = true; else flushPainter(); }
+addEventListener("keyup", e => { if (e.key === "Control" || e.key === "Meta") ctrlUp(); });
+addEventListener("blur", () => ctrlUp());

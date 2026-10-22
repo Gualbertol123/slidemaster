@@ -13,7 +13,7 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
-import { change, gotoSlide, openLocalFile, style, styleChange, undo } from "../src/state/app";
+import { change, ctx, gotoSlide, openLocalFile, style, styleChange, undo } from "../src/state/app";
 import { addSel, selCells, selItems, setSel } from "../src/editor/edit";
 import { applyPainter, paintItem, startPainter, stopPainter } from "../src/editor/painter";
 import { selectItem } from "../src/editor/charts";
@@ -23,6 +23,9 @@ import { formatValue, isDateFmt } from "@slide-builder/core/xlsx/numfmt";
 import type { CellEdit, Op } from "@slide-builder/core/model/types";
 import type { Item, TableLayout } from "@slide-builder/core/xlsx/types";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
+import { slideCtx } from "@slide-builder/core/render/look";
+import { cellBox } from "../src/stage/hit";
+import { tableW } from "@slide-builder/core/render/layout";
 import { defaultPreset } from "@slide-builder/core/model/preset";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -205,12 +208,17 @@ describe("number display, vertical alignment and the fuller painter (S16.3)", ()
     // the table tools (borders, merges, charts, rows) act on the current range only (review 2)
     expect(selItems().map(keyOf)).toEqual([keyOf(nums[9])]);
     expect(document.querySelectorAll("#stage .selbox").length).toBeGreaterThanOrEqual(2);
+    // second review, 5 and 6: the label counts the ranges; the toast and the status bar say what reaches all of them
+    expect(document.getElementById("textTarget")!.textContent).toBe("Cells in 2 ranges");
+    expect(document.getElementById("toast")!.textContent).toMatch(/number display .* change all of them.*Borders, merges, roles.* only the current range/);
+    expect(document.getElementById("sbSel")!.textContent).toMatch(/^2 cells in 2 ranges selected · .*: the current range only$/);
     await act(async () => { fireEvent.click(btn("numThou")); });
     await confirmed(h0 + 1);
     expect(editOf(nums[7]).num ?? null).not.toBe(editOf(nums[8]).num ?? null);
     expect(editOf(nums[7]).num).toBe(editOf(nums[9]).num);
     await act(async () => sel1(0, nums[7])); await settle();
     expect(get().selection.sel?.more).toBeUndefined();
+    expect(document.getElementById("textTarget")!.textContent).toMatch(/^Cell [A-Z]+\d+$/);
   });
 
   it("PT-03 objects: a callout's look onto others of its kind – one, or several with Ctrl (one undo step); another kind refuses", async () => {
@@ -347,5 +355,43 @@ describe("number display, vertical alignment and the fuller painter (S16.3)", ()
     expect(editOf(target)).toMatchObject({ num: "0.000", font: "Arial" });
     await undoTo(h0);
     expect(get().deck.slides[0].id).not.toBe("sZZfront");
+  });
+  /* second review, 1: Ctrl let go before the mouse – the keyup comes while a cell drag is still on. The drag's range is
+     painted with the others, as one change (one Ctrl+Z); before, a painter that is not sticky was off before it was
+     painted, and a sticky one pasted a second time onto the Ctrl+click ranges kept in the selection */
+  it("PT-02 Ctrl let go before the mouse: the range being dragged is painted too, in the same single undo step (sticky or not)", async () => {
+    await act(async () => gotoSlide(home)); await settle();
+    const A = numbers(0).nums, src = A[0];
+    /** a real click on the stage on cell `it` of table 0 (pointerdown on its hit area; the pointerup on the window) */
+    const hits = () => document.querySelector('#stage .hits[data-t="0"]') as HTMLElement;
+    const at = (it: Item) => {
+      const R = get().deck.slides[get().deck.cur], c = slideCtx(ctx(), R), T = R.tables[0], h = hits();
+      h.getBoundingClientRect = () => ({ left: 0, top: 0, x: 0, y: 0, width: tableW(T, c), height: 900, right: tableW(T, c), bottom: 900, toJSON: () => ({}) }) as DOMRect;
+      const b = cellBox(it, c)!;
+      return { clientX: b.bx + b.bw / 2, clientY: b.by + b.bh / 2, button: 0, buttons: 1, pointerId: 1 };
+    };
+    for (const sticky of [false, true]) {
+      const [t1, t2] = sticky ? [A[13] ?? A[A.length - 3], A[14] ?? A[A.length - 2]] : [A[15] ?? A[A.length - 5], A[16] ?? A[A.length - 4]], h0 = history();
+      expect(editOf(t1).font, keyOf(t1)).toBeUndefined(); expect(editOf(t2).font, keyOf(t2)).toBeUndefined();
+      await act(async () => { sel1(0, src); startPainter(sticky); }); await settle();
+      // Ctrl+click the first target: noted
+      await act(async () => { fireEvent.pointerDown(hits(), { ...at(t1), ctrlKey: true }); fireEvent.pointerUp(window, { ...at(t1), ctrlKey: true }); }); await settle();
+      expect(get().selection.painter?.pend?.cells.length).toBe(1);
+      // Ctrl+press on the second, Ctrl let go, then the mouse
+      await act(async () => { fireEvent.pointerDown(hits(), { ...at(t2), ctrlKey: true }); }); await settle();
+      await act(async () => key("Control")); await settle();
+      expect(history()).toBe(h0);                         // nothing yet: the drag is still on
+      await act(async () => { fireEvent.pointerUp(window, { ...at(t2), ctrlKey: false }); });
+      await confirmed(h0 + 1);
+      await settle(12);
+      expect(history()).toBe(h0 + 1);                     // one change: no second "Paste format"
+      for (const it of [t1, t2]) expect(editOf(it), keyOf(it)).toMatchObject({ num: "0.000", font: "Arial" });
+      if (sticky) { expect(get().selection.painter).toBeTruthy(); expect(get().selection.painter?.pend).toBeUndefined(); await act(async () => stopPainter()); }
+      else expect(get().selection.painter).toBeNull();
+      // one Ctrl+Z takes both back
+      await act(async () => undo(false)); await settle(12);
+      expect(history()).toBe(h0);
+      for (const it of [t1, t2]) expect(editOf(it).font, keyOf(it)).toBeUndefined();
+    }
   });
 });

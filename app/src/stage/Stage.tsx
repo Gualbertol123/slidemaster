@@ -22,7 +22,7 @@ import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { activeItem, addSel, setSel, selRanges } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
-import { applyPainter } from "../editor/painter";
+import { cellDragEnd, cellDragStart } from "../editor/painter";
 import { selectSlideText } from "../editor/textfmt";
 import { setStage, useStage } from "./data";
 import { addNote, editNote, openInline, pendingNote, selectNote, takePendingNote } from "./actions";
@@ -193,7 +193,7 @@ function resized(p: NotePlace, drag: DragPreview | null): Rect {
 
 /* ---- a table's hit area: select cells (click, Shift+click, drag), hover, column / row borders */
 let cellDrag: { t: number } | null = null;
-addEventListener("pointerup", e => { const was = cellDrag; cellDrag = null; if (was && get().selection.painter) applyPainter(e.ctrlKey || e.metaKey); });
+addEventListener("pointerup", e => { const was = cellDrag; cellDrag = null; if (was) cellDragEnd(e.ctrlKey || e.metaKey); });
 const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: RuntimeSlide; c: RenderCtx; box: Box; s: number }) {
   const T = R.tables[i], hov = useRef<HTMLDivElement>(null), border = useStage(st => st.drag?.kind === "border" && st.drag.t === i ? st.drag : null);
   const last = useRef(0);
@@ -210,7 +210,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
         const cell = { r: it.b.r, c: it.b.c }, cur = get().selection.sel;
         // Ctrl+click (4.9, Q19): one more range – the painter's targets, or a multi-selection the ribbon acts on at once
         if (e.shiftKey && cur && cur.t === i) setSel(i, cur.anchor, cell, cur.more); else if (e.ctrlKey || e.metaKey) addSel(i, cell); else setSel(i, cell, cell);
-        cellDrag = { t: i };
+        cellDrag = { t: i }; cellDragStart();
       }}
       onPointerMove={e => {
         const now = performance.now(); if (now - last.current < 16 && !(cellDrag && (e.buttons & 1))) return; last.current = now;

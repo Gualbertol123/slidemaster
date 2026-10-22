@@ -119,7 +119,9 @@ function cellTarget(): TextTarget | null {
   const c = ctx(), fs = its.map(x => effFmt(c, x)), deck = c.style.text?.table?.font || null;
   const shown: Shown = { font: one(fs.map(f => f.font || deck)), pt: one(fs.map(f => f.sz)), b: fs.every(f => f.b), i: fs.every(f => f.i),
     color: one(fs.map(f => f.color)), align: one(fs.map(f => f.align)) as Align | null, valign: one(its.map(it => cellVAlign(it))) };
-  const range = its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : A1(its[0].b.src.r, its[0].b.src.c);
+  // (several Ctrl+click ranges: their number – the controls act on all of them; S16.3 second review, 5)
+  const n = sel.more?.length ? sel.more.length + 1 : 1;
+  const range = n > 1 ? `in ${n} ranges` : its.length > 1 ? `${A1(sel.r1, sel.c1)}:${A1(sel.r2, sel.c2)}` : A1(its[0].b.src.r, its[0].b.src.c);
   return {
     kind: "cells", label: (its.length > 1 ? "Cells " : "Cell ") + range, shown, can: { valign: true, fill: true },
     apply(label, p) {

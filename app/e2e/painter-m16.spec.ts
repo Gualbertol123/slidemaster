@@ -72,7 +72,8 @@ test("PT-01 Number group and vertical alignment of cells: saved per cell, drawn,
   // undo: the vertical position back first
   await a.click("#undoBtn");
   await pollFile(() => sheetEdits().some(e => e.valign === "top")).toBe(false);
-  await a.click("#clearFmt");
+  // (an undo leaves no cell selected: the cell again, then Clear format)
+  await clickCell(a, first); await a.click("#clearFmt");
   await pollFile(() => sheetEdits().some(e => typeof e.num === "string")).toBe(false);
   expect(errors).toEqual([]);
 });
@@ -113,11 +114,11 @@ test("PT-03 objects: a callout's look onto two others with Ctrl (one undo step);
     patch: { kind: "shape", shape: "round", text: k, box: { x: 200 + i * 300, y: 700, w: 160, h: 60 }, ...(i ? {} : { fill: "#C00000", border: { color: "#1F3864", w: 2 } }) } }))), sid);
   const items = () => deck().doc.preset.slides.find((s: any) => s.id === sid).items || {};
   await pollFile(() => Object.keys(items()).filter(k => /^q[abc]$/.test(k)).length).toBe(3);
-  await page.locator('[data-item="qa"]').click();
+  await page.locator('.itembox[data-item="qa"]').click();
   await page.click("#painterBtn");
   const recs0 = deck().recs.length;
   await page.keyboard.down("Control");
-  await page.locator('[data-item="qb"]').click(); await page.locator('[data-item="qc"]').click();
+  await page.locator('.itembox[data-item="qb"]').click(); await page.locator('.itembox[data-item="qc"]').click();
   await page.keyboard.up("Control");
   await pollFile(() => [items().qb?.fill, items().qc?.fill]).toEqual(["#C00000", "#C00000"]);
   expect(deck().recs.length).toBe(recs0 + 1);
