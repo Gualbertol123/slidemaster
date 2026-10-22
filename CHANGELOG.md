@@ -7,7 +7,7 @@ Releases are made with `docs/next/release-checklist.md`.
 
 (M15 writes this section on its own branch, v4/M15-lines-icons-snapping.)
 
-## 4.7.0 - unreleased (PLAN M14: charts; B30, B31; docs/next/09; ADR-015 amended 2026-10-21; dated at the tag)
+## 4.7.0 - 2026-10-22 (PLAN M14: charts; B30, B31; docs/next/09; ADR-015 amended 2026-10-21)
 
 What users notice
 * **New chart types** (B30): column and bar (clustered, stacked, 100 %), line (straight or smoothed; circle, square,

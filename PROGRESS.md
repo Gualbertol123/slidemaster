@@ -221,28 +221,28 @@ numbers measured twice). Measured numbers go into the step's line.
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
   S14.P (e9f8ac0, c6c74a4; on main by PR #28); on the branch the gate grew `kinds` (`tools/real-charts.mjs`, S14.6
-  53cdf19) and `plots` (Windows). Reviews: S14.P's (REQUEST CHANGES → APPROVE), S14.6's (APPROVE). runs: pending
+  53cdf19) and `plots` (Windows). Reviews: S14.P's (REQUEST CHANGES → APPROVE), S14.6's (APPROVE). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 - [x] S14.1 · Model (`sers`, `groups`, `axes`, `marks`, legend; vectors; `knownOp`, `needsV5`) – the lists, types,
   vectors and fixtures in S14.P (3a0b630, c6c74a4; on main); on the branch, in the close-out commit "M14 · close-out":
   the ADR-015 amendment (series, groups, axes, marks; `chart-series.ts`'s one layout; `cachedChartNodes` per key; the
   §4.2 PowerPoint mapping with marks as `p:sp` lines with native ends; waterfall and scatter as built), `total?: boolean`
   on `points` in `types.ts` (the two local types in `chart-waterfall.ts` / `chart-panel.ts` dropped), and the decision
   for old non-pie charts (Decisions 2026-10-21). Reviews: S14.P's, then the M14 milestone review (findings 1, 4, 9 →
-  fixed). runs: pending
+  fixed). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 - [x] S14.2 · Columns and bars ⏱ (CT-01, CT-02, LG-01) – f65be42; review fixes 2f1ab48 (S14.2f, with the S14.3
   re-check's two). Reviews: S14.2 (findings 1–6) → fixed → APPROVE. ⏱ column 12 × 4 display list 1.92 · 0.93 / 1.77 ·
-  1.33 ms (Measurements · M14). LG-01's E: the close-out's spec (below). runs: pending
+  1.33 ms (Measurements · M14). LG-01's E: the close-out's spec (below). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 - [x] S14.3 · Lines, areas, combo, second axis, groups, targets, marks ⏱ — the reference chart; 🚦 G9 (CT-03…CT-07) –
   a04c5ff, merge of prep 0490eaa, review fixes 9d03dc2 (and 2f1ab48's re-check two). Reviews: S14.3 (findings 1–10)
   → fixed → APPROVE. ⏱ reference chart 1.05 · 0.64 / 1.61 · 0.66 ms, line 12 × 52 3.28 · 1.59 / 6.69 · 1.94 ms. 🚦 G9
   waived (owner, "i approve everything", 2026-10-21); CT-07's picture sign-off under Waiting for. CT-03…CT-06's E: the
-  close-out's spec (below). runs: pending
+  close-out's spec (below). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 - [x] S14.4 · Scatter, waterfall – cf04788; review fixes in 40902d1 (findings 1–3, 5–8). CT-01 complete in the unit
   tests (`core/tests/chart-scatter-waterfall.test.ts`, the corpus deck `tests/corpus/charts/scatter-waterfall.json`); a
   waterfall's `points[i].total` is now in `types.ts` (close-out; M14 review 4). Reviews: S14.4 → fixed → APPROVE.
-  runs: pending
+  verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 - [x] S14.5 · Chart panel (CT-08) – 40902d1, review fixes e7dd112; reviews: S14.5 (findings 1–8) → fixed → APPROVE;
-  runs: pending (the CT-08 spec ticked by the orchestrator's full e2e run). Built with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
+  verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619). Built with the S14.4 review's findings 1–3 and 5–8 (CT-08 in
   `app/tests/chart-panel.test.tsx` – the page with report.xlsx – and the export of a panel-made chart in
   `app/tests/chart-panel-pptx.test.ts`). A stack per series
   (`sers[s].stack`) is not offered: PowerPoint cannot draw it (the panel shows it disabled and says so). `m14.json`
@@ -260,7 +260,7 @@ numbers measured twice). Measured numbers go into the step's line.
   measurement"). For the owner to see before M15 measures: either the total is accepted by measurement, or a part is
   cut (M15's vendored icon set is the large one)
 - [x] S14.6 · PowerPoint ⏱ (PX-05, PX-06) – 53cdf19, review fixes a04cc63; reviews: S14.6 (findings 1–9) → fixed →
-  APPROVE; runs: pending (export-check `kinds`, the full bench's `pptx_combo_ms`); PX-05 / PX-06 on the owner's PC
+  APPROVE; verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619); PX-05 / PX-06 on the owner's PC
   (Waiting for). Every chart type is a native chart; the corpus test
   `core/tests/pptx-charts-m14.test.ts` covers the four chart decks × five designs. It checks the kinds, caches equal to
   the embedded cells with their number formats, native ends, no `p:cxnSp`, no link, and the same bytes again. The
@@ -304,8 +304,7 @@ numbers measured twice). Measured numbers go into the step's line.
   cold export also in CHANGELOG 4.7.0); README rows (8); S14.0 / S14.1 ticked, the old-chart decision (9; Decisions);
   one CHANGELOG 4.7.0 section (10); the page total risk for the owner (11). Still at the M14 × M15 merge (S14.3 review
   finding 7, routed to M15): a chart's icon mark draws a vendored icon through M15's `vendoredNodes` (per-path paint)
-  instead of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). runs: pending (AUDIT §0 ×2
-  on clean clones, the full e2e with the CT-08 and S14.7 specs, the full bench, export-check – the orchestrator)
+  instead of stroking every path (`core/src/render/chart-marks.ts`, the "MERGE M15" note). verified: tests ✓ clean clone ✓ review ✓ (4.7.0 runs 2026-10-22 on a clean clone of f79c768 and on the working tree at 26cf08e: core 1,207, app 103, helper 368 on 3.12 and 3.8, e2e 45/45 with CT-08 and the S14.7 spec, parity and dlparity 0 not accepted, sp/dlcheck all 8 node types, export-check 15/15; bench by CI – here `pptx_combo_ms` 899 ms of 3,619)
 
 ### M15 · Lines, icons, snapping (4.8.0; B32–B35; docs/next/09 §8, ADR-020, ADR-017 amended)
 - [ ] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) – `Stroke.join` is in
