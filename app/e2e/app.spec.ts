@@ -740,8 +740,11 @@ test.describe.serial("two people, one shared folder", () => {
     await expect.poll(() => note.textContent(), { timeout: 10_000 }).not.toBe(before);
     // stretch the comment by its bottom edge: it snaps to the bottom of a table, with a guide line
     const nb = (await note.boundingBox())!, tw = (await page.locator("#stage .slide > .tw").nth(0).boundingBox())!;   // the comment spans both tables: shorten it to the first one
+    // (the edge, grabbed 2 screen px above it, is let go 4 SLIDE px below the table, inside the 8 px snap whatever the
+    // stage's scale: "+ 3 screen px" put it 5 screen px = 8.6 slide px below at the 0.58 scale this window gives now)
+    const sc = (await page.locator("#stage .slide").boundingBox())!.width / 1600;
     await page.mouse.move(nb.x + nb.width / 2, nb.y + nb.height - 2); await page.mouse.down();
-    await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height + 3, { steps: 6 });
+    await page.mouse.move(nb.x + nb.width / 2, tw.y + tw.height - 2 + 4 * sc, { steps: 6 });
     await expect(page.locator("#stage .snapline.h")).toBeVisible();
     await page.mouse.up();
     await pollFile(() => (Object.values(wdoc().preset.slides[0].notes).find((n: any) => n.auto) as any).h, { timeout: 10_000 }).toBeGreaterThan(0);
