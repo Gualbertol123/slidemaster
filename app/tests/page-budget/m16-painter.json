@@ -1,4 +1,4 @@
 {
   "bytes": 12500,
-  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +11,999 bytes with npm run build on m16/painter over origin/main cb9cb8a (3,967,290 → 3,979,289) after the review fixes (+1,483 for the drawn vertical position, the chart painter's series and axes, targets kept by slide and table id), rounded up to the next 500. Set by measurement (plan-M16: about +12 KB expected)."
+  "why": "S16.3 (4.9.0, B38: number display, cell vertical alignment, the fuller painter, multi-selection paste): measured +12,001 bytes with npm run build on m16/painter-main over origin/main 71d8806 (B48-B50 merged; 4,017,563 -> 4,029,564), rounded up to the next 500. (On cb9cb8a it was +11,999.) Set by measurement (plan-M16: about +12 KB expected)."
 }
