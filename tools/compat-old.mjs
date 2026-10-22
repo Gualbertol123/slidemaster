@@ -74,11 +74,11 @@ const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? proces
 const flag = k => process.argv.includes(k);
 const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f7b4", "4.6": "e6c1c4f", "4.6p": "v4.6.0", "4.7": "v4.7.0",   // (4.6p: the released 4.6.0 – 6392856, main with S14.P, + the dated CHANGELOG; 4.7: the released 4.7.0, M14)
   "4.8": "v4.8.0",     // (4.8: the released 4.8.0, M15 – main's 36d689a)
-  "4.9": "v4.9.0" };   // (4.9: the released 4.9.0, M16 – the head of its release branch, 7a658ec)
+  "4.9": "v4.9.0" };   // (4.9: the released 4.9.0, M16 – main's merge of its release branch, c293100 – the same tree as 7a658ec)
 /** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag, 4.9.0's before the 4.8.0
     tag): the commit it will name – M14's head d327882, "M14 · 4.7.0: dated, runs recorded"; main's 36d689a, the merge of
     M15 for 4.8.0 (logged when used) */
-const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a", "v4.9.0": "7a658ec" };
+const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a", "v4.9.0": "c293100" };
 /** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02, m14, m15, m16 and m52 run */
 const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8", "4.9"]);
 /** the versions that read format 6 too (4.9.0, AUDIT-3 COMPAT-1): m16 expects them to open the deck and keep its 4.9

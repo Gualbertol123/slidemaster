@@ -1,4 +1,4 @@
 {
-  "bytes": 37000,
-  "why": "B52 (targets on charts: reference lines from cells, gap arrows, change pills; product owner 2026-10-22): by measurement on v4/B52-target-chart – the page built from its base (v4/release-4.9.0 7141230, the committed page) is 4,874,382 bytes, with B52 4,910,921 (+36,539: core render/chart-targets.ts and the format-7 guard in the app's and the workers' bundles, the panel's Targets section); rounded up to the next 500."
+  "bytes": 38500,
+  "why": "B52 (targets on charts: reference lines from cells, gap arrows, change pills; product owner 2026-10-22): by measurement on v4/B52-target-chart – the page built from its base (v4/release-4.9.0 7141230 = main c293100's page, 4,874,382 bytes) is 4,912,512 bytes with B52, its review fixes and the 4.10.0 version (+38,130; first measured +36,539 before the review fixes: one line group per axis, 100 % axes, stacked gaps, emptied cells, removeRefPatch): core render/chart-targets.ts and the format-7 guard in the app's and the workers' bundles, the panel's Targets section; rounded up to the next 500."
 }

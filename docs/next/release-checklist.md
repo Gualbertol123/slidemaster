@@ -133,6 +133,11 @@ Copy-Item "T:\Slide Builder\app\X.Y.Z\Update Slide Builder.bat" "T:\Slide Builde
       objects says "a journal of this deck is damaged - tell the maintainer": that message means **update Slide
       Builder** (close the black window and start it again), not a damaged deck. The first 4.6 object saved on a deck
       shows "Saving…" for about 25 seconds, once per deck.
+- [ ] **4.10.0 and later (B52, format 7), in the update-day message:** a 4.9 window still open during the update shows
+      "⚠ a journal of this deck is damaged (incident-format-7.json) – the deck is read-only; tell the maintainer" for
+      decks that now use 4.10's chart targets (reference lines, gap arrows, change pills). This is expected and
+      harmless (the frozen 4.9 helper reads the format-7 marker as an incident): close the window and start Slide
+      Builder again to use 4.10; update everyone together. **Never delete `incident-format-7.json`.**
 - [ ] Rollback, if needed: `python tools\update.py --use P.Q.R` (in `T:\Slide Builder`); below 4.6 it lists the decks
       that hold 4.6 objects and asks first. **The first release on a share** (it still ran `backend\`, so there is no
       P.Q.R in `app\`): first note the decks that hold 4.6 objects – ⚙ Options › Administration › *Prepare rollback*

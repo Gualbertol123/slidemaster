@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.10.0 - unreleased (B52: targets on charts)
+## 4.10.0 - 2026-10-22 (B52: targets on charts)
 
 What users notice
 * **Reference lines from a cell** (B52): in a column, line, area or combo chart's panel, *Targets › + Reference line from
@@ -28,6 +28,10 @@ What users notice
 * A deck that holds one of these is marked for Slide Builder 4.10 (format 7; the first such edit shows "Saving…" for
   about 23 seconds once): Slide Builder 4.9 and older open it read-only and ask to update ("a journal of this deck is
   damaged … tell the maintainer" in 4.0–4.9 means: update Slide Builder).
+* **Update day:** a Slide Builder 4.9 window still open during the update shows "⚠ a journal of this deck is damaged
+  (incident-format-7.json) – the deck is read-only; tell the maintainer" for decks that now use 4.10's chart targets.
+  This is expected and harmless – the 4.9 helper reads the format-7 marker as an incident; nothing is damaged or lost:
+  close the window and start Slide Builder again to use 4.10. Update everyone together.
 
 ## 4.9.0 - 2026-10-22 (PLAN M16: tables; B36–B39; S13.7; M17 audit fixes (docs/next/AUDIT-3.md); B51; docs/next/09 §3)
 
