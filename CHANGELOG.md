@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.11.0 - unreleased (B53: chart labels)
+## 4.11.0 - 2026-10-22 (B53: chart labels)
 
 What users notice
 * **More room for the chart itself** (B53): a chart keeps on its right only the width of the labels that are really
