@@ -20,7 +20,13 @@ type Set = (label: string, p: ItemPatch | null) => void;
 const pick = (id: string, ref: ChartRefWhat) => setDialogs({ pick: { kind: "chart-ref", id, ref } });
 const DASHES = [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]] as const;
 const SHOW = [["both", "Name and value"], ["name", "Name"], ["value", "Value"], ["none", "No label"]] as const;
-const RPOS = [["right", "At the right end"], ["left", "At the left end"], ["above", "Above the line"]] as const;
+const RPOS = [["right", "Right, outside the plot"], ["inside", "Right, on the line"], ["above", "Above the right end"], ["below", "Below the right end"], ["left", "Above the left end"]] as const;
+/* (B53) more places: the gap label's side and caption, the arrow's direction; the pills' rows and caption */
+const GLAB = [["", "Label beside the arrow"], ["right", "Label right of the arrow"], ["left", "Label left of the arrow"]] as const;
+const GFROM = [["", "From the line to the point"], ["point", "From the point to the line"]] as const;
+const GCAP = [["", "Caption under"], ["above", "Caption over"]] as const;
+const CPOS = [["axis", "Above the axis"], ["line", "Under the line"], ["point", "Under each point"], ["above", "Along the top"], ["below", "Below the axis labels"]] as const;
+const CCAP = [["", "Caption left"], ["right", "Caption right"], ["below", "Caption under the row"]] as const;
 const HEADS = [["end", "Head at the point"], ["start", "Head at the line"], ["both", "Both heads"], ["none", "No head"]] as const;
 const headsOf = (k: ChartMark) => { const h = k.style?.heads; if (!h) return "end"; return h.a && h.a !== "none" ? h.b && h.b !== "none" ? "both" : "start" : h.b && h.b !== "none" ? "end" : "none"; };
 const headsVal = (v: string) => v === "end" ? null : v === "start" ? { a: "triangle" as const } : v === "both" ? { a: "triangle" as const, b: "triangle" as const } : { a: "none" as const, b: "none" as const };
@@ -68,7 +74,7 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
           <Field className="num" data-a="rw" title="Its width, px (empty = 1.5)" placeholder="1.5" value={st.w === undefined ? "" : String(st.w)} onCommit={v => { const n = numOrNull(v, .25, 20); if (n !== undefined) mp("Reference line width", mid, { style: { ...st, w: n ?? undefined } }); }} /></div>
         <div className="row"><span className="lbl">Label</span>
           <select data-a="rshow" value={k.show || "both"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Reference line label", mid, { show: v === "both" ? null : v }); }}>{SHOW.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-          <select data-a="rpos" value={k.pos === "left" || k.pos === "above" ? k.pos : "right"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Reference line label place", mid, { pos: v === "right" ? null : v }); }}>{RPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+          <select data-a="rpos" value={RPOS.some(([v]) => v === k.pos) ? k.pos : "right"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Reference line label place", mid, { pos: v === "right" ? null : v }); }}>{RPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
       </div>;
     })}
     <div className="row"><button className="btn small" id="chartAddRef" title="A line across the plot at a cell's value (a budget, an ambition): it follows the workbook" onClick={() => pick(id, { what: "ref-add" })}>+ Reference line from a cell…</button>
@@ -97,6 +103,10 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
             {HEADS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <select data-a="gsigns" value={fixed ? "fixed" : "sign"} onChange={e => mp("Gap arrow colours", mid, { signs: (e.target as HTMLSelectElement).value === "fixed" ? "fixed" : null })}><option value="sign">Colour by sign</option><option value="fixed">One colour</option></select>
           {fixed && <label className="sw" title="Its colour"><Input type="color" data-a="gcolor" value={own} onCommit={e => mp("Gap arrow colour", mid, { style: { ...(k.style || {}), color: (e.target as HTMLInputElement).value.toUpperCase() } })} /><i style={{ background: own }} /></label>}</div>
+        <div className="row"><span className="lbl">Places</span>
+          <select data-a="gfrom" title="The arrow's direction" value={k.from === "point" ? "point" : ""} onChange={e => mp("Gap arrow direction", mid, { from: (e.target as HTMLSelectElement).value || null })}>{GFROM.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select data-a="glabel" title="Where its label stands" value={k.labelSide === "left" || k.labelSide === "right" ? k.labelSide : ""} onChange={e => mp("Gap label side", mid, { labelSide: (e.target as HTMLSelectElement).value || null })}>{GLAB.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select data-a="gcap" title="The caption under or over the difference" value={k.capPos === "above" ? "above" : ""} onChange={e => mp("Gap caption place", mid, { capPos: (e.target as HTMLSelectElement).value || null })}>{GCAP.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
       </div>;
     })}
     <div className="row"><button className="btn small" id="chartAddGap" disabled={!refs.length || !sers.length} title={refs.length ? "An arrow from a point (the selected one, else the last) to the first reference line, with the live difference" : "Add a reference line first"}
@@ -113,10 +123,11 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
           <label className="chk"><Input type="checkbox" data-a="cpct" checked={k.pct !== false} onCommit={e => mp("Change pills: %", mid, { pct: (e.target as HTMLInputElement).checked ? null : false })} />%</label>
           {del(mid, "change pills")}</div>
         <div className="row"><select data-a="cpairs" value={k.pairs === "last" ? "last" : "all"} onChange={e => mp("Change pills: pairs", mid, { pairs: (e.target as HTMLSelectElement).value === "last" ? "last" : null })}><option value="all">Every pair</option><option value="last">The last pair</option></select>
-          <select data-a="cposition" value={k.pos === "line" ? "line" : "axis"} onChange={e => mp("Change pills: place", mid, { pos: (e.target as HTMLSelectElement).value === "line" ? "line" : null })}><option value="axis">Above the axis</option><option value="line">Under the line</option></select>
+          <select data-a="cposition" value={CPOS.some(([v]) => v === k.pos) ? k.pos : "axis"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Change pills: place", mid, { pos: v === "axis" ? null : v }); }}>{CPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <Field className="num" data-a="cnum" title="The change's number format (empty = the series' cells')" placeholder="as the cells" value={k.num || ""} onCommit={v => mp("Change pills: format", mid, { num: v.trim() || null })} /></div>
         <div className="row"><Field className="nm" data-a="ccaption" title="The caption above the pills (Enter to apply; empty = none)" placeholder="no caption" value={k.caption || ""} onCommit={v => mp("Change pills: caption", mid, { caption: v.trim() || null })} />
           <select data-a="csigns" value={fixed ? "fixed" : "sign"} onChange={e => mp("Change pill colours", mid, { signs: (e.target as HTMLSelectElement).value === "fixed" ? "fixed" : null })}><option value="sign">Colour by sign</option><option value="fixed">One colour</option></select>
+          <select data-a="ccap" title="Where the caption stands" value={k.capPos === "right" || k.capPos === "below" ? k.capPos : ""} onChange={e => mp("Change pills: caption place", mid, { capPos: (e.target as HTMLSelectElement).value || null })}>{CCAP.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           {!fixed && <>{sw("pos", look.pos, "A rise")}{sw("neg", look.neg, "A fall")}{sw("zero", look.zero, "No change")}</>}
           {fixed && <label className="sw" title="Their colour"><Input type="color" data-a="ccolor" value={HEX.test(k.style?.color || "") ? k.style!.color! : look.zero} onCommit={e => mp("Change pill colours", mid, { style: { ...(k.style || {}), color: (e.target as HTMLInputElement).value.toUpperCase() } })} /><i style={{ background: k.style?.color || look.zero }} /></label>}</div>
       </div>;

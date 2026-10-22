@@ -111,7 +111,7 @@ describe("space: the plot takes what the labels present leave (B53 1)", () => {
   it("one series with targets: no legend unless one is asked for; a second series, or a legend asked for, has one", async () => {
     const one = (await deck("excel", { patch: p => { delete p.legendAt; } })).it("tl");
     expect(legendAtOf(one)).toBe("none");
-    expect(legendAtOf({ ...one, legend: "bottom" })).toBe("bottom");
+    expect(legendAtOf({ ...one, legendAt: "bottom" })).toBe("bottom"); expect(legendAtOf({ ...one, legend: "right" })).toBe("none");
     expect(legendAtOf({ ...one, marks: {} })).toBe("bottom");
     expect(legendAtOf({ ...one, sers: { ...one.sers, b: { n: 2, vals: one.sers!.vol.vals } } })).toBe("bottom");
   });
@@ -150,13 +150,17 @@ describe("the 12000 bug: a reference line's value in its axis's format (B53 2)",
 
 describe("label places (B53 3), in every design", () => {
   for (const design of DESIGNS) it(`${design}: reference labels right / inside / left / above / below, the gap's side and direction, pills' rows, captions`, async () => {
-    const { ctx, it, item } = await deck(design, { patch: p => {
+    const { ctx, it, item, lists } = await deck(design, { patch: p => {
       marks(p).r1.pos = "below"; marks(p).r2.pos = "inside";
       Object.assign(marks(p).xg, { labelSide: "left", from: "point", capPos: "above" });
       Object.assign(marks(p).wc, { pos: "point", capPos: "right" });
     } });
     const nodes = item("tl").nodes;
     expect(validate(nodes, design)).toEqual([]);
+    // PowerPoint: the same places, no picture, no connector shape
+    const z = unzipSync(pptxOf(lists)), slide = strFromU8(z["ppt/slides/slide1.xml"]);
+    expect(slide).not.toContain("<p:pic>"); expect(slide).not.toContain("<p:cxnSp");
+    if (process.env.CHART_PPTX_OUT) { fs.mkdirSync(process.env.CHART_PPTX_OUT, { recursive: true }); fs.writeFileSync(path.join(process.env.CHART_PPTX_OUT, `b53-places-${design}.pptx`), pptxOf(lists)); }
     const L = layoutOf(it("tl"), ctx), R1 = L.refs.find(r => r.id === "r1")!, R2 = L.refs.find(r => r.id === "r2")!;
     // below: under the line's right end; inside: on the line inside the plot, the ground behind it
     const b = textOf(L.marks.nodes, R1.label!.text)!, i = textOf(L.marks.nodes, R2.label!.text)!;
