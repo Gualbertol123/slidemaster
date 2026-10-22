@@ -3,6 +3,17 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.10.1 - 2026-10-22
+
+What users notice
+* **.xlsb workbooks that failed with "a string is longer than its record" now open.** A conditional format (or a table
+  style) that sets a number format – e.g. a rule that shows a figure as `0.0%` – made the Sheets step stop with *Could
+  not read the sheets*; such workbooks now read, and those rules draw with their number format as in the .xlsx.
+* **Unreadable extras are skipped and listed in Issues** instead of stopping the workbook: a conditional format, a
+  format of a rule, a cell or a column width of an .xlsb that cannot be read is left out and named on the slide's Issues
+  panel ("Sheet: a conditional format could not be read and is not drawn"). When something the deck needs cannot be
+  read (the sheet list, the shared text), the message names the part and the record.
+
 ## 4.10.0 - 2026-10-22 (B52: targets on charts)
 
 What users notice

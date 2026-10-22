@@ -161,7 +161,7 @@ designs, charts and callouts, free layout, borders and PowerPoint export – see
   the points ("+26 (+0.2%)", green or red). Each is switched on or off and styled in the chart panel's *Targets*; in
   PowerPoint the lines are real chart series. Decks using them open read-only in 4.9 and older: update together.
 
-The reference below lists every feature as it stands in 4.10.0.
+The reference below lists every feature as it stands in 4.10.1.
 
 **Workbooks**
 * `.xlsx`, `.xlsm` and (since 4.1) `.xlsb` are read by the page itself. Old `.xls` workbooks and protected
