@@ -786,7 +786,7 @@ export class CoreHost {
     for (const l of layers) if (have.has(l.key)) l.svg = [];
     const known = new Set(a.known), images: Record<string, string> = {};
     for (const [id, src] of Object.entries(dl.images)) if (!known.has(id)) images[id] = src;
-    return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images, items: dl.items };
+    return { slide: a.slide, id: R.id, design: ctx.style.design, layers, images, items: dl.items, ...(dl.parts ? { parts: dl.parts } : {}) };
   }
   private state(): DocState {
     const s = this.sync!;

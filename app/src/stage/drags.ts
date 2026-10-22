@@ -16,6 +16,7 @@ import { requestsIssued, setStage, stage } from "./data";
 import { slidePatch, slideScale } from "./actions";
 import type { Border } from "./hit";
 import type { Rect } from "./model";
+import { PART_LABEL, savedPart, type ContentsPart } from "@slide-builder/core/render/contents";
 
 /** what a drag shows; `done`: the drag ended with a change – it stays until the slide drawn with that change arrives
     (data.ts), so nothing jumps back for a moment */
@@ -25,7 +26,9 @@ export type DragPreview = (
   | { kind: "stretch"; i: number; side: "l" | "r" | "t" | "b"; f: number; box: Rect }
   | { kind: "grip"; i: number; mark: Rect | null }
   | { kind: "note"; key: string; box: Rect; moved: boolean; v: number | null; h: number | null }
-  | { kind: "item"; id: string; box: Rect; moved: boolean; v: number | null; h: number | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
+  | { kind: "item"; id: string; box: Rect; moved: boolean; v: number | null; h: number | null }
+  /** a part of the contents slide in a free layout (B51): its box as it will be dropped */
+  | { kind: "part"; part: ContentsPart; box: Rect; v: number | null; h: number | null }) & { done?: boolean; /** requests sent when it ended */ after?: number };
 
 /* one store update per frame, however often the pointer moves */
 let raf = 0, next: DragPreview | null = null;
@@ -38,7 +41,7 @@ function endPreview(changed = false) {
   if (raf) cancelAnimationFrame(raf);
   const last = next; raf = 0; next = null;
   if (!changed || !last || last.kind === "border" || last.kind === "grip" || last.kind === "stretch") { setStage({ drag: null }); return; }
-  const done: DragPreview = last.kind === "note" || last.kind === "item" ? { ...last, v: null, h: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
+  const done: DragPreview = last.kind === "note" || last.kind === "item" || last.kind === "part" ? { ...last, v: null, h: null, done: true, after: requestsIssued() } : { ...last, done: true, after: requestsIssued() };
   setStage({ drag: done });
   setTimeout(() => { if (stage().drag === done) setStage({ drag: null }); }, 2000);
 }
@@ -231,6 +234,53 @@ export function freeTable(R: RuntimeSlide, i: number, how: "move" | "corner" | N
     const op = moved ? freeOp(R, key, box) : null;
     if (op) change(how === "move" ? "Move table" : "Resize table", [op]);
   }, () => { if (frame) cancelAnimationFrame(frame); endPreview(); setStage({ armed: false }); });
+}
+
+/** a part of the contents slide in a free layout (B51: its title, its list) – as a table of a free layout: moved by its
+    grip, resized by its corner or an edge keeping its proportions (its scale against the design's own size of it);
+    `start`: where it is drawn now. One slide.patch on the drop: one undo step */
+export function freePart(R: RuntimeSlide, part: ContentsPart, how: "move" | "corner" | NEdge, start: Rect, others: Rect[], e: PointerEvent) {
+  if (e.button !== 0) return;
+  const c = slideCtx(ctx(), R); if (!freeOf(R, c)) return;
+  const s0 = savedPart(R, c, part)?.scale ?? 1, W = start.w / s0, H = start.h / s0, sc = slideScale(), sx = e.clientX, sy = e.clientY, key = freeKey.part(part);
+  const t = snapTargets({ ...R, tables: [] }, others);
+  let box: Rect & { scale: number } = { ...start, scale: s0 }, moved = false, at: PointerEvent | null = null, frame = 0;
+  const solve = () => {
+    frame = 0; const ev = at; if (!ev) return; at = null;
+    const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc, snap = !ev.altKey;
+    if (!moved && Math.hypot(dx, dy) < 3) return;                       // a click is not a drag
+    let v: number | null = null, h: number | null = null;
+    if (how === "move") {
+      let x = Math.max(0, Math.min(1600 - start.w, start.x + dx)), y = Math.max(0, Math.min(900 - start.h, start.y + dy));
+      const bx = snap ? snapTo(t.x, [x, x + start.w]) : null, by = snap ? snapTo(t.y, [y, y + start.h]) : null;
+      if (bx) { x += bx.d; v = bx.line; } if (by) { y += by.d; h = by.line; }
+      const cx = Math.max(0, Math.min(1600 - start.w, x)), cy = Math.max(0, Math.min(900 - start.h, y));
+      if (cx !== x) v = null; if (cy !== y) h = null;
+      box = { ...box, x: cx, y: cy };
+    } else {
+      const horiz = how === "l" || how === "r";
+      let w = how === "corner" ? Math.max(start.w + dx, (start.h + dy) * W / H) : horiz ? start.w + (how === "l" ? -dx : dx) : (start.h + (how === "t" ? -dy : dy)) * W / H;
+      if (snap) {
+        if (how === "corner" || how === "r") { const s2 = snapTo(t.x, [start.x + w]); if (s2) { w += s2.d; v = s2.line; } }
+        if (how === "l") { const s2 = snapTo(t.x, [start.x + start.w - w]); if (s2) { w -= s2.d; v = s2.line; } }
+        if ((how === "corner" && v === null) || how === "b") { const s2 = snapTo(t.y, [start.y + w * H / W]); if (s2) { w += s2.d * W / H; h = s2.line; } }
+        if (how === "t") { const s2 = snapTo(t.y, [start.y + start.h - w * H / W]); if (s2) { w -= s2.d * W / H; h = s2.line; } }
+      }
+      const right = start.x + start.w, bottom = start.y + start.h;
+      const maxW = Math.min(how === "l" ? right : 1600 - start.x, (how === "t" ? bottom : 900 - start.y) * W / H);
+      w = Math.max(Math.min(30, maxW), Math.min(maxW, w));
+      const hh = w * H / W;
+      box = { x: how === "l" ? right - w : start.x, y: how === "t" ? bottom - hh : start.y, w, h: hh, scale: w / W };
+    }
+    moved = true;
+    next = { kind: "part", part, box, v, h }; setStage({ drag: next });
+  };
+  follow(ev => { at = ev; if (!frame) frame = requestAnimationFrame(solve); }, () => {
+    if (frame) { cancelAnimationFrame(frame); solve(); }                // the last position counts
+    endPreview(moved);
+    const op = moved ? freeOp(R, key, box) : null;
+    if (op) change((how === "move" ? "Move " : "Resize ") + PART_LABEL[part].toLowerCase(), [op]);
+  }, () => { if (frame) cancelAnimationFrame(frame); endPreview(); });
 }
 
 export function noteStretch(R: RuntimeSlide, key: string, box: Rect, edge: NEdge, free: boolean, others: Rect[], e: PointerEvent) {

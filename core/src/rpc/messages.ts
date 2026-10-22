@@ -191,6 +191,8 @@ export interface StageSlide {
   /** the slide's items as drawn (4.3): box, a chart's geometry (the stage picks a slice by it), the Issues line of a
       source that is missing or empty */
   items?: Record<string, import("../render/slide-dl").ItemInfo>;
+  /** a contents slide in a free layout (B51): where its title and its list are drawn */
+  parts?: import("../render/slide-dl").SlideDL["parts"];
 }
 /** calls the worker makes */
 export interface PageMethods {

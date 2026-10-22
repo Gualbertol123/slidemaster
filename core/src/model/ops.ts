@@ -265,6 +265,11 @@ const V48_ITEM_KINDS = ["chart", "shape", "line"], V48_SLIDE_TYPES = ["cover", "
 /** what a document holds that 4.8.0 does not know (4.9: a slide's hidden rows / columns, a version's deleted ones, cell
     valign / num): a deck holding a non-empty one is format 6 */
 const V6_SLIDE = ["hidden"], V6_VERSION = ["drop"], V6_CELL = ["valign", "num"];
+/** (B51) the boxes of a free layout 4.8.0 does not draw: the contents slide's title and list ("c:title", "c:toc"). 4.6–4.8
+    keep a free entry whole but draw the contents where the design puts it – and their exports would too: a free
+    layout (a slide.patch's `free`, a slide's) holding one is format 6 */
+const V6_FREE = "c:";
+const freeHoldsV6 = (free: unknown) => isObj(free) && Object.values(free).some(f => isObj(f) && isObj(f.items) && Object.keys(f.items).some(k => k.startsWith(V6_FREE) && (f.items as Record<string, unknown>)[k] != null));
 /** an op 4.8.0 does not apply whole: the deck must be format 6 before it is appended. version.patch (4.9: 4.6–4.8 skip
     it, so its versions – name and hide too – would be lost to their wizard's preset.set) and every op 4.8 lacks; every
     key outside 4.8's lists (hidden, valign, num …); a slide.add / preset.set carrying such content */
@@ -272,12 +277,12 @@ export function needsV6(op: Op | Record<string, unknown>): boolean {
   const o = op as Record<string, unknown>, p = o.patch;
   switch (o.op) {
     case "preset.set": return isObj(o.preset) && presetNeedsV6(o.preset);
-    case "slide.patch": return outside(p, V48_SLIDE);
+    case "slide.patch": return outside(p, V48_SLIDE) || (isObj(p) && freeHoldsV6(p.free));
     case "table.patch": return outside(p, V48_TABLE);
     case "cell.patch": return outside(p, V48_CELL);
     case "style.patch": return outside(p, V48_STYLE);
     case "item.patch": return p !== null && (!isObj(p) || outside(p, V48_ITEM) || ("kind" in p && !V48_ITEM_KINDS.includes(p.kind as string)));
-    case "slide.add": return !isObj(o.slide) || !V48_SLIDE_TYPES.includes(o.slide.type as string) || holds(o.slide, V6_SLIDE);
+    case "slide.add": return !isObj(o.slide) || !V48_SLIDE_TYPES.includes(o.slide.type as string) || holds(o.slide, V6_SLIDE) || freeHoldsV6(o.slide.free);
     case "table.add": return !isObj(o.table) || !V48_TABLE_KINDS.includes(o.table.kind as string);
     case "slide.remove": case "table.remove": return false;
   }
@@ -285,7 +290,7 @@ export function needsV6(op: Op | Record<string, unknown>): boolean {
 }
 function presetNeedsV6(p: Record<string, unknown>): boolean {
   const some = (k: string, keys: readonly string[]) => Array.isArray(p[k]) && (p[k] as unknown[]).some(x => holds(x, keys));
-  return some("slides", V6_SLIDE) || some("versions", V6_VERSION);
+  return some("slides", V6_SLIDE) || some("versions", V6_VERSION) || (Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && freeHoldsV6(s.free)));
 }
 /** the same on a document (fold.ts nextSnapshot writes such a deck as format 6; a 4.9 page opening one below 6 raises it) */
 export function docNeedsV6(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {

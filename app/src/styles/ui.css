@@ -163,6 +163,7 @@ button{cursor:pointer}
 .slide .hbox .grip{left:-2px;top:-34px;height:28px;padding:0 10px;border-radius:14px;background:#0A66D8;color:#fff;font:600 13px/28px var(--font);cursor:grab;user-select:none;white-space:nowrap;box-shadow:0 3px 10px rgba(10,102,216,.35)}
 .slide .hbox.active{outline:2px dashed rgba(10,102,216,.7);outline-offset:4px}
 .slide .hbox.active .grip{cursor:grabbing}
+.slide .hbox.cpart.active{background:rgba(10,102,216,.08)}
 .slide .hbox .size{right:-14px;bottom:-14px;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid #0A66D8;cursor:nwse-resize;box-shadow:0 2px 8px rgba(10,102,216,.35)}
 .slide .dropmark{position:absolute;display:none;background:#0A66D8;border-radius:3px;pointer-events:none;z-index:46}
 .inline-edit{position:absolute;z-index:80;box-sizing:border-box;border:2px solid #0A66D8;border-radius:3px;padding:0 6px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18);outline:none;font-family:var(--font)}

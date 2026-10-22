@@ -1,0 +1,523 @@
+[
+ {
+  "name": "B51 slide.patch free on a contents slide: its title (c:title) and list (c:toc) moved, each a whole free entry (one undo step each); format 6",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents",
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {}
+       }
+      }
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "slide.patch",
+    "id": "s0",
+    "patch": {
+     "free": {
+      "excel": {
+       "on": true,
+       "items": {
+        "c:title": {
+         "x": 600,
+         "y": 40,
+         "w": 700,
+         "h": 66,
+         "scale": 1
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "slide.patch",
+    "id": "s0",
+    "patch": {
+     "free": {
+      "excel": {
+       "on": true,
+       "items": {
+        "c:title": {
+         "x": 600,
+         "y": 40,
+         "w": 700,
+         "h": 66,
+         "scale": 1
+        },
+        "c:toc": {
+         "x": 120,
+         "y": 300,
+         "w": 980,
+         "h": 420,
+         "scale": 0.8
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents",
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {
+         "c:title": {
+          "x": 600,
+          "y": 40,
+          "w": 700,
+          "h": 66,
+          "scale": 1
+         },
+         "c:toc": {
+          "x": 120,
+          "y": 300,
+          "w": 980,
+          "h": 420,
+          "scale": 0.8
+         }
+        }
+       }
+      }
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 2,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "slide.patch",
+     "id": "s0",
+     "patch": {
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {}
+       }
+      }
+     }
+    },
+    {
+     "op": "slide.patch",
+     "id": "s0",
+     "patch": {
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {
+         "c:title": {
+          "x": 600,
+          "y": 40,
+          "w": 700,
+          "h": 66,
+          "scale": 1
+         }
+        }
+       }
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true,
+    true
+   ],
+   "needsV6": [
+    true,
+    true
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": true
+  }
+ },
+ {
+  "name": "B51 Free layout off on a contents slide keeps the moved parts' boxes (format 6); the inverse switches it back on",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents",
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {
+         "c:title": {
+          "x": 600,
+          "y": 40,
+          "w": 700,
+          "h": 66,
+          "scale": 1
+         },
+         "c:toc": {
+          "x": 120,
+          "y": 300,
+          "w": 980,
+          "h": 420,
+          "scale": 0.8
+         }
+        }
+       }
+      }
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "slide.patch",
+    "id": "s0",
+    "patch": {
+     "free": {
+      "excel": {
+       "on": false,
+       "items": {
+        "c:title": {
+         "x": 600,
+         "y": 40,
+         "w": 700,
+         "h": 66,
+         "scale": 1
+        },
+        "c:toc": {
+         "x": 120,
+         "y": 300,
+         "w": 980,
+         "h": 420,
+         "scale": 0.8
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents",
+      "free": {
+       "excel": {
+        "on": false,
+        "items": {
+         "c:title": {
+          "x": 600,
+          "y": 40,
+          "w": 700,
+          "h": 66,
+          "scale": 1
+         },
+         "c:toc": {
+          "x": 120,
+          "y": 300,
+          "w": 980,
+          "h": 420,
+          "scale": 0.8
+         }
+        }
+       }
+      }
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans"
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "slide.patch",
+     "id": "s0",
+     "patch": {
+      "free": {
+       "excel": {
+        "on": true,
+        "items": {
+         "c:title": {
+          "x": 600,
+          "y": 40,
+          "w": 700,
+          "h": 66,
+          "scale": 1
+         },
+         "c:toc": {
+          "x": 120,
+          "y": 300,
+          "w": 980,
+          "h": 420,
+          "scale": 0.8
+         }
+        }
+       }
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "needsV6": [
+    true
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": true
+  }
+ },
+ {
+  "name": "B51 a table moved in a free layout (no contents part): format 5 as in 4.4, not 6",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents"
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans",
+      "free": {
+       "glass": {
+        "on": true,
+        "items": {
+         "t:t1": {
+          "x": 10,
+          "y": 20,
+          "w": 300,
+          "h": 200,
+          "scale": 1
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "slide.patch",
+    "id": "s1",
+    "patch": {
+     "free": {
+      "glass": {
+       "on": true,
+       "items": {
+        "t:t1": {
+         "x": 50,
+         "y": 60,
+         "w": 300,
+         "h": 200,
+         "scale": 1
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:C6"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s0",
+      "type": "index",
+      "tables": [],
+      "title": "Contents"
+     },
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "title": "Loans",
+      "free": {
+       "glass": {
+        "on": true,
+        "items": {
+         "t:t1": {
+          "x": 50,
+          "y": 60,
+          "w": 300,
+          "h": 200,
+          "scale": 1
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "slide.patch",
+     "id": "s1",
+     "patch": {
+      "free": {
+       "glass": {
+        "on": true,
+        "items": {
+         "t:t1": {
+          "x": 10,
+          "y": 20,
+          "w": 300,
+          "h": 200,
+          "scale": 1
+         }
+        }
+       }
+      }
+     }
+    }
+   ],
+   "needsV5": [
+    true
+   ],
+   "needsV6": [
+    false
+   ],
+   "docNeedsV5": true,
+   "docNeedsV6": false
+  }
+ }
+]
