@@ -219,7 +219,7 @@ numbers measured twice). Measured numbers go into the step's line.
     change Liquid Glass and the consulting designs' charts, lines and icons by design).
 - [x] B51 · The contents slide's title and list move and resize freely in a free layout (product owner 2026-10-22: "move
   the index and its title freely around the slide like a table in free layout mode"; branch `v4/B51-toc-move` on
-  `v4/M16-tables` + `m16/audit-fixes`) — 074f702 (runs: by the orchestrator). Boxes `c:title` / `c:toc` of the slide's
+  `v4/M16-tables` + `m16/audit-fixes`) — 074f702 (verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)). Boxes `c:title` / `c:toc` of the slide's
   `free` entry (no new op or key; `render/contents.ts`), drawn as a group to the saved place and scale in every design
   (never moved: the display list unchanged – the five designs' corpus hashes compared); format 6 for a free entry
   holding one (`needsV6` / `docNeedsV6`; vectors `b51.json`); stage handles and `freePart` (one undo step); PDF and
@@ -227,7 +227,7 @@ numbers measured twice). Measured numbers go into the step's line.
   `b51-contents.test.tsx`, e2e B51-01; page +7,113 bytes (`page-budget/b51.json`).
 
 ### S13.7 · Delete slide and Duplicate slide (after M13 closed; ships with the next release, 4.7.0 in CHANGELOG; owner Q12)
-- [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; runs: by the orchestrator) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
+- [x] S13.7 · Delete slide and Duplicate slide (c47d59a; merged into `v4/M16-tables`, its CHANGELOG block moved to 4.9.0 – 4.7.0 is dated; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)) (owner Q12, 2026-10-21; branch `v4/slide-menu`) — the slide list's right-click menu (`#ctxDupSlide`, `#ctxDelSlide`) and Delete in the slide list (on the slide shown); one `slide.add` / `slide.remove` each (no new op or key: the guard, inverses and vectors of S13.3 hold). The copy: core `model/slidecopy.ts` (items under new ids, the free boxes and attached line ends renamed). Decided: content slides only are duplicated (the wizard keeps one cover / contents); any slide but the last may be deleted, after a question. +2,156 bytes page (`page-budget/s13-7.json`, measured again on main 71d8806). Review: REQUEST CHANGES → "S13.7 · … (review fixes)": CHANGELOG bullet moved from the dated 4.6.0 notes to 4.7.0 (its own block, as B48–B50), Delete acts on `deck.cur`, `duplicateSlide` checks `doc.open`, one `slide.add` vector of a duplicated slide in `ops-vectors.json`, a comment pointing M15 at `slidecopy.ts`. Awaiting the orchestrator's checks (e2e `Delete slide and Duplicate slide`) and the second review.
 
 ### M14 · Charts (4.7.0; B30, B31; docs/next/09 §8, ADR-015 amended)
 - [x] S14.0 · Gates first (export-check gates PowerPoint "opened", `has_chart` / `has_table`; AUDIT-2 VER-3) – built in
@@ -321,29 +321,29 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) — ee464e2, 1fdbf1e.
   `Stroke.join` from S14.P; the set packed into `core/src/icons/data.ts`, inflated on first use in the worker, its own
   sha256 test, one registration, old names apart; `m15.json` set by measurement (514,930 for the set). Reviews:
-  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). runs: by the orchestrator
+  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.2 · Icon items and picker ⏱ (IC-01, IC-02) — 893bcd6, 41581f4, f647ed7 (Italian search words, 09 §9 Q11). The picker (search, 41 categories, recent,
   outline / filled, colour, size, line), Change icon…, the item's `stroke`, the pick mode for M14, the PowerPoint gate
-  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. runs: by the orchestrator
+  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.3 · Line items ⏱ (LN-01, LN-02) — d519ae9 (follow-ups in 878a549). Ten kinds, end and middle handles, Ctrl
   attach in automatic and free layout, Detach, labels quoting cells, the PowerPoint lines and the gate (7). Reviews:
-  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. runs: by the orchestrator
+  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.4 · Snapping ⏱ (SN-01…SN-04) — 7cb0c9e (follow-ups in 878a549). Every object, guides, equal spacing and
   size, Alt everywhere, 1/4 px. Reviews: APPROVE with findings → fixed in 878a549 → APPROVE. Page +5,735. PR: pending.
-  runs: by the orchestrator
+  verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.5 · PowerPoint lines and icons (LN-03) — 878a549, 229e937. Native ends, solid tick shapes beside dashes,
   custDash, the label's ground and ink, `lines-bent-ends`; pptxcheck 14/14 (python-pptx). Reviews: REQUEST CHANGES →
   fixed (229e937) → APPROVE; recheck APPROVE (nit: the label-ink line in CHANGELOG – done at the close). Page +1,961,
-  +1,008. PR: pending. runs: by the orchestrator
+  +1,008. PR: pending. verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.6 · UI icons (B35) — 9931300. 48 Tabler outline icons in `app/src/ui/ui-icons.ts`, one `Ic` component.
   Review: APPROVE (low findings: the zoom ± alignment and the subset test's every point – done at the close; chart-pie
-  after M14 merges – Waiting for). Page +3,025. PR: pending. runs: by the orchestrator
+  after M14 merges – Waiting for). Page +3,025. PR: pending. verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 - [x] S15.7 · Close — the milestone review (REQUEST CHANGES: 11 findings) fixed or recorded in "M15 · close-out:
   milestone review fixes, CHANGELOG, PROGRESS" (merge of main de7d759 before it): three Playwright tests (IC-01,
   LN-01/LN-02, SN-02), the 4.6/4.7 free-layout fallback pinned (core line-items test), the `Ic` alignment, the subset
   test on every point, the glyph-free messages and README, the 09 amendment notes, CHANGELOG 4.8.0 complete; the page
   rebuilt and committed (4,549,684 bytes) and `m15.json` re-based on main's page (587,394). The rest under Waiting for
-  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: runs: by the orchestrator. 🚦 G10 waived by the product owner
+  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE) 🚦 G10 waived by the product owner
   ("i approve everything", Decisions 2026-10-21); the owner's PC checks are listed under Waiting for.
 - [x] S15.8 · 4.8.0 on M14 (4.7.0) – b9edb02 "Merge v4/M14-charts (4.7.0) into v4/M15-lines-icons" and "M15 · 4.8.0: versions,
   CHANGELOG, PROGRESS" (2026-10-22). Conflicts: the corpus deck add/add (M14 keeps `tests/corpus/charts/lines.json`, the
@@ -364,22 +364,22 @@ numbers measured twice). Measured numbers go into the step's line.
   edge (S15.4 by design). e2e here (16 specs: the M15 ones with SN-01/SN-02, CT-08, FL-01/FL-02, CH and CL and their
   prerequisites, no page errors): 16/16. SN-04 is a bench row (`snap_drag_frame_ms`), not a spec: by the orchestrator.
   Page 4,755,112 bytes against base + b48 + b49-b50 + m14 + m15 = 4,769,135 (`m15.json` unchanged). Versions 4.8.0;
-  `tools/compat-old.mjs` 4.7 → `v4.7.0` (falls back to d327882 while the tag is not made). runs: by the orchestrator
+  `tools/compat-old.mjs` 4.7 → `v4.7.0` (falls back to d327882 while the tag is not made). verified: tests ✓ clean clone ✓ review ✓ (4.8.0: PR #32 CI 18/18 on c6f5648 – fresh checkout, e2e, parity, bench incl. icon_picker_p95_ms 31/50 and snap_drag_frame_ms 14.7/16, helper 3.8/3.12; clean clone e737777 locally; reviews APPROVE)
 
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
-- [x] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02) — a901c22 (branch m16/hidden-rebased), merged into `v4/M16-tables`; runs: by the orchestrator.
+- [x] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02) — a901c22 (branch m16/hidden-rebased), merged into `v4/M16-tables`; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)
   On M14: `chartHide` moved to render/chart-data.ts (M14's chart cell rules) and applied to the series charts too
   (values, targets, x values, categories, header labels; seriesData's key holds the version and the slide's set).
   Page +10,978 over M14 (≤ m16-hidden.json 11,000).
-- [x] S16.2 · Delete-versions (VD-01…VD-03) — 9985882 (branch m16/delete-versions-rebased), merged into `v4/M16-tables`; runs: by the orchestrator. Page +14,763 (≤ 15,000).
+- [x] S16.2 · Delete-versions (VD-01…VD-03) — 9985882 (branch m16/delete-versions-rebased), merged into `v4/M16-tables`; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS) Page +14,763 (≤ 15,000).
 - [x] S16.3 · Painter (PT-01…PT-03) — 3b36d7e "S16.3 · Format painter (review fixes)" (branch m16/painter-main, re-check
-  approved), merged into `v4/M16-tables`; runs: by the orchestrator. Review findings left on purpose: 3 – pressing the
+  approved), merged into `v4/M16-tables`; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS) Review findings left on purpose: 3 – pressing the
   vertical position the design already draws stores nothing (the ribbon compares with `drawnVAlign`; locked by
   core/tests/cells-m16.test.ts); 4 – the Selection rewrite in Stage.tsx is a scope deviation, accepted, no bug.
   Page: +12,802 bytes on the integration (+12,796 on its own branch over main 71d8806) – over m16-painter.json 12,500
   (set at +11,999 before the last review fixes); not raised, the orchestrator decides.
-- [x] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02) — 35e1af7 (branch m16/excel-cf-main), merged into `v4/M16-tables`; runs: by the orchestrator. Page +64,746 on the integration (≤ 65,000).
+- [x] S16.4 · Excel conditional formats ⏱ (XC-01, XC-02) — 35e1af7 (branch m16/excel-cf-main), merged into `v4/M16-tables`; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS) Page +64,746 on the integration (≤ 65,000).
   - For S16.5 (review of S16.4): owner sign-off on two plan deviations – `expression` rules use xlsx/cf.ts's own
     evaluator, not the formula engine (tables are laid out synchronously; the engine is not on the page; an unknown
     function is listed as "not reproduced"); page budget m16-cf.json 65,000 bytes (+64,697 measured after the re-check fix), against the plan's ≈ 25 KB
@@ -399,14 +399,14 @@ numbers measured twice). Measured numbers go into the step's line.
   checked equal to 4.8.0's `core/src/model/ops.ts` lists (key by key); M15's lines hand a click to S16.3's painter
   (`stage/lines.tsx`); B51's part drag on M15's snapping. Page 4,874,382 bytes against the budget 4,887,562 (new
   `page-budget/m17.json` 5,500 by measurement: M17 +5,198; S16.3's +12,802 over m16-painter.json 12,500 left as is –
-  the total passes). AUDIT §0 ×2, CP-01, e2e; verified: tests ✓ clean clone ✓ review ✓ – runs: by the orchestrator.
+  the total passes). AUDIT §0 ×2, CP-01, e2e; verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)
   🚦 G11 by the orchestrator / owner.
 
 ### M17 · Independent persistence and compatibility audit of 4.6–4.9
 - [x] M17 · AUDIT-3.md (09 §6 line by line, CP-01 by the auditor) — fixes on `v4/M16-tables`: 700e1e8 COMPAT-1 (format
   6, ADR-019 amended 2026-10-22), da47311 DATA-8, 89c0131 VEC-1, 48d86c5 VEC-2, 6abda01 UNDO-1, a353842 (the page),
   b1fbd41 (capture-v3 reads format 6), 88f30b5 and 4a1a914 (review of COMPAT-1); merged into `v4/release-4.9.0`
-  (c984e75). runs: by the orchestrator.
+  (c984e75). verified: tests ✓ clean clone ✓ review ✓ (4.9.0: PR #33 CI 18/18 on 7a658ec – fresh checkout, e2e, parity/dlparity, bench, load, helper 3.8/3.12; reviews APPROVE incl. the integration review; CP-01 m15/m16 PASS)
 
 ## Decisions
 
@@ -767,6 +767,34 @@ numbers measured twice). Measured numbers go into the step's line.
   <year − 1>"; a new comment beside its own table in the macro's structure. Page budget by measurement (b48.json).
 
 ## Waiting for
+
+- **Close-out of 4.6–4.9 (branch `v4/closeout`, 2026-10-22): what is done, and what is left for the owner only.**
+  **Done:** 4.6.0 ([PR #29](https://github.com/Gualbertol123/slidemaster/pull/29), tag v4.6.0); B48–B50
+  ([PR #30](https://github.com/Gualbertol123/slidemaster/pull/30)); **4.7.0** M14 charts
+  ([PR #31](https://github.com/Gualbertol123/slidemaster/pull/31), merged dd73b07, tag v4.7.0); **4.8.0** M15 lines, icons,
+  snapping ([PR #32](https://github.com/Gualbertol123/slidemaster/pull/32), merged into main 36d689a, not tagged
+  yet); 4.9.0 M16 tables + S13.7 Delete / Duplicate slide + B51 movable contents slide, put together on
+  `v4/release-4.9.0` ([PR #33](https://github.com/Gualbertol123/slidemaster/pull/33), merged into main c293100, not tagged yet); the M17 audit (`docs/next/AUDIT-3.md`) with every finding resolved – COMPAT-1 format 6
+  (700e1e8, review fix 88f30b5, tests 4a1a914; CP-01 m15 / m16 PASS vs 4.6p and 4.8, m16 vs 4.0 / 4.5 / 4.7,
+  `--bump-wait-s 2`), DATA-8 (da47311), VER-4 (the m15 / m16 cases), VEC-1 (89c0131), VEC-2 (48d86c5), UNDO-1
+  (6abda01), REL-2 and INT-1 by `v4/release-4.9.0`; the user guide brought to 4.9 (`v4/guide` cf641b0, merged
+  here); README §1.1 brought to 4.9.0 and a *Handover* section for the next maintainer. The M13–M15 entries below
+  keep their history; their PRs are merged.
+  **Left for the owner (Windows PC; the gates were waived, these checks stay):**
+  - PowerPoint: **PX-05** (every chart deck opens without a repair prompt, *Edit Data* with its number formats and
+    the waterfall's formulas), **PX-06** (`tools/pptxcheck.py plots`), **LN-03** (lines with PowerPoint's own
+    arrowheads, by eye); **CT-07** the reference chart's picture sign-off.
+  - **XC-01**: `tools/make-cf-corpus.ps1` with Excel 16, commit `cf-rules.excel.json` (until then
+    `core/tests/cf-m16.test.ts` skips the comparison with Excel).
+  - **The guide PDF**: the committed one is still the 4.6 build (Segoe UI); on a Windows PC with Segoe UI:
+    `node docs/guide/build.mjs guide`, commit the new `docs/guide/Slide Builder 4 – guide.pdf`.
+  - **CP-01 with the real 23 s wait** on Windows: `node tools/compat-old.mjs --versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8 --pythons "py -3.8,py -3.12"
+    --new-python python --out $env:TEMP\compat-old.json` (every RESULT PASS, incl. m15 / m16 vs 4.6p, 4.7, 4.8).
+  - Known and accepted: the cold PowerPoint export takes ~25 s right after a deck's first 4.6-or-later object (the
+    format guard's one-time wait; Decisions 2026-10-21) – accept again or ask for the in-memory export.
+  - **Tags v4.8.0 and v4.9.0** (`docs/next/release-checklist.md` §5) after merging the 4.9.0 integration.
+  - **The share update** to 4.9 (§6): every window on every PC closed first, **the whole team updated together** –
+    4.9's table features raise decks to format 6, which 4.6–4.8 open read-only.
 
 - **M15 · 4.8.0, branch `v4/M15-lines-icons`, close-out (S15.7), 2026-10-21.** The milestone review (REQUEST
   CHANGES, 11 findings; the code sound, every step APPROVE) is fixed in the close-out commit where it could be: the
