@@ -114,7 +114,7 @@ export function Lines({ m, R, s }: { m: StageModel; R: RuntimeSlide; s: number }
       const v = live?.id === id ? live : null, a = v ? v.a : L.a, b = v ? v.b : L.b, it = v?.mid !== undefined ? { ...L.it, mid: v.mid } : L.it;
       const mid = routeOf(it, a, b).mid, size = 14 * inv;
       const handle = (k: "a" | "b" | "mid", p: Pt, title: string) => <div key={k} className={"linehandle " + k + (L.attached.includes(k as "a") ? " attached" : "")} data-handle={k} data-item={id} title={title}
-        style={{ position: "absolute", left: p.x - size / 2, top: p.y - size / 2, width: size, height: size, zIndex: 48, boxSizing: "border-box", borderRadius: k === "mid" ? 3 * inv : "50%",
+        style={{ position: "absolute", left: p.x - size / 2, top: p.y - size / 2, width: size, height: size, zIndex: 48, pointerEvents: "auto", /* (.ovl is pointer-events: none) */ boxSizing: "border-box", borderRadius: k === "mid" ? 3 * inv : "50%",
           background: L.attached.includes(k as "a") ? "#0A66D8" : k === "mid" ? "#FFD84D" : "#fff", border: `${2 * inv}px solid #0A66D8`, boxShadow: `0 ${inv}px ${4 * inv}px rgba(10,102,216,.35)`, cursor: k === "mid" && it.route !== "straight" && it.route !== "range" ? "pointer" : "crosshair", touchAction: "none" }} onPointerDown={e => start(e, id, L, k)} />;
       return [
         handle("a", a, "Drag to move this end · Ctrl: attach it to an object · Shift: 0 / 45 / 90°"),

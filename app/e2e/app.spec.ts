@@ -785,7 +785,9 @@ test.describe.serial("two people, one shared folder", () => {
     const wdoc = () => deckDoc("weekly.xlsx");
     const note = () => Object.values(wdoc().preset.slides[0].notes || {}).find((x: any) => x.text === "Snap SN-03") as any;
     await page.locator("#stage .stagewrap").hover();
-    await page.locator('#stage .hbox[data-i="0"] .addnote.bottom').click();
+    // (+ above the first table: the second table's "+ above" covers the first one's "+ below" – the weekly deck's
+    // tables sit close together)
+    await page.locator('#stage .hbox[data-i="0"] .addnote.top').click();
     await expect(page.locator("textarea.note-edit")).toBeVisible();
     await page.keyboard.type("Snap SN-03"); await page.keyboard.press("Control+Enter");
     await pollFile(() => !!note(), { timeout: 10_000 }).toBe(true);
@@ -1437,7 +1439,7 @@ test.describe.serial("two people, one shared folder", () => {
     await page.locator('#stage .hbox[data-i="0"] .addnote.top').click();
     await expect(page.locator("textarea.note-edit")).toBeVisible();
     await page.keyboard.type("LN-02 above"); await page.keyboard.press("Control+Enter");
-    await expect.poll(() => undoSteps()).toBe(u0 + 3);
+    await expect.poll(() => undoSteps()).toBe(u0 + 4);                     // the + button's box, then its text: two steps
     await idle();
     await expect.poll(async () => Math.abs((await tableL()).y - t0.y), { timeout: 10_000 }).toBeGreaterThan(2);
     await follows(t0, e1);
@@ -1445,12 +1447,12 @@ test.describe.serial("two people, one shared folder", () => {
     const t1 = await tableL(), e2 = await ends();
     await page.click("#freeLayout");
     await pollFile(() => Object.values(slide0().free || {}).some((f: any) => f?.on), { timeout: 10_000 }).toBe(true);
-    await expect.poll(() => undoSteps()).toBe(u0 + 4);
+    await expect.poll(() => undoSteps()).toBe(u0 + 5);
     await idle();
     expect(await ends()).toEqual(e2);
     const g = await mid(page.locator('#stage .hbox[data-i="0"] .grip'));
     await drag(g, { x: g.x + 60, y: g.y + 40 }, "Alt");
-    await expect.poll(() => undoSteps()).toBe(u0 + 5);
+    await expect.poll(() => undoSteps()).toBe(u0 + 6);
     await idle();
     await expect.poll(async () => (await tableL()).x - t1.x, { timeout: 10_000 }).toBeGreaterThan(20);
     await follows(t1, e2);
@@ -1461,7 +1463,7 @@ test.describe.serial("two people, one shared folder", () => {
     await expect(page.locator(`.linehandle.a[data-item="${id}"]`)).toBeVisible();
     const bs = await toScreen(e3.b);
     await drag(await mid(page.locator(`.linehandle.a[data-item="${id}"]`)), { x: bs.x - 150, y: bs.y - 140 }, "Shift");
-    await expect.poll(() => undoSteps()).toBe(u0 + 6);
+    await expect.poll(() => undoSteps()).toBe(u0 + 7);
     await idle();
     const e4 = await ends();
     expect(e4.a.x).toBeLessThan(e4.b.x); expect(e4.a.y).toBeLessThan(e4.b.y);
@@ -1469,7 +1471,7 @@ test.describe.serial("two people, one shared folder", () => {
     expect(e4.a.x * 4 % 1).toBe(0); expect(e4.a.y * 4 % 1).toBe(0);                     // saved on 1/4 px
     // one undo step: the end back where it was
     await page.click("#undoBtn");
-    await expect.poll(() => undoSteps()).toBe(u0 + 5);
+    await expect.poll(() => undoSteps()).toBe(u0 + 6);
     await expect.poll(async () => (await ends()).a).toEqual(e3.a);
     // everything undone, step by step: no line, no text box, no free layout (the Run tests export this deck)
     while (await undoSteps() > u0) { const n = await undoSteps(); await page.click("#undoBtn"); await expect.poll(() => undoSteps()).toBe(n - 1); }
@@ -2077,7 +2079,9 @@ test.describe.serial("two people, one shared folder", () => {
     // its left edge dropped 3 screen px beside the first table's: snapped onto it; with Alt it stays where it was dropped
     const near = async (alt: boolean) => { const b = box("t:" + id1), a = box("t:" + id0); await drag(await mid('#stage .hbox[data-i="1"] .grip'), (a.x - b.x) * s + 3, 0, alt); };
     await near(false);
-    await pollFile(() => box("t:" + id1).x, { timeout: 10_000 }).toBe(a0.x);
+    // (onto its edge on the 1/4 px grid – 4.8, S15.4 SN-03: the first table's automatic-layout x is off the grid, so the
+    // drop lands within 1/8 px of it)
+    await pollFile(() => { const x = box("t:" + id1).x; return Math.abs(x - a0.x) <= .125 && x * 4 % 1 === 0; }, { timeout: 10_000 }).toBe(true);
     await step();
     await drag(await mid('#stage .hbox[data-i="1"] .grip'), 40, 0, true); await step();
     await near(true);

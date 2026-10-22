@@ -310,30 +310,51 @@ numbers measured twice). Measured numbers go into the step's line.
 - [x] S15.1 · `Stroke.join` and the icon data (Tabler 3.49.0 vendored, hash test, notices entry) — ee464e2, 1fdbf1e.
   `Stroke.join` from S14.P; the set packed into `core/src/icons/data.ts`, inflated on first use in the worker, its own
   sha256 test, one registration, old names apart; `m15.json` set by measurement (514,930 for the set). Reviews:
-  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). runs: pending
-- [x] S15.2 · Icon items and picker ⏱ (IC-01, IC-02) — 893bcd6, 41581f4. The picker (search, 41 categories, recent,
+  REQUEST CHANGES → fixed (1fdbf1e) → APPROVE. PR: pending (the owner opens it). runs: by the orchestrator
+- [x] S15.2 · Icon items and picker ⏱ (IC-01, IC-02) — 893bcd6, 41581f4, f647ed7 (Italian search words, 09 §9 Q11). The picker (search, 41 categories, recent,
   outline / filled, colour, size, line), Change icon…, the item's `stroke`, the pick mode for M14, the PowerPoint gate
-  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. runs: pending
+  (6). Reviews: REQUEST CHANGES → fixed (41581f4) → APPROVE. Page +17,053. PR: pending. runs: by the orchestrator
 - [x] S15.3 · Line items ⏱ (LN-01, LN-02) — d519ae9 (follow-ups in 878a549). Ten kinds, end and middle handles, Ctrl
   attach in automatic and free layout, Detach, labels quoting cells, the PowerPoint lines and the gate (7). Reviews:
-  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. runs: pending
+  APPROVE with findings → fixed in 878a549 (S15.5) → APPROVE. Page +38,405. PR: pending. runs: by the orchestrator
 - [x] S15.4 · Snapping ⏱ (SN-01…SN-04) — 7cb0c9e (follow-ups in 878a549). Every object, guides, equal spacing and
   size, Alt everywhere, 1/4 px. Reviews: APPROVE with findings → fixed in 878a549 → APPROVE. Page +5,735. PR: pending.
-  runs: pending
+  runs: by the orchestrator
 - [x] S15.5 · PowerPoint lines and icons (LN-03) — 878a549, 229e937. Native ends, solid tick shapes beside dashes,
   custDash, the label's ground and ink, `lines-bent-ends`; pptxcheck 14/14 (python-pptx). Reviews: REQUEST CHANGES →
   fixed (229e937) → APPROVE; recheck APPROVE (nit: the label-ink line in CHANGELOG – done at the close). Page +1,961,
-  +1,008. PR: pending. runs: pending
+  +1,008. PR: pending. runs: by the orchestrator
 - [x] S15.6 · UI icons (B35) — 9931300. 48 Tabler outline icons in `app/src/ui/ui-icons.ts`, one `Ic` component.
   Review: APPROVE (low findings: the zoom ± alignment and the subset test's every point – done at the close; chart-pie
-  after M14 merges – Waiting for). Page +3,025. PR: pending. runs: pending
+  after M14 merges – Waiting for). Page +3,025. PR: pending. runs: by the orchestrator
 - [x] S15.7 · Close — the milestone review (REQUEST CHANGES: 11 findings) fixed or recorded in "M15 · close-out:
   milestone review fixes, CHANGELOG, PROGRESS" (merge of main de7d759 before it): three Playwright tests (IC-01,
   LN-01/LN-02, SN-02), the 4.6/4.7 free-layout fallback pinned (core line-items test), the `Ic` alignment, the subset
   test on every point, the glyph-free messages and README, the 09 amendment notes, CHANGELOG 4.8.0 complete; the page
   rebuilt and committed (4,549,684 bytes) and `m15.json` re-based on main's page (587,394). The rest under Waiting for
-  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: runs: pending (the orchestrator). 🚦 G10 waived by the product owner
+  (M15). AUDIT §0 ×2, e2e ×2, bench ×2, CP-01: runs: by the orchestrator. 🚦 G10 waived by the product owner
   ("i approve everything", Decisions 2026-10-21); the owner's PC checks are listed under Waiting for.
+- [x] S15.8 · 4.8.0 on M14 (4.7.0) – b9edb02 "Merge v4/M14-charts (4.7.0) into v4/M15-lines-icons" and "M15 · 4.8.0: versions,
+  CHANGELOG, PROGRESS" (2026-10-22). Conflicts: the corpus deck add/add (M14 keeps `tests/corpus/charts/lines.json`, the
+  chart deck; M15's line deck is now `line-items.json`, with `core/tests/real-lines.test.ts` and the corpus README),
+  imports in `Ribbon.tsx`, `ShapeTools.tsx`, `slide-dl.ts`, `pptx/scene.ts` (M14's `overlayEls` and `SlideSem.layout`
+  beside M15's icon / line semantics), PROGRESS Waiting for (both kept). Done at the merge (Waiting for · M15 "after M14
+  merges"): a chart's icon mark draws a vendored icon through `vendoredNodes` (per-path paint; `chart-lines.test.ts`
+  "an icon mark draws a vendored icon through vendoredNodes"), so the reference chart's `tabler:target` marks are the
+  Tabler target (stroked, round) – the chart-lines snapshots re-recorded for those paths only; `#chartBtn` takes
+  `<Ic n="chart-pie" />` and the subset test checks every toolbar button; pptxcheck's "PowerPoint is not available" line
+  names (6) and (7); `snap.test.ts` SN-03 also runs Consulting Navy (Excel's B48 outline, 2.222 px, is off the 1/4 px
+  grid: its box is still exact, its inset rect within 0.005 px). `dlhash-b48-base.json` unchanged (it passes).
+  In the 4.8.0 commit, from the first run of M15's e2e specs (the close-out's three were never run): a line's end and
+  middle handles took no pointer (`.ovl` is `pointer-events: none`; `stage/lines.tsx` now sets `auto` on them – LN-02's
+  Ctrl-attach was impossible by mouse); the LN-01/LN-02 spec counted the + button's box and its text as one undo step
+  (two: addNote, then the text); SN-01 clicks the first table's "+ above" (its "+ below" is covered by the second table's "+
+  above" in the weekly deck); FL-02's snap onto the first table's edge lands on the 1/4 px grid, within 1/8 px of that
+  edge (S15.4 by design). e2e here (16 specs: the M15 ones with SN-01/SN-02, CT-08, FL-01/FL-02, CH and CL and their
+  prerequisites, no page errors): 16/16. SN-04 is a bench row (`snap_drag_frame_ms`), not a spec: by the orchestrator.
+  Page 4,755,112 bytes against base + b48 + b49-b50 + m14 + m15 = 4,769,135 (`m15.json` unchanged). Versions 4.8.0;
+  `tools/compat-old.mjs` 4.7 → `v4.7.0` (falls back to d327882 while the tag is not made). runs: by the orchestrator
+
 
 ### M16 · Tables: hidden rows, delete-versions, painter, Excel conditional formats (4.9.0; B36–B39; docs/next/09 §8)
 - [ ] S16.1 · Hidden set in `buildLayout` ⏱ (HR-01, HR-02)

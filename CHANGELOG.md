@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.8.0 - unreleased (PLAN M15: lines, icons, snapping; B32–B35)
+## 4.8.0 - 2026-10-22 (PLAN M15: lines, icons, snapping; B32–B35)
 
 What users notice
 * **About 6,200 icons** (B34; Tabler Icons 3.49.0, MIT – named in the notices): ribbon 2 › *Insert shape ▾* ›
@@ -14,6 +14,9 @@ What users notice
   The 17 icons of earlier versions are still in the menu and look as before.
 * **Search the icons in Italian too** (09 §9 Q11): about 300 common Italian words – "banca", "obiettivo", "grafico",
   "freccia su", "stretta di mano", "città" or "citta" – find their icons first, beside the English names and tags.
+* **Icons in charts** (4.7's chart marks): a chart's icon mark with a Tabler name (the reference chart's targets) now
+  draws that Tabler icon – its lines with round ends, its filled dots – instead of the built-in icon of the same name,
+  on the slide, in the PDF and as shapes over the PowerPoint chart.
 * **Icons in PowerPoint are shapes**: each icon is an editable PowerPoint shape (custom geometry: its lines with round
   ends, or its filled outline, in its colour) – never a picture; in the PDF and on screen it is drawn as on the slide.
 * **An icon Slide Builder does not have** (a deck from a newer version, a mistyped name) shows the ⓘ icon and a line in
