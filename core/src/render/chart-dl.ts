@@ -26,7 +26,7 @@ import { deckFmt } from "./text";
 import { fontStack } from "../model/fonts";
 import { parseColor, solid } from "../dl/color";
 import type { ChartSem } from "../pptx/chart-sem";
-import { dropHidden, hideKey, hideSize, slideHidden, type HideSet } from "../model/hidden";
+import { dropHidden, hideKey, hideSize, type HideSet } from "../model/hidden";
 
 /* ---- data ---- */
 export interface Slice { label: string; v: number; text: string }
@@ -67,17 +67,21 @@ function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, number][] 
   for (let r = g.r1; r <= g.r2; r++) { if (S.rowHidden(r) || hide?.rows.has(r)) continue; for (let c = g.c1; c <= g.c2; c++) if (!S.colHidden(c) && !hide?.cols.has(c)) out.push([r, c]); }
   return out;
 }
-/** the rows / columns a chart skips besides Excel's hidden ones (4.9, B36, 09 §3.6, Q7): those its slide hides of a table
-    the chart reads – by `{table}`, or a sheet range inside that table – and those the shown version deletes on the sheet.
+/** the rows / columns a chart skips besides Excel's hidden ones (4.9, B36, 09 §3.6, Q7): those its slide's table closes
+    up, when the chart reads that table – by `{table}`, or a sheet range overlapping its cells (a range running past the
+    table, e.g. a total row under it, still reads it) – and those the shown version deletes on the sheet. What the table
+    closes up is read off its layout, so a set the table could not apply (it would empty it) is not applied here either.
     A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
 function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
   const h = dropHidden((ctx.version as { drop?: Record<string, unknown> } | null | undefined)?.drop?.[S.name]);
-  const R = ctx.slides.find(R => R.cfg.items && Object.values(R.cfg.items).includes(it))
-    ?? ctx.slides.find(R => R.cfg.items && Object.values(R.cfg.items).some(x => x && JSON.stringify(x) === JSON.stringify(it)));
-  if (R?.cfg.hidden) for (const L of R.tables) {
-    if (L.sheet !== S && L.sheet.name !== S.name) continue;
-    const mine = ref && "table" in ref ? ref.table === L.def?.id : g.r1 > L.g.r1 && g.r2 < L.g.r2 && g.c1 > L.g.c1 && g.c2 < L.g.c2;
-    if (mine) slideHidden(R.cfg, L.def?.id, h);
+  // its slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an object
+  // of its own; a copy on no slide skips nothing of a slide's)
+  const R = ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
+  for (const L of R?.tables || []) {
+    if (!L.hide || L.sheet.name !== S.name || !(ref && "table" in ref ? ref.table === L.def?.id : g.r1 < L.g.r2 && g.r2 > L.g.r1 && g.c1 < L.g.c2 && g.c2 > L.g.c1)) continue;
+    const rows = new Set(L.rows), cols = new Set(L.cols);
+    for (let r = L.g.r1 + 1; r < L.g.r2; r++) if (!rows.has(r) && !L.sheet.rowHidden(r)) h.rows.add(r);
+    for (let c = L.g.c1 + 1; c < L.g.c2; c++) if (!cols.has(c) && !L.sheet.colHidden(c)) h.cols.add(c);
   }
   return hideSize(h) ? h : null;
 }

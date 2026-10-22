@@ -17,7 +17,7 @@ import { loadVectors } from "./vectors";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOp, applyOps, docNeedsV5, emptyDoc, inverseOf, knownOp, needsV5 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
-import { LCACHE, resolveTable, runtimeSlides } from "../src/model/preset";
+import { HMARK, LCACHE, resolveTable, runtimeSlides } from "../src/model/preset";
 import { dropHidden, hiddenEntries, hiddenKey, hideFor, hideKey, parseHiddenKey, slideHidden } from "../src/model/hidden";
 import { resolveStyle } from "../src/model/style";
 import { tableKey, type RenderCtx } from "../src/render/context";
@@ -166,6 +166,47 @@ describe("the layout (HR-01, HR-02): closed up on that slide only", () => {
     expect(Z.tables[0].rows.length).toBe(15);
     expect(Z.tables[0].hide).toBeUndefined();
   });
+  it("two writers who each hide all but one row empty the table together: the version's drop still applies, then nothing (review 1)", async () => {
+    const wb = await book(), saved = JSON.parse(fs.readFileSync(path.join(here, "fixtures", "saved", "hidden-4.9.json"), "utf8"));
+    const snap = structuredClone(saved.snapshot), p0 = preset();
+    snap.doc.preset = p0;
+    const shown = [4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];       // (9 is hidden in Excel)
+    const keys = (rows: number[]) => Object.fromEntries(rows.map(r => [T + ":r" + r, true])) as Record<string, true>;
+    // each writer's own check (hideSel) passes: one row is left on their screen
+    const recs = [
+      { l: 20, w: "cara@pc3#cccccccc", s: 1, by: "cara", at: 1792000100000, ops: [hide("s1", keys(shown.filter(r => r !== 19)))] },
+      { l: 20, w: "dan@pc4#dddddddd", s: 1, by: "dan", at: 1792000100001, ops: [hide("s1", keys(shown.filter(r => r !== 4)))] }];
+    const p = fold(snap, recs).doc.preset!;
+    expect(fold(snap, [...recs].reverse()).doc.preset).toEqual(p);
+    expect(Object.keys(p.slides[0].hidden!).length).toBe(shown.length);              // together: every row
+    // the version deletes rows 6:7 – on s1 they stay deleted (the version's set alone), and on s2 too
+    const [a, b] = runtimeSlides(wb, p, "W", "excel", { drop: { SLIDE_1: ["6:7"] } });
+    expect(a.tables[0].rows).toEqual(shown.filter(r => r !== 6 && r !== 7));
+    expect(a.tables[0].hide).toBe("r6,7c");
+    expect(b.tables[0].rows).toEqual(a.tables[0].rows);
+    // the cached layout is the same on the next resolve (the key holds the fallback); a drop that empties it alone: nothing
+    expect(runtimeSlides(wb, p, "W", "excel", { drop: { SLIDE_1: ["6:7"] } })[0].tables[0]).toBe(a.tables[0]);
+    expect(runtimeSlides(wb, p, "W", "excel", { drop: { SLIDE_1: ["8"] } })[0].tables[0].rows).toEqual(shown.filter(r => r !== 8));
+    const z = runtimeSlides(wb, p, "W", "excel", { drop: { SLIDE_1: ["1:30"] } })[0].tables[0];
+    expect(z.rows).toEqual(shown);
+    expect(z.hide).toBeUndefined();
+    // without a version: no set (as before)
+    expect(runtimeSlides(wb, p, "W", "excel")[0].tables[0].rows).toEqual(shown);
+  });
+  it("cached layouts of hidden sets: the key's marker is not a sheet name's text, and a layout in use is evicted last (review 3)", async () => {
+    const wb = await book(), def = preset().tables[0];
+    LCACHE.clear();
+    // a sheet named with "|h" in it: its plain layout key never counts as a hidden set's
+    LCACHE.set("Q1|hist|{}", { wb, L: resolveTable(wb, def, "excel")! });
+    const keep = resolveTable(wb, def, "excel", { rows: new Set([7]), cols: new Set() })!;
+    for (let r = 0; r < 60; r++) {
+      resolveTable(wb, def, "excel", { rows: new Set([4 + (r % 15)]), cols: new Set([r % 2 ? 3 : 4]) });
+      expect(resolveTable(wb, def, "excel", { rows: new Set([7]), cols: new Set() })).toBe(keep);   // used again: kept
+    }
+    expect(LCACHE.has("Q1|hist|{}")).toBe(true);
+    expect([...LCACHE.keys()].filter(k => k.includes(HMARK)).length).toBeLessThanOrEqual(48);
+    expect(HMARK).toBe("\u0001h");
+  });
   it("rows outside the table do not count: the same layout as without them", async () => {
     const wb = await book(), def = preset().tables[0];
     const L0 = resolveTable(wb, def, "excel"), L1 = resolveTable(wb, def, "excel", { rows: new Set([2, 40]), cols: new Set([1, 30]) });
@@ -193,7 +234,7 @@ describe("the layout (HR-01, HR-02): closed up on that slide only", () => {
     expect(tableKey(c2, c2.slides[0].tables[0])).not.toBe(tableKey(c, A));
     expect(tableKey(c2, c2.slides[1].tables[0])).toBe(tableKey(c, B));
     for (let r = 4; r < 120; r++) resolveTable(wb, p.tables[0], "excel", { rows: new Set([4 + (r % 15)]), cols: new Set([r % 2 ? 3 : 4]) });
-    expect([...LCACHE.keys()].filter(k => k.includes("|h")).length).toBeLessThanOrEqual(48);
+    expect([...LCACHE.keys()].filter(k => k.includes(HMARK)).length).toBeLessThanOrEqual(48);
   });
 });
 
@@ -247,6 +288,59 @@ describe("what reads the layout follows it (HR-02)", () => {
     // a version's drop: every chart reading the sheet skips it
     const c5 = ctxOf(wb, p, "excel", { version: { id: "v", name: "V", hide: {}, drop: { SLIDE_1: ["6"] } } as never });
     expect((chartData(c3, c5) as { slices: { label: string }[] }).slices.map(s => s.label)).toEqual(["Beta", "Gamma", "Epsilon", "Zeta"]);
+  });
+});
+
+describe("charts on duplicated slides and ranges past the table (review 2, 6)", () => {
+  const pie = (values: ChartItem["values"]): ChartItem => ({ kind: "chart", type: "pie", values, show: ["label", "percent"], legend: "right", box: { x: 980, y: 250, w: 560, h: 420 } });
+  const labels = (it: ChartItem, c: RenderCtx) => { const d = chartData(it, c); return d.ok ? d.slices.map(s => s.label) : []; };
+  it("Duplicate slide: the copy's chart is equal to the original's, and only the slide that hides rows skips them", async () => {
+    const wb = await book(), p = preset();
+    p.slides[0].items = { c1: pie({ table: T, range: "D6:D11" }) };
+    p.slides[1] = { ...structuredClone(p.slides[0]), id: "s2", title: "Loans (copy)" };   // as Duplicate slide makes it
+    p.slides[1].hidden = { [T + ":r7"]: true };                                            // only the copy hides Beta
+    const c = ctxOf(wb, p), [orig, copy] = [p.slides[0].items!.c1, p.slides[1].items!.c1] as ChartItem[];
+    expect(orig).toEqual(copy);
+    expect(orig).not.toBe(copy);
+    expect(labels(orig, c)).toEqual(["Alpha", "Beta", "Gamma", "Epsilon", "Zeta"]);
+    expect(labels(copy, c)).toEqual(["Alpha", "Gamma", "Epsilon", "Zeta"]);
+    // and the other way round (the first slide hides, the copy does not)
+    const q = structuredClone(p); q.slides[0].hidden = q.slides[1].hidden; delete q.slides[1].hidden;
+    const d = ctxOf(wb, q);
+    expect(labels(q.slides[0].items!.c1 as ChartItem, d)).toEqual(["Alpha", "Gamma", "Epsilon", "Zeta"]);
+    expect(labels(q.slides[1].items!.c1 as ChartItem, d)).toEqual(["Alpha", "Beta", "Gamma", "Epsilon", "Zeta"]);
+  });
+  it("only slides that hide rows are looked at, the item by identity: a copy of the chart on no slide keeps every row", async () => {
+    const wb = await book(), p = preset();
+    p.slides[0].items = { c1: pie({ table: T, range: "D6:D11" }) };
+    const c = ctxOf(wb, p);
+    expect(labels(p.slides[0].items.c1 as ChartItem, c)).toHaveLength(5);
+    p.slides[0].hidden = { [T + ":r7"]: true };
+    const c2 = ctxOf(wb, p);
+    expect(labels(structuredClone(p.slides[0].items.c1) as ChartItem, c2)).toHaveLength(5);          // a copy: on no slide
+    expect(labels(p.slides[0].items.c1 as ChartItem, c2)).toHaveLength(4);
+  });
+  it("a sheet range overlapping the table reads it, also when it runs past the table (Q7: any overlap, e.g. a total row under it)", async () => {
+    const wb = await book(), p = preset();
+    // the table is B3:K20 (rows 4-19 inside): D6:D21 runs two rows past it, D2:D7 starts above it; D22:D24 is outside
+    p.slides[0].items = { past: pie({ sheet: "SLIDE_1", range: "D6:D21" }), above: pie({ sheet: "SLIDE_1", range: "D2:D7" }), out: pie({ sheet: "SLIDE_1", range: "D22:D24" }) };
+    p.slides[1].items = { past: pie({ sheet: "SLIDE_1", range: "D6:D21" }) };
+    const base = ctxOf(wb, p), before = { past: labels(p.slides[0].items.past as ChartItem, base), above: labels(p.slides[0].items.above as ChartItem, base), out: labels(p.slides[0].items.out as ChartItem, base) };
+    p.slides[0].hidden = { [T + ":r7"]: true };
+    const c = ctxOf(wb, p);
+    expect(before.past).toContain("Beta");
+    expect(labels(p.slides[0].items.past as ChartItem, c)).toEqual(before.past.filter(l => l !== "Beta"));
+    expect(labels(p.slides[0].items.above as ChartItem, c)).toEqual(before.above.filter(l => l !== "Beta"));
+    expect(labels(p.slides[0].items.out as ChartItem, c)).toEqual(before.out);
+    expect(labels(p.slides[1].items.past as ChartItem, c)).toEqual(before.past);           // another slide keeps it
+  });
+  it("a set the table could not apply (it would empty it) is not applied to its chart either", async () => {
+    const wb = await book(), p = preset();
+    p.slides[0].items = { c1: pie({ table: T, range: "D6:D11" }) };
+    p.slides[0].hidden = Object.fromEntries([4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(r => [T + ":r" + r, true])) as Record<string, true>;
+    const c = ctxOf(wb, p);
+    expect(c.slides[0].tables[0].hide).toBeUndefined();
+    expect(labels(p.slides[0].items.c1 as ChartItem, c)).toEqual(["Alpha", "Beta", "Gamma", "Epsilon", "Zeta"]);
   });
 });
 
@@ -345,14 +439,11 @@ describe("every design and PowerPoint (HR-01: closed up in every export)", () =>
       const [tA] = tablesOf(slide(0)), [tB] = tablesOf(slide(1));
       expect(tA.text.join(" "), design).not.toMatch(/\bBeta\b|\bEpsilon\b/);
       expect(tB.text.join(" "), design).toMatch(/\bBeta\b/);
-      if (design === "excel" || design === "glass" || design === "clean") {
-        // the grid tables: 13 of the 15 rows, 6 of the 7 columns (Excel's own hidden row 9 and column H stay hidden)
-        expect([tA.rows, tA.cols], design).toEqual([13, 6]);
-        expect([tB.rows, tB.cols], design).toEqual([15, 7]);
-        expect(tablesOf(slide(2)).map(t => t.rows), design).toEqual([6, 10]);
-      } else {
-        expect(tA.rows, design).toBeLessThan(tB.rows);
-      }
+      // every design (report.xlsx's tables are plain, so the consulting designs draw them as the grid too): 13 of the 15
+      // rows, 6 of the 7 columns (Excel's own hidden row 9 and column H stay hidden); SLIDE_3's pair 6 and 10 rows
+      expect([tA.rows, tA.cols], design).toEqual([13, 6]);
+      expect([tB.rows, tB.cols], design).toEqual([15, 7]);
+      expect(tablesOf(slide(2)).map(t => [t.rows, t.cols]), design).toEqual([[6, 3], [10, 4]]);
     }
     const pdf = await h.run("pdf", "excel"), s = Buffer.from(new Uint8Array(pdf.files[0])).toString("latin1");
     expect((s.match(/\/Type\s*\/Page[^s]/g) || []).length).toBe(3);
@@ -361,5 +452,34 @@ describe("every design and PowerPoint (HR-01: closed up in every export)", () =>
     expect(await h.apply("Unhide all on this table", [hide("s1", { [T + ":r7"]: null, [T + ":r10"]: null, [T + ":cE"]: null })])).toBe(true);
     const z = unzipSync(new Uint8Array((await h.run("pptx", "excel")).files[0]));
     expect(tablesOf(strFromU8(z["ppt/slides/slide1.xml"]))[0].rows).toBe(15);
+  }, 120_000);
+});
+
+describe("an exhibit (the consulting designs draw their own rows: review 7)", () => {
+  it("deck20 as an exhibit: the a:tbl loses exactly the hidden body row and column, on that table only, in every design", async () => {
+    const D20 = JSON.parse(fs.readFileSync(path.join(DECKS, "deck20.json"), "utf8")) as { workbook: string; ops: Op[] };
+    const p = structuredClone((D20.ops[0] as Extract<Op, { op: "preset.set" }>).preset as Preset);
+    const deck = new FakeDeck("deck20.xlsx-0123456789", "deck20.xlsx"), h = await open(deck, p);
+    // slide 1's loans table (x0r1235): PBZ (row 11) and the abs. column of "Δ vs. BoY" (P); the deposits table beside it keeps both
+    const count = async (design: Design) => {
+      const r = await h.run("pptx", design), z = unzipSync(new Uint8Array(r.files[0])), xml = strFromU8(z["ppt/slides/slide1.xml"]);
+      expect(xml, design).not.toContain("<p:pic>");
+      return tablesOf(xml);
+    };
+    const before: Record<string, ReturnType<typeof tablesOf>> = {};
+    for (const design of DESIGNS) before[design] = await count(design);
+    expect(await h.apply("Hide rows", [hide("cz9uvf0", { "x0r1235:r11": true, "x0r1235:cP": true })])).toBe(true);
+    // the exhibit's rows: 2 header rows, 11 banks, the total (14); its columns per design's own groups
+    expect(before.mckinsey.map(t => [t.rows, t.cols])).toEqual([[14, 26], [14, 26]]);
+    expect(before.bain.map(t => [t.rows, t.cols])).toEqual([[14, 22], [14, 22]]);
+    for (const design of DESIGNS) {
+      const after = await count(design), [a, b] = after, [a0, b0] = before[design];
+      keep(`m16-hidden-exhibit-${design}.pptx`, (await h.run("pptx", design)).files[0]);
+      expect([a.rows, a.cols], design).toEqual([a0.rows - 1, a0.cols - 1]);
+      expect([b.rows, b.cols], design).toEqual([b0.rows, b0.cols]);
+      expect(a.text, design).not.toContain("PBZ");
+      expect(b.text, design).toContain("PBZ");
+      expect(a0.text, design).toContain("PBZ");
+    }
   }, 120_000);
 });

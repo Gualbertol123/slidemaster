@@ -1,4 +1,4 @@
 {
-  "bytes": 10500,
-  "why": "M16 S16.1 (4.9.0, hidden rows and columns per slide, B36): measured with npm run build – first on m16/hidden from main cb9cb8a (3,967,290 → 3,977,523, +10,233), again after rebasing onto main 71d8806 with B48–B50 (4,017,563 → 4,027,850, +10,287): the hidden set in core – model/hidden.ts, buildLayout, resolveTable / runtimeSlides, the chart resolver – and Hide ▾ / the stage's double marks; rounded up to 10,500. Set by measurement (M16 plan); raised only by a decision."
+  "bytes": 11000,
+  "why": "M16 S16.1 (4.9.0, hidden rows and columns per slide, B36): measured with npm run build – first on m16/hidden from main cb9cb8a (3,967,290 → 3,977,523, +10,233), again after rebasing onto main 71d8806 with B48–B50 (4,017,563 → 4,027,850, +10,287), and after the review fixes (the version's drop kept when a slide's set would empty a table, the chart's slide by identity and its range by overlap, the layout cache's marker and recency: 4,017,563 → 4,028,351, +10,788): the hidden set in core – model/hidden.ts, buildLayout, resolveTable / runtimeSlides, the chart resolver – and Hide ▾ / the stage's double marks; rounded up to 11,000 (raised from 10,500 by the review fixes' measurement). Set by measurement (M16 plan); raised only by a decision."
 }
