@@ -238,7 +238,7 @@ the 4.9.0 release is put together on the integration branch `v4/release-4.9.0`.
 | VEC-1 (low) | fixed | an ops vector setting and clearing a waterfall series' `points[i].total`, with its inverses (`shared/ops-vectors.d/m14.json`) | 89c0131 |
 | VEC-2 (info) | fixed | S13.7's duplicated-slide vector moved unchanged into `shared/ops-vectors.d/m16-slides.json` | 48d86c5 |
 | UNDO-1 (low) | fixed | `version.patch` takes an optional `at`; the inverse of a delete carries the version's index, so Undo puts it back at its place | 6abda01 |
-| REL-2 (low) | resolved by the integration | the 4.9.0 integration branch `v4/release-4.9.0` rebuilds the committed page once over every step and carries the 4.9.0 CHANGELOG section (with what older windows do with these decks) | `v4/release-4.9.0` |
+| REL-2 (low) | resolved by the integration | the 4.9.0 integration branch `v4/release-4.9.0` (with B51; final 7a658ec, merged to main as c293100 by PR #33) rebuilds the committed page once over every step and carries the 4.9.0 CHANGELOG section (with what older windows do with these decks) | `v4/release-4.9.0` |
 | INT-1 (info) | resolved by the integration | `v4/release-4.9.0` is built on main 4.8.0 (M15 included) with the painter's `CELL_KEYS` (`valign`, `num`) and `m16-cells.json` | `v4/release-4.9.0` |
 
 **CP-01 after the fix** (the m16 / m15 cases, Linux, `--bump-wait-s 2` to fit the time box): **m15 and m16 PASS against
