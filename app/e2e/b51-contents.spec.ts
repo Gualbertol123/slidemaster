@@ -111,20 +111,19 @@ test.describe.serial("the contents slide's parts in a free layout (B51)", () => 
     const box0 = async (sel: string) => page.locator(sel).evaluate(el => { const s = (el as HTMLElement).style; return { x: parseFloat(s.left), y: parseFloat(s.top), w: parseFloat(s.width), h: parseFloat(s.height) }; });
     const L0 = await box0(toc), T0 = await box0(title);
 
-    // the list down and to the right; the title to the bottom right; the list's corner: smaller
-    await drag(page, toc + " .grip", 160, 90);
-    await pollFile(() => entryOf()?.items?.["c:toc"]?.x ?? null, { timeout: 10_000 }).not.toBeNull();
+    // the list's corner: smaller (it stays where it is); then the list down and to the right; the title to the bottom right
+    await drag(page, toc + " .size", -L0.w * scale * .2, -L0.h * scale * .2);
+    await pollFile(() => entryOf()?.items?.["c:toc"]?.scale ?? 1, { timeout: 10_000 }).toBeLessThan(.95);
     await expect.poll(() => undoSteps(page)).toBe(u0 + 2);
+    await expect.poll(() => box0(toc).then(b => Math.round(b.w))).toBe(Math.round(entryOf().items["c:toc"].w));
+    await drag(page, toc + " .grip", 160, 30);   // (not to the slide's foot)
+    await pollFile(() => Math.round(entryOf()?.items?.["c:toc"]?.x ?? -1), { timeout: 10_000 }).toBeGreaterThan(Math.round(L0.x + 60));
+    await expect.poll(() => undoSteps(page)).toBe(u0 + 3);
     await drag(page, title + " .grip", 600 * scale, 640 * scale);
     await pollFile(() => entryOf()?.items?.["c:title"]?.y ?? null, { timeout: 10_000 }).not.toBeNull();
-    await expect.poll(() => undoSteps(page)).toBe(u0 + 3);
-    const L1 = await box0(toc);
-    await expect.poll(() => box0(toc).then(b => Math.round(b.x))).toBe(Math.round(entryOf().items["c:toc"].x));
-    await drag(page, toc + " .size", -L1.w * scale * .2, -L1.h * scale * .2);
-    await pollFile(() => entryOf()?.items?.["c:toc"]?.scale ?? 1, { timeout: 10_000 }).toBeLessThan(.95);
     await expect.poll(() => undoSteps(page)).toBe(u0 + 4);
     const L: B = entryOf().items["c:toc"], T: B = entryOf().items["c:title"];
-    expect(L.x).toBeGreaterThan(L0.x + 60); expect(L.y).toBeGreaterThan(L0.y + 40);
+    expect(L.x).toBeGreaterThan(L0.x + 60); expect(L.y).toBeGreaterThan(L0.y + 15);
     expect(T.x).toBeGreaterThan(T0.x + 300); expect(T.y).toBeGreaterThan(T0.y + 300);
     expect(T.scale).toBe(1);
     // the stage draws them there: the handles come back from the drawn slide
@@ -133,15 +132,14 @@ test.describe.serial("the contents slide's parts in a free layout (B51)", () => 
     await saved(page);
 
     // the PDF: the title's text and the first entry's inside their saved boxes
-    const firstEntry = (doc().preset.slides as any[]).find(s => s.type === "content" && !s.hide?.excel);
     const runs = pdfPageRuns(read((await exported(page, () => page.click("#exportBtn")))[0]))[k];
     const tRun = runs.find(r => S.title ? r.text.startsWith((S.title as string).slice(0, 6)) : /Contents|INDICE/i.test(r.text))!;
     expect(tRun, JSON.stringify(runs.slice(0, 8))).toBeTruthy();
     expect(inBox(tRun, T), JSON.stringify({ tRun, T })).toBe(true);
-    const entryTitle = (firstEntry.title as string | undefined) ?? "";
-    const eRun = runs.find(r => entryTitle && r.text.startsWith(entryTitle.slice(0, 8)) && inBox(r, L, 40));
-    expect(eRun, JSON.stringify({ entryTitle, runs: runs.slice(0, 20), L })).toBeTruthy();
-    expect(inBox(eRun!, L)).toBe(true);
+    // (the first entry: the first text after the first page number the list shows; every row's text inside the box)
+    const p1 = runs.findIndex(r => /^\d+$/.test(r.text) && r !== tRun), eRun = runs[p1 + 1];
+    expect(eRun && eRun.text.length > 3, JSON.stringify({ runs: runs.slice(0, 20), L })).toBe(true);
+    for (const r of runs) if (r !== tRun && r.y > 100 && r.y < 800) expect(inBox(r, L), JSON.stringify({ r, L })).toBe(true);
 
     // the PowerPoint file: the title a placeholder at the title's box, the entry's text box in the list's box; the same
     // places as the PDF (the run's origin inside the shape)
@@ -156,9 +154,9 @@ test.describe.serial("the contents slide's parts in a free layout (B51)", () => 
     expect(inBox(ebox, L, 8)).toBe(true);
     expect(Math.abs(eRun!.x - ebox.x)).toBeLessThanOrEqual(8);
 
-    // undo: the corner, then the title, then the list, each one step; the free layout off again
-    await page.click("#undoBtn"); await pollFile(() => entryOf()?.items?.["c:toc"]?.scale ?? 1, { timeout: 10_000 }).toBe(1);
+    // undo: the title, then the list's move, then its corner, each one step; the free layout off again
     await page.click("#undoBtn"); await pollFile(() => entryOf()?.items?.["c:title"] ?? null, { timeout: 10_000 }).toBeNull();
+    await page.click("#undoBtn"); await pollFile(() => Math.round(entryOf()?.items?.["c:toc"]?.x ?? -1), { timeout: 10_000 }).toBe(Math.round(L0.x));
     await page.click("#undoBtn"); await pollFile(() => entryOf()?.items?.["c:toc"] ?? null, { timeout: 10_000 }).toBeNull();
     await page.click("#undoBtn"); await pollFile(() => entryOf()?.on ?? false, { timeout: 10_000 }).toBe(false);
     await expect(page.locator(toc)).toHaveCount(0);
