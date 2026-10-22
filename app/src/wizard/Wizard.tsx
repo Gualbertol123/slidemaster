@@ -12,7 +12,7 @@ import { A1, esc, fmtMB, numToCol, uid } from "@slide-builder/core/xlsx/util";
 import type { SheetInfo, SheetWindow } from "@slide-builder/core/xlsx/sheetview";
 import type { DeckVersion, Preset, SlideDef, TableDef } from "@slide-builder/core/model/types";
 import { SLIDE_RX, gToRange, rangeToG, validRange } from "@slide-builder/core/model/preset";
-import { dropBands, dropEdit, dropLabel } from "@slide-builder/core/model/versions";
+import { dropBands, dropEdit, dropEmpties, dropLabel } from "@slide-builder/core/model/versions";
 import { todayLabel } from "@slide-builder/core/render/cover";
 import { Input } from "../ui/Input";
 
@@ -231,7 +231,12 @@ export function Wizard({ req }: { req: WizardReq }) {
       if (!S || !V || !W.sel) return;
       const d = V.drop || (V.drop = {}), ns: number[] = [];
       for (let n = kind === "r" ? W.sel.r1 : W.sel.c1; n <= (kind === "r" ? W.sel.r2 : W.sel.c2); n++) ns.push(n);
-      d[S.name] = dropEdit(d[S.name], kind, ns, true); W.sel = null; render();
+      const next = dropEdit(d[S.name], kind, ns, true), win = W.windows[S.name];
+      // a table keeps at least one row / column (as For this version ▾ – S16.2 review): else it would leave the slides
+      const off = win && win !== "loading" ? { row: (r: number) => !!win.rows[r - win.r0]?.hidden, col: (c: number) => !!win.cols[c - win.c0]?.hidden } : undefined;
+      const bad = dropEmpties(next, tablesOf(S.name).map(t => defRange(S, t)), off);
+      if (bad) { void alertBox(`A table keeps at least one ${kind === "r" ? "row" : "column"}`, `Deleting these ${kind === "r" ? "rows" : "columns"} in “${esc(V.name)}” would leave the table <code>${esc(bad)}</code> with none: select fewer.`); return; }
+      d[S.name] = next; W.sel = null; render();
     };
     const drops = V ? Object.entries(V.drop || {}).flatMap(([sh, rs]) => rs.map(r => ({ sh, r }))) : [];
     const removed = (v: DeckVersion, sh?: string) => Object.entries(v.hide).concat(Object.entries(v.drop || {})).filter(([s]) => !sh || s === sh).reduce((n, [, rs]) => n + rs.length, 0);

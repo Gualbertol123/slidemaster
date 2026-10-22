@@ -66,6 +66,9 @@ export class CoreHost {
   private slides: RuntimeSlide[] = []; private slidesDesign: Design | null = null; private presetSig = "";
   /** what the stage's slides close up: the shown version's deleted rows / columns (4.9, B37), as JSON */
   private slidesDrop = "";
+  /** slidesFor's slides of other designs / versions, valid while `this.slides` is the one they were made beside (any
+      re-resolve of the stage's – preset, design, version, workbook – starts them over) */
+  private other = new Map<string, RuntimeSlide[]>(); private otherFor: RuntimeSlide[] | null = null; private otherWb: Workbook | null = null;
   /** per workbook (the open one and the one being opened): the slice rectangles sent, by sheet */
   private sentBoxes = new Map<number, Map<string, string>>();
   private sentSharedFor = new Set<number>();
@@ -561,8 +564,14 @@ export class CoreHost {
     }
     // the workbook's own values while a preview shows: its own slides (the stage's are the preview's)
     if (src === "own" && this.scen) return runtimeSlides(this.wb, preset, this.name, design, opts);
-    if (design === this.slidesDesign && JSON.stringify(drop || null) === this.slidesDrop) return this.slides;
-    return runtimeSlides(this.viewWb!, preset, this.name, design, opts);
+    const dsig = JSON.stringify(drop || null);
+    if (design === this.slidesDesign && dsig === this.slidesDrop) return this.slides;
+    // another design or version (an export of every version × design, S16.2 review): kept while the stage's slides are
+    if (this.otherFor !== this.slides || this.otherWb !== this.viewWb) { this.other.clear(); this.otherFor = this.slides; this.otherWb = this.viewWb; }
+    const k = design + "|" + dsig;
+    let R = this.other.get(k);
+    if (!R) { if (this.other.size >= 24) this.other.clear(); this.other.set(k, R = runtimeSlides(this.viewWb!, preset, this.name, design, opts)); }
+    return R;
   }
   /** the slides of the current design (re-resolved when the preset or the design changed), then send */
   private async refresh(c: Change | null, force = false) {

@@ -18,7 +18,7 @@ import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOp, applyOps, docNeedsV5, inverseOf, knownOp, needsV5 } from "../src/model/ops";
 import { fold, nextSnapshot } from "../src/model/fold";
 import { runtimeSlides } from "../src/model/preset";
-import { dropBands, dropCount, dropEdit, dropLabel, droppedCell, hideWithout, versionDrop, versionOp } from "../src/model/versions";
+import { dropBands, dropCount, dropEdit, dropEmpties, dropLabel, droppedCell, hideWithout, versionDrop, versionOp } from "../src/model/versions";
 import { resolveStyle } from "../src/model/style";
 import { tableKey, type RenderCtx } from "../src/render/context";
 import { gridOf } from "../src/render/comment";
@@ -70,8 +70,8 @@ const V = (id: string, patch: Record<string, unknown> | null): Op => ({ op: "ver
 describe("the op: version.patch (shared/ops-vectors.d/m16-versions.json)", () => {
   const mine = loadVectors().filter(v => /^(version\.patch|versions with only|fold: .*(\(S16\.2\)|version))/.test(v.name));
   it("the file has its cases, and the runner reads them (ops.test.ts runs every case)", () => {
-    expect(mine.length).toBe(20);
-    expect(mine.filter(v => v.fold).length).toBe(4);
+    expect(mine.length).toBe(21);
+    expect(mine.filter(v => v.fold).length).toBe(5);
   });
   for (const v of mine.filter(x => !x.fold)) it(v.name + " – known, format 5 (needsV5 / docNeedsV5), undone by its inverses", () => {
     for (const op of v.ops) expect(knownOp(op), JSON.stringify(op)).toBe(true);
@@ -133,6 +133,17 @@ describe("the lists (model/versions.ts): what Delete rows / columns, Empty cells
     expect(dropBands(["10:11", "G", "x"])).toEqual([{ kind: "r", a: 10, b: 11, entry: "10:11" }, { kind: "c", a: 7, b: 7, entry: "G" }]);
     expect([droppedCell(ALL, "SLIDE_1", 10, 3), droppedCell(ALL, "SLIDE_1", 6, 7), droppedCell(ALL, "SLIDE_1", 6, 6), droppedCell(ALL, "Other", 10, 3)]).toEqual([true, true, false, false]);
   });
+  it("a table keeps at least one row / column (S16.2 review 1): dropEmpties names the table a drop list would empty", () => {
+    const R = ["C4:J19", "B30:D33"];
+    expect(dropEmpties(["10:11", "G"], R)).toBeNull();
+    expect(dropEmpties(["4:19"], R)).toBe("C4:J19");                                       // every row of the first
+    expect(dropEmpties(["4:18"], R)).toBeNull();                                           // row 19 stays
+    expect(dropEmpties(["B:D"], R)).toBe("B30:D33");                                       // every column of the second
+    expect(dropEmpties(["C:I"], R)).toBeNull();                                            // J stays
+    // Excel's own hidden rows count as gone (the wizard's preview window knows them): row 19 hidden, 4–18 deleted
+    expect(dropEmpties(["4:18"], R, { row: r => r === 19, col: () => false })).toBe("C4:J19");
+    expect(dropEmpties(["4:19"], [null, undefined, "nonsense", "B30:D33"])).toBeNull();     // unresolved tables skipped
+  });
   it("Restore selection: an emptied range loses the selected cells (split in up to four), the others stay", () => {
     expect(hideWithout(["C5:F8", "J1"], { r1: 6, c1: 4, r2: 7, c2: 5 })).toEqual(["C5:F5", "C8:F8", "C6:C7", "F6:F7", "J1"]);
     expect(hideWithout(["C5:D6"], { r1: 1, c1: 1, r2: 20, c2: 20 })).toEqual([]);
@@ -172,6 +183,24 @@ describe("VD-02: only that version changes – table, charts, comments, KPIs, ca
     // its emptied cell D6 stays where it was (blanked in place, as before 4.9)
     expect(tableKey(all, A)).not.toBe(tableKey(full, F));
     expect(tableKey(chief, chief.slides[0].tables[0])).toBe(tableKey(full, F));
+  });
+  it("a table the version would leave with no row (two writers' merge; the menu and the wizard refuse it) keeps every row, counted for the Issues panel", async () => {
+    const wb = await book(), p = preset();
+    p.versions = [...p.versions!, { id: "vx", name: "Nothing", hide: {}, drop: { SLIDE_1: ["1:40"] } }];
+    const full = ctxOf(wb, p), x = ctxOf(wb, p, "vx");
+    for (const s of [0, 1]) {
+      expect(x.slides[s].tables.map(L => L.rows)).toEqual(full.slides[s].tables.map(L => L.rows));   // never vanishes
+      expect([x.slides[s].dropWhole, x.slides[s].missing]).toEqual([1, 0]);
+      expect(full.slides[s].dropWhole).toBeUndefined();
+    }
+    expect(x.slides[2].dropWhole).toBeUndefined();                                         // another sheet
+    // a version that deletes some rows (All) or none of this table's: not counted
+    expect(ctxOf(wb, p, "va").slides[0].dropWhole).toBeUndefined();
+    p.versions[2].drop = { SLIDE_1: ["40:50"] };
+    expect(ctxOf(wb, p, "vx").slides[0].dropWhole).toBeUndefined();
+    // every column deleted: the same
+    p.versions[2].drop = { SLIDE_1: ["A:Z"] };
+    expect(ctxOf(wb, p, "vx").slides[0].dropWhole).toBe(1);
   });
   it("the automated comment's grid and the exhibit (KPI line, panel) read the version's rows only", async () => {
     const wb = await book(), p = preset(), full = ctxOf(wb, p, "", "mckinsey"), all = ctxOf(wb, p, "va", "mckinsey");
@@ -300,6 +329,13 @@ describe("VD-03: every export of that version (the worker)", () => {
       const ls = await h.lists(design, vid);
       expect(words(ls[0].dl.nodes).includes("Epsilon"), `${design} ${vid}`).toBe(has);
     }
+    // the other versions' slides are kept between calls (S16.2 review 4) – and start over when the deck changes: a row
+    // deleted in Chief while All is shown reaches Chief's next export
+    expect(words((await h.lists("excel", "vc"))[0].dl.nodes)).toContain("Beta");
+    await h.apply("Delete rows", [V("vc", { drop: { SLIDE_1: ["7"] } })]);
+    expect(words((await h.lists("excel", "vc"))[0].dl.nodes)).not.toContain("Beta");
+    expect(words((await h.lists("bain", "vc"))[0].dl.nodes)).not.toContain("Beta");
+    expect(words((await h.lists("excel", ""))[0].dl.nodes)).toContain("Beta");
     // a version's rows deleted by somebody while it is shown: the stage follows the document
     await h.apply("Delete rows", [V("va", { drop: { SLIDE_1: ["8"] } })]);
     expect(await h.stage(0)).toContain("Epsilon");

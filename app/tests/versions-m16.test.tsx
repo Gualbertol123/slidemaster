@@ -111,6 +111,25 @@ describe("For this version ▾ (S16.2, VD-01)", () => {
     await vi.waitFor(() => expect(T0().cols.length).toBe(cols0 + 0));
   });
 
+  it("a table keeps a row: the menu refuses to delete them all; a merge that does (two writers) keeps the table whole and the Issues panel says so", async () => {
+    const h0 = history(), rows0 = T0().rows.length;
+    await pick(4, 3, 19, 4);                                          // every row of the table
+    await choose("vDropRows");
+    await settle();
+    expect(get().ui.toast?.html).toMatch(/A table keeps at least one row/);
+    expect(history()).toBe(h0);
+    expect(version()!.drop).toBeUndefined();
+    // two writers on overlapping rows can still reach it: the table stays, every row of it, with a note
+    await act(async () => { change("Delete rows", [{ op: "version.patch", id: "va", patch: { drop: { SLIDE_1: ["4:19"] } } } as Op]); });
+    await confirmed(h0 + 1);
+    await vi.waitFor(() => expect(get().deck.slides[0].dropWhole).toBe(1));
+    expect(T0().rows.length).toBe(rows0);
+    await vi.waitFor(() => expect(document.getElementById("issues")!.innerHTML).toMatch(/<li class="warn">A table of this slide shown with every row and column in this version/));
+    expect(document.getElementById("issues")!.innerHTML).not.toMatch(/could not be found/);
+    await act(async () => undo(false)); await confirmed(h0);
+    await vi.waitFor(() => expect(get().deck.slides[0].dropWhole).toBeUndefined());
+  });
+
   it("the version shown is deleted (by anybody): the full deck is shown", async () => {
     const h0 = history();
     await act(async () => { change("Delete version", [{ op: "version.patch", id: "va", patch: null } as Op]); });

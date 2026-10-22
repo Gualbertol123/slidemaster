@@ -37,6 +37,19 @@ export function dropEdit(list: string[] | undefined, kind: "r" | "c", ns: number
   for (const n of ns) if (on) s.add(n); else s.delete(n);
   return dropList(h);
 }
+/** "a table keeps at least one row / column" (the rule of For this version ▾ and of the wizard's Delete rows / columns):
+    the first of a sheet's table ranges (A1, as the wizard holds them) that the drop list leaves with no row or no
+    column – Excel's hidden ones count as gone (`off`, when known); null when every table keeps some */
+export function dropEmpties(list: string[] | undefined, ranges: (string | null | undefined)[], off?: { row(r: number): boolean; col(c: number): boolean }): string | null {
+  const h = dropHidden(list || []);
+  const keeps = (a: number, b: number, gone: (n: number) => boolean) => { for (let n = a; n < b; n++) if (!gone(n)) return true; return false; };
+  for (const r of ranges) {
+    if (!r || !validRange(r)) continue;
+    const g = rangeToG(r);                                                                // (bounds outside the range)
+    if (!keeps(g.r1 + 1, g.r2, n => h.rows.has(n) || !!off?.row(n)) || !keeps(g.c1 + 1, g.c2, n => h.cols.has(n) || !!off?.col(n))) return r;
+  }
+  return null;
+}
 /** an entry as the lists show it: "rows 10–12", "row 9", "columns I:J", "column F" */
 export function dropLabel(entry: string): string {
   const m = /^(\d+)(?::(\d+))?$/.exec(entry);

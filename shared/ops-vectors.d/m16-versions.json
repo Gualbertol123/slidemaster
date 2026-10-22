@@ -2698,5 +2698,148 @@
     ]
    }
   }
+ },
+ {
+  "name": "fold: one writer deletes a version, another re-creates it later under the same id (an undo of an earlier delete) – a name on a missing id creates it (09 §2.5): it comes back with that op's lists only (S16.2 review 2: accepted, documented)",
+  "fold": {
+   "snapshot": {
+    "format": 5,
+    "gen": 1,
+    "workbook": "W.xlsx",
+    "lamport": 0,
+    "rev": 0,
+    "frontier": {},
+    "doc": {
+     "schema": 3,
+     "workbook": "W.xlsx",
+     "rev": 0,
+     "preset": {
+      "sheets": [
+       "S",
+       "T"
+      ],
+      "tables": [
+       {
+        "id": "t1",
+        "sheet": "S",
+        "kind": "range",
+        "range": "A1:F12"
+       },
+       {
+        "id": "t2",
+        "sheet": "T",
+        "kind": "range",
+        "range": "B2:E9"
+       }
+      ],
+      "slides": [
+       {
+        "id": "s1",
+        "type": "content",
+        "tables": [
+         "t1",
+         "t2"
+        ],
+        "title": "Loans"
+       }
+      ],
+      "versions": [
+       {
+        "id": "v1",
+        "name": "Chief",
+        "hide": {}
+       }
+      ]
+     },
+     "style": {},
+     "edits": {}
+    }
+   },
+   "records": [
+    {
+     "l": 1,
+     "w": "anna@pc#aaaaaaaa",
+     "s": 1,
+     "by": "anna",
+     "at": 1000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": null
+      }
+     ]
+    },
+    {
+     "l": 2,
+     "w": "bob@pc#bbbbbbbb",
+     "s": 1,
+     "by": "bob",
+     "at": 2000,
+     "ops": [
+      {
+       "op": "version.patch",
+       "id": "v1",
+       "patch": {
+        "name": "Chief",
+        "drop": {
+         "S": [
+          "3"
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "edits": {},
+   "rev": 2,
+   "lamport": 2,
+   "preset": {
+    "sheets": [
+     "S",
+     "T"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "S",
+      "kind": "range",
+      "range": "A1:F12"
+     },
+     {
+      "id": "t2",
+      "sheet": "T",
+      "kind": "range",
+      "range": "B2:E9"
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1",
+       "t2"
+      ],
+      "title": "Loans"
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {},
+      "drop": {
+       "S": [
+        "3"
+       ]
+      }
+     }
+    ]
+   }
+  }
  }
 ]

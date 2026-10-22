@@ -1,4 +1,4 @@
 {
-  "bytes": 13500,
-  "why": "M16 S16.2 (4.9.0, delete-versions, B37): by measurement – npm run build on m16/delete-versions-rebased over its base (S16.1's core commit 44a49f8 on main 71d8806, B48–B50) 4,022,470 → 4,035,460 bytes, +12,990 (version.patch, model/versions.ts, For this version ▾, the wizard's Delete rows / columns); first measured +12,945 on the pre-B48 base; rounded up to 13,500."
+  "bytes": 15000,
+  "why": "M16 S16.2 (4.9.0, delete-versions, B37): by measurement – npm run build on m16/delete-versions-rebased over its base (S16.1's core commit 44a49f8 on main 71d8806, B48–B50) 4,022,470 → 4,035,460 bytes, +12,990 (version.patch, model/versions.ts, For this version ▾, the wizard's Delete rows / columns); the review fixes (the wizard's at-least-one-row rule, the Issues line of a table kept whole, the worker's slides of other versions kept) 4,035,460 → 4,037,228, +1,768: +14,758 in all; first measured +12,945 on the pre-B48 base; rounded up to 15,000."
 }

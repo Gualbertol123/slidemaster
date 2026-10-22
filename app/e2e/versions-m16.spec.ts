@@ -104,6 +104,13 @@ test.describe.serial("delete-versions (S16.2)", () => {
     await page.locator("#wDrops .wcut", { hasText: "column G" }).locator(".del").click();
     await expect(page.locator("#wDrops .wcut")).toHaveCount(1);
     await expect(page.locator(".wov .ovb.drop.c")).toHaveCount(0);
+    // a table keeps at least one row (S16.2 review 1): the bank table's every row (4–19) is refused with a note
+    await page.locator('.wgrid-in td[data-r="4"][data-c="3"]').click();
+    await page.locator('.wgrid-in td[data-r="19"][data-c="3"]').click({ modifiers: ["Shift"] });
+    await page.click("#wDropRows");
+    await expect(page.locator(".modal").last()).toContainText("A table keeps at least one row");
+    await page.locator('.modal [data-a="ok"]').last().click();
+    await expect(page.locator("#wDrops .wcut")).toHaveCount(1);
     await page.click('[data-a="finish"]');
     await pollFile(() => byName("VD")?.drop, { timeout: 10_000 }).toEqual({ SLIDE_1: ["10:11"] });
     // the deck now holds a deleted row: format 5 (the guard)

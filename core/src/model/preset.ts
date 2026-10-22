@@ -142,7 +142,13 @@ export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName:
   if (!preset) return [];
   const T: Record<string, TableLayout> = {}, drop = opts?.drop && typeof opts.drop === "object" && Object.keys(opts.drop).length ? opts.drop : null;
   const defs = new Map((preset.tables || []).map(d => [d.id, d]));
-  for (const def of preset.tables || []) { const L = resolveTable(wb, def, design, drop ? hideFor(null, def.id, def.sheet, drop) : null); if (L) T[def.id] = L; }
+  // a table the version would leave with no row or column keeps them all (resolveTable: it never vanishes); the menu and
+  // the wizard refuse such a delete, two writers' merge can reach it – counted, the Issues panel names it (S16.2 review)
+  const whole = new Set<string>();
+  for (const def of preset.tables || []) {
+    const h = drop ? hideFor(null, def.id, def.sheet, drop) : null, L = resolveTable(wb, def, design, h);
+    if (L) { T[def.id] = L; if (h && !L.hide && hideSize(inside(h, L.g))) whole.add(def.id); }
+  }
   /** a table as this slide shows it: with the rows / columns it hides (and the version's), else the deck's layout */
   const onSlide = (ps: SlideDef, id: string) => {
     const def = defs.get(id);
@@ -153,6 +159,7 @@ export function runtimeSlides(wb: Workbook, preset: Preset | null, workbookName:
     const S0 = tables[0] && tables[0].sheet;
     const sameSheet = tables.length > 0 && tables.every(L => L.sheet === S0);
     const R: RuntimeSlide = { id: ps.id, type: ps.type || "content", cfg: ps, tables, missing: (ps.tables || []).filter(id => !T[id]).length, title: "", subtitle: "", label: "" };
+    const nw = whole.size ? (ps.tables || []).filter(id => whole.has(id)).length : 0; if (nw) R.dropWhole = nw;
     if (R.type === "cover") { R.title = ps.title || workbookName.replace(/\.[^.]+$/, ""); R.subtitle = ps.subtitle || ""; R.label = "Cover"; }
     else if (R.type === "index") { R.title = ps.title || "Contents"; R.subtitle = ps.subtitle || ""; R.label = "Index"; }
     else {

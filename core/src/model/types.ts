@@ -227,11 +227,13 @@ export type Op =
   /** a version (4.9, B37, 09 §2.5): `name` on a missing id creates it (appended, `hide: {}`); `null` deletes it; `hide` /
       `drop` merged per sheet (a sheet's list replaced whole, null removes it); `hide: null` empties it */
   | { op: "version.patch"; id: string; patch: VersionPatch | null };
-export type VersionPatch = { name?: string | null; hide?: Record<string, string[] | null> | null; drop?: Record<string, string[] | null> | null };
+export type VersionPatch = { name?: string; hide?: Record<string, string[] | null> | null; drop?: Record<string, string[] | null> | null };
 
 /* ---- runtime ---- */
 export interface RuntimeSlide {
   id: string; type: SlideType; cfg: SlideDef; tables: TableLayout[]; missing: number;
+  /** tables the shown version's deleted rows / columns would leave with none (4.9, B37): drawn whole instead (a table
+      never vanishes), named by the Issues panel */ dropWhole?: number;
   title: string; subtitle: string; label: string;
   _auto?: Layout | null;
 }
