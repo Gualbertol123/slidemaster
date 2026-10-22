@@ -45,7 +45,7 @@
                      the click on Run to the run's end; no main-thread task over 50 ms during the runs; before them
                      (S8.4) a preview's switch on deck20 – a cell of its slide the input, the engine warm – from the
                      click on Preview until the stage shows the value (< 400 ms)
-     icon picker   ⏱ S15.2 (09 §7.4), when the build has it: Insert shape ▾ › More icons… on deck20 – the icon set's first
+     icon picker   ⏱ S15.2 (09 §7.4), when the build has it: Shapes & icons… (4.12; before it Insert shape ▾ › More icons…) on deck20 – the icon set's first
                      use in the core worker (inflate + index, cold; the worker's own time)                 < 150 ms
                      2 untimed then 20 timed keystrokes, the key → the first frame with that query's hits, p95 < 50 ms
      heap          after the big sheet was read: the page (performance.memory) plus the core worker, which
@@ -525,7 +525,11 @@ async function dragFrames(browser, page, withFree = false) {
       await drag("free text box move", await at('#stage .tnote:has-text("Source: monthly figures")'), 40, 20);
       const tb = await at('#stage .tnote:has-text("Source: monthly figures")');
       await drag("free text box edge", { x: tb.b.x + tb.b.width - 2, y: tb.y }, 60, 0);
-      await page.click("#shapeBtn"); await page.click('.shapemenu [data-shape="pill"], #iconShapes [data-shape="pill"]');   // (before 4.12: the dropdown)
+      // the callout put in as the ribbon's pill is (one item.patch, the same item), not through the ribbon: since 4.12 the
+      // ribbon's Shapes & icons… is the icon window, whose first search would inflate the icon set before the picker's
+      // own measurement below (icon_first_use_ms is the first use, cold)
+      await page.evaluate(() => { const T = window.__sbTest, R = T.stage();
+        T.change("Insert shape", [{ op: "item.patch", slide: R.id, id: "ibench", patch: { kind: "shape", shape: "pill", box: { x: 640, y: 390, w: 320, h: 120 } } }]); });
       await page.locator(".itembox[data-kind=shape]").waitFor(); await idle();
       await drag("free callout move", await at(".itembox[data-kind=shape]"), -50, -30);
       const cb = await at(".itembox[data-kind=shape]");

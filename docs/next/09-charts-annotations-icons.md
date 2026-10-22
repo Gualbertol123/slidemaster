@@ -571,7 +571,7 @@ per-slice colours do today); in Liquid Glass and the consulting designs the same
   renderer only scales. *(amended: ADR-020 2026-10-21 – as built, the vendor step makes every command absolute and keeps
   arcs (and quadratics) in the packed data, lossless and 17 % smaller; `core/src/icons/index.ts` converts them to cubics
   of ≤ 90° when an icon is first drawn, so the display list still gets only `M L C Z`.)* Colour = the item's `fill` (its ink), else the design's ink as built-in icons today.
-* **The picker** (`app/src/ui/IconPicker.tsx`, opened from *Insert shape ▾ › More icons…* and from a chart mark): a
+* **The picker** (`app/src/ui/IconPicker.tsx`, opened from *Insert shape ▾ › More icons…* – since 4.12 the ribbon's one *Shapes & icons…* window, the shapes and a text box at its side – and from a chart mark): a
   search box (name and tags, prefix and substring; Italian search words added by Q11's decision, `core/src/icons/search-it.ts`), a category list (41), a grid
   of results drawn as inline SVG from the same path data, outline / filled switch, colour and size of the inserted
   icon. Virtualised: only the visible tiles (≈ 120) are drawn. The search runs in the core worker over the index (§7.4

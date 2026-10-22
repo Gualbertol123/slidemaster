@@ -135,7 +135,7 @@ iframe{width:900px;height:600px;border:0}
 <header><h1>Slide Builder 09 · Phase 0 pictures (prototypes; nothing ships before approval)</h1>
 <div>Each slide drawn by the committed 4.5 page in every design, with the 09 prototypes (spikes/charts) added to its display list and drawn as the PNG export draws it. Build ${esc(manifest.git.slice(0, 7))} · ${esc(manifest.environment?.chromium || "")} · ${new Date().toISOString().slice(0, 10)}.</div></header>
 ${list.map(r => `<section><h2>${esc(r.deck)} · ${esc(r.version)} · slide ${r.n}</h2><p class="n">${esc(NOTES[`${r.deck}·${r.n}`] || "")}</p><div class="row">${DESIGNS.map(d => `<figure>${r.img[d] ? `<a href="img/${r.img[d]}" target="_blank"><img loading="lazy" src="img/${r.img[d]}" alt=""></a>` : "<div>–</div>"}<figcaption>${esc(nameOf(d))}</figcaption></figure>`).join("")}</div></section>`).join("\n")}
-<section><h2>F10 · The icon picker (app interface, the same in every design)</h2><p class="n">Insert shape ▾ › More icons…: search over names and tags (here "target": ${found.length} icons), 41 categories, outline / filled, colour, size, stroke. Drawn from the package's own data.</p><iframe src="picker.html"></iframe></section>
+<section><h2>F10 · The icon picker (app interface, the same in every design)</h2><p class="n">Shapes & icons… (4.12; Insert shape ▾ › More icons… in 4.8–4.11): search over names and tags (here "target": ${found.length} icons), 41 categories, outline / filled, colour, size, stroke. Drawn from the package's own data.</p><iframe src="picker.html"></iframe></section>
 </body></html>`;
 fs.writeFileSync(path.join(OUT, "index.html"), html);
 fs.rmSync(tmp, { recursive: true, force: true });

@@ -9,7 +9,9 @@
             stays in the window, Escape closes it.
    ICW-04 – a deck with the 17 built-in icons (as 4.3–4.11 wrote them): drawn on the stage, no Issues line, exported
             to PDF and PowerPoint (each one custom geometry, never a picture); Change icon… on one opens the new window at
-            its Tabler counterpart. */
+            its Tabler counterpart.
+   ICW-05 – (review) nothing reaches the deck behind the window: a click on its title then Delete / Ctrl+Z / PageDown, a
+            grid scrolled away from its focused tile then Delete; Escape closes from anywhere. */
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -238,6 +240,53 @@ test.describe.serial("the icon and shape window (4.12)", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#iconPicker")).toHaveCount(0);
     expect(items()["old" + k].icon).toBe("warning");                                // nothing changed
+  });
+
+  test("ICW-05: the deck behind the window is out of reach – a click on its title, Delete, Ctrl+Z, a scrolled grid; Escape closes", async ({ page }) => {
+    await openPlain(page);
+    await saved(page);
+    const S = (doc().preset.slides as any[])[0];
+    let u = await undoSteps(page);
+    await change(page, "Insert shape", [{ op: "item.patch", slide: S.id, id: "keep1", patch: { kind: "shape", shape: "pill", box: { x: 100, y: 100, w: 320, h: 120 } } }]);
+    await expect.poll(() => undoSteps(page)).toBe(u + 1);
+    await pollFile(() => Object.keys(items()).includes("keep1"), { timeout: 10_000 }).toBe(true);
+    const all0 = Object.keys(items()).sort();                                     // (ICW-04's icons stay on this slide)
+    await page.locator('.itembox[data-item="keep1"]').click({ position: { x: 4, y: 4 } });
+    await expect(page.locator("#shapeTools")).toBeVisible();
+    u = await undoSteps(page);
+    // a click on the window's title: the focus stays in the window; Delete, Ctrl+Z and PageDown change nothing behind it
+    await page.click("#shapeBtn"); await waitHits(page);
+    await page.click("#iconPickerTitle");
+    expect(await page.evaluate(() => !!document.activeElement?.closest(".icdlg"))).toBe(true);
+    for (const k of ["Delete", "Backspace", "Control+z", "PageDown"]) await page.keyboard.press(k);
+    await expect(page.locator("#iconPicker")).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await undoSteps(page)).toBe(u);
+    await pollFile(() => Object.keys(items()).sort(), { timeout: 10_000 }).toEqual(all0);
+    // Tab from there goes into the window, Escape closes it
+    await page.click("#iconPickerTitle"); await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement?.closest(".icdlg"))).toBe(true);
+    await page.click("#iconPickerTitle"); await page.keyboard.press("Escape");
+    await expect(page.locator("#iconPicker")).toHaveCount(0);
+    // ↓ into the grid, the grid scrolled far (its focused tile no longer drawn): the focus on the grid, Delete does nothing
+    await page.click("#shapeBtn"); await waitHits(page);
+    await page.keyboard.press("ArrowDown");
+    expect(await page.evaluate(() => (document.activeElement as HTMLElement).dataset.idx)).toBe("0");
+    await page.locator("#iconGrid").evaluate(g => { g.scrollTop = 40 * 46; });
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("iconGrid");
+    await page.keyboard.press("Delete");
+    await page.waitForTimeout(500);
+    expect(await undoSteps(page)).toBe(u);
+    await pollFile(() => Object.keys(items()).sort(), { timeout: 10_000 }).toEqual(all0);
+    // the arrow keys go on from the grid
+    await page.keyboard.press("ArrowRight");
+    expect(await page.evaluate(() => (document.activeElement as HTMLElement).dataset.idx)).toBe("1");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#iconPicker")).toHaveCount(0);
+    // removed again
+    await page.locator('.itembox[data-item="keep1"]').click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(items()).includes("keep1"), { timeout: 10_000 }).toBe(false);
+    await saved(page);
   });
 
   test("no page errors", async () => { expect(errors).toEqual([]); });

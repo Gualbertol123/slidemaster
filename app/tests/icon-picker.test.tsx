@@ -266,6 +266,7 @@ describe("the icon picker (S15.2, IC-01)", () => {
     await confirmed(h + 1);
     expect(items().iold).toEqual({ kind: "shape", shape: "icon", icon: "warning", fill: "#1E8E3E", box: { x: 200, y: 200, w: 64, h: 64 } });
     h = history();
+    const opts0 = JSON.stringify((get().prefs.prefs as Prefs & { iconOpts?: unknown }).iconOpts);
     await click("#iconChange");
     expect($(".icdlg .dlghd b")!.textContent).toBe("Change icon");
     expect($("#iconShapes")).toBeNull();                                           // icons only when changing one
@@ -275,6 +276,8 @@ describe("the icon picker (S15.2, IC-01)", () => {
     expect(tiles()[0].dataset.icon).toBe("tabler-filled:alert-triangle");
     await click('#iconGrid [data-icon="tabler-filled:alert-triangle"]');
     await confirmed(h + 1);
+    // (review) Change icon… leaves the Insert defaults (its filled counterpart is not the next new icon's style)
+    expect(JSON.stringify((get().prefs.prefs as Prefs & { iconOpts?: unknown }).iconOpts)).toBe(opts0);
     expect(items().iold).toEqual({ kind: "shape", shape: "icon", icon: "tabler-filled:alert-triangle", fill: "#1E8E3E", box: { x: 200, y: 200, w: 64, h: 64 } });
     await click("#undoBtn");
     await vi.waitFor(() => expect((items().iold as ShapeItem).icon).toBe("warning"));
@@ -315,6 +318,23 @@ describe("the icon picker (S15.2, IC-01)", () => {
     const id = Object.keys(items()).find(k => !before.includes(k))!;
     expect((items()[id] as ShapeItem).icon).toBe(first);
     // Escape closes, nothing changed
+    // (review) Enter typed before the answer to the last key: that answer's first hit, not the previous search's
+    await openPicker();
+    await vi.waitFor(() => expect(grid().dataset.q).toBe(""), { timeout: 10_000 }); await settle();
+    const h1 = history(), before1 = Object.keys(items());
+    await act(async () => { fireEvent.change($("#iconSearch")!, { target: { value: "euro" } }); fireEvent.keyDown($("#iconSearch")!, { key: "Enter" }); });
+    await confirmed(h1 + 1);
+    const id1 = Object.keys(items()).find(k => !before1.includes(k))!;
+    expect((items()[id1] as ShapeItem).icon).toMatch(/^tabler(-filled)?:currency-euro$/);
+    // (review) a second open while one is open starts afresh (its own search, its own mode)
+    await openPicker();
+    await type("bank");
+    const { openIconPicker } = await import("../src/ui/IconPicker");
+    await act(async () => openIconPicker({ mode: "pick", title: "Icon of the mark", onPick: () => undefined })); await settle();
+    expect($(".icdlg .dlghd b")!.textContent).toBe("Icon of the mark");
+    expect(($("#iconSearch") as HTMLInputElement).value).toBe("");
+    expect($("#iconShapes")).toBeNull();
+    await key("Escape");
     await openPicker();
     const h2 = history();
     await key("Escape");

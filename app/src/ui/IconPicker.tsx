@@ -28,10 +28,13 @@ import CSS from "./icon-picker.css?raw";
 /** insert: a new icon item; replace: item `id`'s icon changed (Change icon…); pick: the id handed to `onPick` – a chart
     mark's icon (09 §3.5, M14), the caller makes the change (and its undo step) */
 export type PickerReq = { mode: "insert" } | { mode: "replace"; id: string } | { mode: "pick"; onPick: (id: string) => void; title?: string };
-const usePicker = create<{ req: PickerReq | null }>(() => ({ req: null }));
+/** the open request, and how many were made (the window's key: a second openIconPicker starts afresh) */
+const usePicker = create<{ req: PickerReq | null; n: number }>(() => ({ req: null, n: 0 }));
 /** opens the window: a new icon, shape or text box, or the icon of item `id` changed */
-export const openIconPicker = (req: PickerReq) => usePicker.setState({ req });
+export const openIconPicker = (req: PickerReq) => usePicker.setState(s => ({ req, n: s.n + 1 }));
 export const closeIconPicker = () => usePicker.setState({ req: null });
+/** whether the window is open: the page's own keys (editor/keys.ts) stay off the deck behind it */
+export const pickerOpen = () => usePicker.getState().req !== null;
 
 /** the picker's choices this user keeps (in the preferences, beside the deck's own settings: never in the deck) */
 interface IconPrefs { recentIcons?: string[] | null; iconOpts?: { style?: "outline" | "filled"; color?: string | null; size?: number; stroke?: number } | null }
@@ -56,8 +59,8 @@ export const pickerStats = { lastMs: 0, workerMs: 0, firstUse: 0 };
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export function IconPickerHost() {
-  const req = usePicker(s => s.req);
-  return req ? <IconPicker req={req} /> : null;
+  const req = usePicker(s => s.req), n = usePicker(s => s.n);
+  return req ? <IconPicker key={n + ":" + req.mode + ":" + (req.mode === "replace" ? req.id : "")} req={req} /> : null;
 }
 
 /** one tile's icon as inline SVG (the slide's paths on the 24 grid: strokes at the chosen width, round caps and joins) */
@@ -89,7 +92,7 @@ function IconPicker({ req }: { req: PickerReq }) {
   const [size, setSize] = useState(SIZES.includes(o.size as number) ? o.size as number : 64);
   // Change icon…: the tiles drawn at the item's own line width (what it will look like), not the picker's
   const [stroke, setStroke] = useState(item ? iconStroke(item.stroke) : WIDTHS.includes(o.stroke as number) ? o.stroke as number : 2);
-  const [ans, setAns] = useState<{ names: string[]; categories: string[]; version: string; q: string; style: string; ms: number; first: boolean; cold: boolean } | null>(null);
+  const [ans, setAns] = useState<{ names: string[]; categories: string[]; version: string; q: string; style: string; cat: string | null; ms: number; first: boolean; cold: boolean } | null>(null);
   const [state, setState] = useState<"busy" | "ready" | "none">("busy");
   const [top, setTop] = useState(0);
   const [active, setActive] = useState(0);
@@ -103,8 +106,12 @@ function IconPicker({ req }: { req: PickerReq }) {
   const recent = useMemo(() => (prefs().recentIcons || []).filter(isTabler).slice(0, RECENT), []);
   const side = req.mode === "insert";
   // Escape and Cancel give the focus back to the button that opened the window; a choice leaves it to the slide
-  const opener = useRef<HTMLElement | null>(typeof document !== "undefined" ? document.activeElement as HTMLElement | null : null);
-  const close = () => { closeIconPicker(); const b = opener.current; if (b && b !== document.body && b.isConnected) setTimeout(() => b.focus?.(), 0); };
+  const [opener] = useState<HTMLElement | null>(() => typeof document !== "undefined" ? document.activeElement as HTMLElement | null : null);
+  const close = () => { closeIconPicker(); const b = opener; if (b && b !== document.body && b.isConnected) setTimeout(() => b.focus?.(), 0); };
+  // whether the focus was in the grid: a focused tile scrolled out of the drawn rows is unmounted, and the focus then
+  // goes to the grid itself (not to the page, whose keys would act on the deck behind the window)
+  // (a blur without a new focus – the tile removed – keeps it)
+  const inGrid = useRef(false), pendingEnter = useRef(false);
 
   // the grid's columns and rows from its size (as many 46 px tiles as fit), again when the window is resized
   useLayoutEffect(() => {
@@ -130,10 +137,16 @@ function IconPicker({ req }: { req: PickerReq }) {
       // a tile already held is kept (the same icon's same paths): its memoised tile is not drawn again
       for (const [id, t] of Object.entries(a.tiles)) if (!tiles.current.has(id)) tiles.current.set(id, t);
       pickerStats.workerMs = a.ms; if (a.first) pickerStats.firstUse = a.ms;
-      setAns({ names: a.names, categories: a.categories, version: a.version, q, style, ms: a.ms, first: a.first, cold: a.cold }); setState("ready"); setTop(0); setActive(0); setLimit(draw);
+      setAns({ names: a.names, categories: a.categories, version: a.version, q, style, cat: category, ms: a.ms, first: a.first, cold: a.cold }); setState("ready"); setTop(0); setActive(0); setLimit(draw);
       if (scroller.current) scroller.current.scrollTop = 0;
     }).catch(() => { if (n === seq.current) setState("none"); });
   }, [q, style, category, recent]);
+  // an Enter typed before the answer: its first hit, once the answer for what was typed has come
+  useEffect(() => {
+    if (!pendingEnter.current || !ans || ans.q !== q || ans.style !== style || ans.cat !== category) return;
+    pendingEnter.current = false;
+    if (ans.names.length) pickRef.current((ans.style === "filled" ? "tabler-filled:" : "tabler:") + ans.names[0]);
+  }, [ans]);
   // keystroke → results drawn: measured after the frame that shows them
   useLayoutEffect(() => {
     if (!ans || !typed.current) return;
@@ -142,7 +155,10 @@ function IconPicker({ req }: { req: PickerReq }) {
   }, [ans]);
 
   const names = ans?.names ?? [], { cols, rows: viewRows } = dims;
-  const prefix = style === "filled" ? "tabler-filled:" : "tabler:";
+  // the hits' own set (the style they were asked in: the switch may be ahead of the answer)
+  const prefix = ans?.style === "filled" ? "tabler-filled:" : "tabler:";
+  /** whether the hits answer what the window asks now (words, set, category) */
+  const current = !!ans && ans.q === q && ans.style === style && ans.cat === category;
   const rows = Math.ceil(names.length / cols), first = Math.max(0, Math.floor(top / TILE) - 1), last = Math.min(rows, Math.ceil((top + viewRows * TILE) / TILE) + 1);
   const inView = useMemo(() => names.slice(first * cols, last * cols).map(n => prefix + n), [names, first, last, cols, prefix]);
   // a new search draws its first rows first (limit), the others once their tiles are here
@@ -151,27 +167,35 @@ function IconPicker({ req }: { req: PickerReq }) {
   // (and drawn) once the typing pauses (REST_MS): each keystroke draws no more than 4.8's grid did
   useEffect(() => {
     const more = () => {
+      // (a late answer never lifts the limit of a newer search: tied to the search it was asked for)
+      const n = seq.current, mine = () => n === seq.current;
       const miss = inView.filter(id => !tiles.current.has(id) && !asked.current.has(id));
       if (!miss.length) { setLimit(Infinity); return; }
       miss.forEach(id => asked.current.add(id));
-      void core().call("iconTiles", { ids: miss }).then(t => { for (const [id, x] of Object.entries(t)) tiles.current.set(id, x); bump(v => v + 1); setLimit(Infinity); })
-        .catch(() => setLimit(Infinity));
+      void core().call("iconTiles", { ids: miss }).then(t => {
+        for (const [id, x] of Object.entries(t)) tiles.current.set(id, x);
+        bump(v => v + 1); if (mine()) setLimit(Infinity);
+      }).catch(() => { miss.forEach(id => asked.current.delete(id)); if (mine()) setLimit(Infinity); });    // asked again when in view again
     };
     if (limit === Infinity) { more(); return; }
     const t = setTimeout(more, REST_MS);
     return () => clearTimeout(t);
   }, [inView, limit]);
-  // the arrow keys: the tile they moved to takes the focus once its row is drawn
+  // the arrow keys: the tile they moved to takes the focus once its row is drawn; a focused tile scrolled away: the grid
   useLayoutEffect(() => {
-    if (focusIdx.current === null) return;
-    const el = scroller.current?.querySelector<HTMLElement>(`[data-idx="${focusIdx.current}"]`);
-    if (el) { el.focus({ preventScroll: true }); focusIdx.current = null; }
+    if (focusIdx.current !== null) {
+      const el = scroller.current?.querySelector<HTMLElement>(`[data-idx="${focusIdx.current}"]`);
+      if (el) { el.focus({ preventScroll: true }); focusIdx.current = null; return; }
+    }
+    const a = document.activeElement;
+    if (inGrid.current && (!a || a === document.body || !a.isConnected)) scroller.current?.focus({ preventScroll: true });
   });
 
   const pick = (id: string) => {
     rememberIcon(id);
-    // the new icon's options are remembered from Insert only (the others show none: an item's own width is not the picker's)
-    setPrefs({ iconOpts: req.mode === "insert" ? { style, color, size, stroke } : { ...o, style } } as Partial<Prefs>);
+    // the new icon's options are remembered from Insert only: Change icon… (a built-in filled icon's counterpart, an
+    // item's own width) and a chart mark's pick leave the Insert defaults as they are
+    if (req.mode === "insert") setPrefs({ iconOpts: { style, color, size, stroke } } as Partial<Prefs>);
     closeIconPicker();
     if (req.mode === "pick") req.onPick(id);
     else if (req.mode === "replace") itemPatch("Change icon", req.id, { icon: id });
@@ -210,8 +234,8 @@ function IconPicker({ req }: { req: PickerReq }) {
     else if (e.key === "ArrowDown") { e.preventDefault(); moveTo(cur); }
     else if (e.key === "ArrowUp") { e.preventDefault(); input.current?.focus(); }
   };
-  // Tab and Shift+Tab stay in the window
-  const trap = (e: KeyboardEvent) => {
+  // Tab and Shift+Tab stay in the window (from anywhere: a click on the window's text leaves the focus on it, or on the page)
+  const trap = (e: { shiftKey: boolean; preventDefault: () => void }) => {
     const all = dlg.current ? [...dlg.current.querySelectorAll<HTMLElement>(FOCUSABLE)] : [];
     if (!all.length) return;
     const at = all.indexOf(document.activeElement as HTMLElement);
@@ -227,19 +251,30 @@ function IconPicker({ req }: { req: PickerReq }) {
     <button className={category === null ? "on" : ""} data-cat="" aria-pressed={category === null} onClick={() => setCategory(null)}>All icons</button>
     {(catList ?? []).map(c => <button key={c} className={category === c ? "on" : ""} data-cat={c} aria-pressed={category === c} onClick={() => setCategory(category === c ? null : c)}>{c}</button>)}
   </div>, [catList, category]);
+  // Escape and Tab while the window is open, wherever the focus is (as Dialogs.tsx): before the page's own keys
+  const keysRef = useRef({ close, trap }); keysRef.current = { close, trap };
+  useEffect(() => {
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); keysRef.current.close(); }
+      else if (e.key === "Tab") { e.stopPropagation(); keysRef.current.trap(e); }
+    };
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
+  }, []);
   const title = req.mode === "replace" ? "Change icon" : req.mode === "pick" ? req.title ?? "Choose icon" : "Insert an icon or a shape";
 
-  return <div className="modal" id="iconPicker" onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") close(); else if (e.key === "Tab") trap(e); }}
+  return <div className="modal" id="iconPicker" onKeyDown={e => e.stopPropagation()}
     onPointerDown={e => { if (e.target === e.currentTarget) close(); }}>
     <style>{CSS}</style>
-    <div className="dlg icdlg" ref={dlg} role="dialog" aria-modal="true" aria-labelledby="iconPickerTitle">
+    <div className="dlg icdlg" ref={dlg} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="iconPickerTitle">
       <div className="dlghd"><b id="iconPickerTitle">{title}</b>
         <span>Search by name or tag (English or Italian), or pick a category{side ? "; the shapes and a text box are on the side" : ""}. Tabler Icons{ans ? " " + ans.version : ""} · MIT</span></div>
       <div className="ictools">
         <input ref={input} id="iconSearch" className="icsearch" placeholder="Search icons… (e.g. bank, freccia su, euro)" value={q} aria-label="Search icons" autoComplete="off"
           onChange={e => { typed.current = now(); setQ((e.target as HTMLInputElement).value); }}
           onKeyDown={e => {
-            if (e.key === "Enter" && names.length) { e.preventDefault(); pick(prefix + names[cur]); }
+            // Enter: the active hit of what is typed now – the answer to the last key is waited for
+            if (e.key === "Enter") { e.preventDefault(); if (current) { if (names.length) pick(prefix + names[cur]); } else pendingEnter.current = true; }
             else if (e.key === "ArrowDown" && names.length) { e.preventDefault(); moveTo(cur); }
           }} />
         <div className="seg small" id="iconStyle">{(["outline", "filled"] as const).map(s => <button key={s} data-style={s} className={style === s ? "on" : ""} aria-pressed={style === s} onClick={() => { typed.current = now(); setStyle(s); }}>{s === "outline" ? "Outline" : "Filled"}</button>)}</div>
@@ -251,8 +286,9 @@ function IconPicker({ req }: { req: PickerReq }) {
             <div className="icrecent" id="iconRecent" role="group" aria-label="Recent icons" onKeyDown={onRecentKey}>{recent.map((id, k) => tile(id, undefined, undefined, k === 0))}</div></>}
           <div className="ichd" id="iconCount" aria-live="polite">{state === "none" ? "" : state === "busy" ? "Searching…" : `${names.length.toLocaleString("en")} icon${names.length === 1 ? "" : "s"}${category ? " in " + category : ""}`}</div>
           {state === "none" ? <div className="icnone" id="iconNone">The icon set is read by Slide Builder's background worker, which this browser did not start. Reload the page{side ? "; the shapes and the text box on the side still work" : ""}.</div>
-            : <div className="icgrid" id="iconGrid" ref={scroller} role="group" aria-label="Icons" data-q={ans?.q ?? ""} data-style={ans?.style ?? ""} data-n={names.length} data-cols={cols} data-ms={ans?.ms ?? ""} data-first={ans?.first ? "1" : "0"} data-cold={ans?.cold ? "1" : "0"}
-              onScroll={e => { setTop((e.target as HTMLDivElement).scrollTop); setLimit(Infinity); }} onKeyDown={onGridKey}>
+            : <div className="icgrid" id="iconGrid" ref={scroller} tabIndex={-1} role="group" aria-label="Icons" data-q={ans?.q ?? ""} data-style={ans?.style ?? ""} data-n={names.length} data-cols={cols} data-ms={ans?.ms ?? ""} data-first={ans?.first ? "1" : "0"} data-cold={ans?.cold ? "1" : "0"}
+              onScroll={e => { setTop((e.target as HTMLDivElement).scrollTop); setLimit(Infinity); }} onKeyDown={onGridKey}
+              onFocus={() => { inGrid.current = true; }} onBlur={e => { const to = e.relatedTarget as Node | null; if (to && !e.currentTarget.contains(to)) inGrid.current = false; }}>
               <div style={{ height: rows * TILE + "px", position: "relative" }}>
                 <div className="icrows" style={{ top: first * TILE + "px", gridTemplateColumns: `repeat(${cols}, ${TILE}px)` }}>{ids.map((id, k) => { const i = first * cols + k; return tile(id, names[i], i, i === cur); })}</div>
               </div>
