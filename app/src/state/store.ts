@@ -24,10 +24,14 @@ import type { Fmt } from "../editor/painter";
 import type { DialogReq, WizardReq } from "./dialogs";
 import type { Design } from "@slide-builder/core/model/types";
 
-export interface Sel { t: number; anchor: { r: number; c: number }; ar: number; ac: number; r1: number; r2: number; c1: number; c2: number }
+export interface Sel { t: number; anchor: { r: number; c: number }; ar: number; ac: number; r1: number; r2: number; c1: number; c2: number;
+  /** the table's other selected ranges (Ctrl+click, 4.9: S16.3, 09 §9 Q19) */ more?: { r1: number; r2: number; c1: number; c2: number }[] }
 export interface OpenFile { name: string; src: "folder" | "upload" | "local"; id: string; mtime: number; size: number }
 export interface ToastMsg { id: number; html: string; err?: boolean; actions?: { label: string; fn: () => void }[] }
-export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean }
+/** the format painter: the cells' formats (rows × cols) – or an object's look (`obj`, 4.9: a chart, a callout, an icon, a
+    line onto others of its kind); `pend`: the targets Ctrl+clicked so far, pasted at once when Ctrl is let go (one undo step) */
+export interface Painter { pattern: (Fmt | null)[][]; sticky: boolean; obj?: import("../editor/painter").ObjLook;
+  pend?: { cells: { slide: string; tid: string | null; t: number; r1: number; r2: number; c1: number; c2: number }[]; items: { slide: string; id: string }[] } }
 export interface Dialogs {
   dialog: DialogReq | null; wizard: WizardReq | null; tables: boolean;
   /** text styles & fonts dialog: which tab is open */ textStyles: "colors" | "styles" | "fonts" | null;

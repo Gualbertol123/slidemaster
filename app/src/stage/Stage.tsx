@@ -20,9 +20,9 @@ import { tableName } from "@slide-builder/core/model/preset";
 import { hiddenIn } from "@slide-builder/core/render/pagenumbers";
 import { DESIGN_LABEL } from "@slide-builder/core/model/designs";
 import type { RenderCtx } from "@slide-builder/core/render/context";
-import { selItems, activeItem, setSel, curSlide } from "../editor/edit";
+import { activeItem, addSel, setSel, selRanges } from "../editor/edit";
 import { setColWidth, setRowHeight } from "../editor/tables";
-import { applyPainter } from "../editor/painter";
+import { cellDragEnd, cellDragStart } from "../editor/painter";
 import { selectSlideText } from "../editor/textfmt";
 import { setStage, useStage } from "./data";
 import { addNote, editNote, openInline, pendingNote, selectNote, takePendingNote } from "./actions";
@@ -195,7 +195,7 @@ function resized(p: NotePlace, drag: DragPreview | null): Rect {
 
 /* ---- a table's hit area: select cells (click, Shift+click, drag), hover, column / row borders */
 let cellDrag: { t: number } | null = null;
-addEventListener("pointerup", () => { const was = cellDrag; cellDrag = null; if (was && get().selection.painter) applyPainter(); });
+addEventListener("pointerup", e => { const was = cellDrag; cellDrag = null; if (was) cellDragEnd(e.ctrlKey || e.metaKey); });
 const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: RuntimeSlide; c: RenderCtx; box: Box; s: number }) {
   const T = R.tables[i], hov = useRef<HTMLDivElement>(null), border = useStage(st => st.drag?.kind === "border" && st.drag.t === i ? st.drag : null);
   const last = useRef(0);
@@ -210,8 +210,9 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
         const it = cellFromPoint(T, c, lx, ly); if (!it) return;
         e.preventDefault(); (document.getElementById("fxInput") as HTMLInputElement | null)?.blur();
         const cell = { r: it.b.r, c: it.b.c }, cur = get().selection.sel;
-        if (e.shiftKey && cur && cur.t === i) setSel(i, cur.anchor, cell); else setSel(i, cell, cell);
-        cellDrag = { t: i };
+        // Ctrl+click (4.9, Q19): one more range – the painter's targets, or a multi-selection the ribbon acts on at once
+        if (e.shiftKey && cur && cur.t === i) setSel(i, cur.anchor, cell, cur.more); else if (e.ctrlKey || e.metaKey) addSel(i, cell); else setSel(i, cell, cell);
+        cellDrag = { t: i }; cellDragStart();
       }}
       onPointerMove={e => {
         const now = performance.now(); if (now - last.current < 16 && !(cellDrag && (e.buttons & 1))) return; last.current = now;
@@ -221,7 +222,7 @@ const TableHits = memo(function TableHits({ i, R, c, box, s }: { i: number; R: R
         const g = cellBox(it, c); if (!g) return;
         Object.assign(hov.current!.style, { display: "block", left: g.bx + "px", top: g.by + "px", width: g.bw + "px", height: g.bh + "px" });
         const cur = get().selection.sel;
-        if (cellDrag && (e.buttons & 1) && cellDrag.t === i && cur && (cur.ar !== it.b.r || cur.ac !== it.b.c)) setSel(i, cur.anchor, { r: it.b.r, c: it.b.c });
+        if (cellDrag && (e.buttons & 1) && cellDrag.t === i && cur && (cur.ar !== it.b.r || cur.ac !== it.b.c)) setSel(i, cur.anchor, { r: it.b.r, c: it.b.c }, cur.more);
       }}
       onPointerLeave={() => { if (hov.current) hov.current.style.display = "none"; }}
       onDoubleClick={e => {
@@ -267,18 +268,27 @@ function HBox({ i, R, c, m, box, drag, slide }: { i: number; R: RuntimeSlide; c:
   );
 }
 
-/* ---- the selection: the selected cells and the active one, in slide px */
+/* ---- the selection: the selected cells (each Ctrl+click range: 4.9) and the active one, in slide px; the format painter's
+   targets collected with Ctrl (dashed, pasted when Ctrl is let go) */
 function Selection({ m, s, drag }: { m: StageModel; s: number; drag: DragPreview | null }) {
-  const sel = useStore(st => st.selection.sel), R = curSlide(), c = R ? slideCtx(ctx(), R) : ctx();
-  if (!sel) return null;
-  const place = m.tables.find(t => t.i === sel.t); if (!place) return null;
-  const b = boxOf(sel.t, place.box, drag), its = selItems().map(it => cellBox(it, c)).filter((x): x is NonNullable<typeof x> => !!x); if (!its.length) return null;
-  const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
-  const at = (x: number, y: number, w: number, h: number) => ({ left: b.x + x * b.scale, top: b.y + y * b.scale, width: w * b.scale, height: h * b.scale });
-  const a0 = activeItem(), a = a0 && cellBox(a0, c);
+  const sel = useStore(st => st.selection.sel), pend = useStore(st => st.selection.painter?.pend);
+  const R = useStore(st => st.deck.slides[st.deck.cur]), c = R ? slideCtx(ctx(), R) : ctx();
+  /** the box of range g of table t, on the slide (null: not drawn) */
+  const boxIn = (t: number, g: { r1: number; r2: number; c1: number; c2: number }) => {
+    const place = m.tables.find(x => x.i === t), T = R?.tables[t]; if (!place || !T) return null;
+    const b = boxOf(t, place.box, drag), its = T.items.filter(it => it.b.r <= g.r2 && it.b.r2 >= g.r1 && it.b.c <= g.c2 && it.b.c2 >= g.c1).map(it => cellBox(it, c)).filter((x): x is NonNullable<typeof x> => !!x);
+    if (!its.length) return null;
+    const x0 = Math.min(...its.map(a => a.bx)), y0 = Math.min(...its.map(a => a.by)), x1 = Math.max(...its.map(a => a.bx + a.bw)), y1 = Math.max(...its.map(a => a.by + a.bh));
+    return { n: its.length, b, box: { left: b.x + x0 * b.scale, top: b.y + y0 * b.scale, width: (x1 - x0) * b.scale, height: (y1 - y0) * b.scale } };
+  };
+  const marks = (pend?.cells || []).filter(g => g.slide === R?.id).map((g, k) => { const x = boxIn(g.tid ? R!.tables.findIndex(T => T.def?.id === g.tid) : g.t, g); return x && <div key={"p" + k} className="selbox paintpend" style={{ ...x.box, outline: `${1.5 / s}px dashed #0A66D8` }} />; });
+  if (!sel) return <>{marks}</>;
+  const ranges = selRanges(sel).map(g => boxIn(sel.t, g)).filter((x): x is NonNullable<typeof x> => !!x); if (!ranges.length) return <>{marks}</>;
+  const b = ranges[0].b, a0 = activeItem(), a = a0 && cellBox(a0, c);
   return <>
-    {its.length > 1 && <div className="selbox" style={{ ...at(x0, y0, x1 - x0, y1 - y0), boxShadow: `inset 0 0 0 ${1.5 / s}px rgba(10,102,216,.9)` }} />}
-    {a && <div className="actbox" style={{ ...at(a.bx, a.by, a.bw, a.bh), boxShadow: `inset 0 0 0 ${2.5 / s}px #0A66D8,0 0 0 ${1 / s}px rgba(255,255,255,.9)` }} />}
+    {ranges.map((x, k) => (x.n > 1 || ranges.length > 1) && <div key={k} className="selbox" style={{ ...x.box, boxShadow: `inset 0 0 0 ${1.5 / s}px rgba(10,102,216,.9)` }} />)}
+    {a && <div className="actbox" style={{ left: b.x + a.bx * b.scale, top: b.y + a.by * b.scale, width: a.bw * b.scale, height: a.bh * b.scale, boxShadow: `inset 0 0 0 ${2.5 / s}px #0A66D8,0 0 0 ${1 / s}px rgba(255,255,255,.9)` }} />}
+    {marks}
   </>;
 }
 
@@ -297,9 +307,10 @@ function Guides({ drag, s }: { drag: DragPreview | null; s: number }) {
   return <div className="dropmark" />;
 }
 
-/** the format painter's cursor on the page */
+/** the format painter's cursor on the page; the number of targets collected with Ctrl (4.9) on the body for the status */
 function PainterCursor() {
-  const on = useStore(s => !!s.selection.painter);
+  const on = useStore(s => !!s.selection.painter), n = useStore(s => (s.selection.painter?.pend?.cells.length || 0) + (s.selection.painter?.pend?.items.length || 0));
   useEffect(() => { document.body.classList.toggle("painting", on); }, [on]);
+  useEffect(() => { if (n) document.body.dataset.paintPend = String(n); else delete document.body.dataset.paintPend; }, [n]);
   return null;
 }

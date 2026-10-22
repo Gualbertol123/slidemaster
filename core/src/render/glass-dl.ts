@@ -208,7 +208,7 @@ export function glassText(t: GText, m: Metrics, scene = GLASS_FONT): Node[] {
     const spanned = !!it.scripts?.length && !it.edited && !it.ov;
     const itemW = multi ? cw : spanned ? Math.min(widths[0], cw) : widths[0], itemH = lines.length * lh;
     const ix = t.align === "right" ? cx + cw - itemW : t.align === "center" ? cx + (cw - itemW) / 2 : cx;
-    const iy = t.valign === "top" ? y : y + (h - itemH) / 2;
+    const iy = t.valign === "top" ? y : t.valign === "bottom" && it.userVAlign ? y + h - itemH : y + (h - itemH) / 2;
     lines.forEach((l, k) => {
       const lx = ix + (multi ? (t.align === "right" ? itemW - widths[k] : t.align === "center" ? (itemW - widths[k]) / 2 : 0) : 0);
       place(l, lx, iy + k * lh + lead + base.asc);

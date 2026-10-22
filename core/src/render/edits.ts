@@ -6,6 +6,8 @@ import type { BorderSide, Item, TableLayout } from "../xlsx/types";
 import type { CellEdit } from "../model/types";
 import { isNumText, tableKey, type RenderCtx } from "./context";
 import { applyScales } from "./scales";
+import { formatValue } from "../xlsx/numfmt";
+import { validNum } from "./numdisplay";
 
 export const keyOf = (it: Item) => A1(it.b.src.r, it.b.src.c);
 export function cache<T>(L: TableLayout, name: string, key: string, make: () => T): T {
@@ -174,12 +176,33 @@ function effBase(L: TableLayout, ctx: RenderCtx): Item[] {
     if (e.bg) { const bg = e.bg === "none" ? null : e.bg; o.baseFill = bg; o.userBg = e.bg; if (!(o.cf && o.cf.fill)) o.fill = bg; }
     if (e.fill) { if (e.fill === "none") { o.fill = null; o.cf = null; o.baseFill = null; o.noFill = true; } else { o.fill = e.fill; o.userFill = e.fill; } }
     if (e.align) o.align = e.align;
+    // 4.9 (S16.3): the vertical position (Excel's words: "center"; `userVAlign`: set on the slide – Liquid Glass then
+    // draws a bottom one at the bottom, its own being centred) and the number display (a number's text, its [colour])
+    if (e.valign && VALIGN[e.valign]) { o.valign = VALIGN[e.valign]; o.userVAlign = o.valign; }
+    if (validNum(e.num) && !o.edited) numDisplay(L, it, o, e.num);
     if (e.role) o.role = e.role;
     // colour scales sit under explicit user colours
     if (sc && sc.fill && !e.fill) { o.fill = sc.fill; o.scaleFill = sc.fill; }
     if (sc && sc.ink && !e.color) { o.color = sc.ink; o.scaleInk = sc.ink; o.nfColor = null; }
     return o;
   });
+}
+const VALIGN: Record<string, string> = { top: "top", middle: "center", bottom: "bottom" };
+/** where a cell's text is drawn in `design`, in the ribbon's words (null: none of the three – justify / distributed outside
+    Liquid Glass). `it`: the layout's item, or effBase's (its `userVAlign`). Liquid Glass centres everything but a top –
+    and a bottom set on the slide – so a workbook's bottom (Excel's default) is drawn in the middle there (S16.3 review, 1) */
+export function drawnVAlign(design: string, it: Pick<Item, "valign" | "userVAlign">): "top" | "middle" | "bottom" | null {
+  const v = it.userVAlign || it.valign;
+  if (design === "glass") return v === "top" ? "top" : it.userVAlign === "bottom" ? "bottom" : "middle";
+  return v === "top" ? "top" : v === "center" ? "middle" : v === "bottom" ? "bottom" : null;
+}
+/** a number shown with the cell's own format code (CellEdit.num): its text, and the code's [colour] unless a colour was set */
+function numDisplay(L: TableLayout, it: Item, o: Item, num: string) {
+  const cell = L.sheet.get(it.b.src.r, it.b.src.c); if (!cell || (cell.t !== "n" && cell.t !== "d")) return;
+  let f: { text: string; color?: string | null };
+  try { f = formatValue({ v: cell.v, t: cell.t, fmt: num }); } catch { return; }
+  o.text = f.text; o.nfColor = f.color || null;
+  if (!o.userColor) o.color = o.nfColor || o.font.color || "#000000";
 }
 /** "Sheet!C6": the conditional-format rules covering that cell, applied to this cell */
 function paintedCF(ctx: RenderCtx, L: TableLayout, it: Item, ref: string): CFResult | null {
@@ -195,5 +218,5 @@ export const origMatches = (e: CellEdit, it: Item) => e.orig === it.text || (it.
 export function effFmt(ctx: RenderCtx, it: Item) {
   const e = cellEditOf(ctx, it);
   return { font: e.font || null, sz: e.sz || it.font.sz || 11, b: e.b !== undefined ? e.b : !!it.font.b, i: e.i !== undefined ? e.i : !!it.font.i,
-    color: e.color || null, fill: e.fill || null, bg: e.bg || null, align: e.align || null, role: e.role || "auto" };
+    color: e.color || null, fill: e.fill || null, bg: e.bg || null, align: e.align || null, role: e.role || "auto", valign: e.valign || null, num: e.num || null };
 }

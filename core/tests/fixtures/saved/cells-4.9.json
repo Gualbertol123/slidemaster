@@ -1,0 +1,59 @@
+{
+  "about": "A deck as 4.9 (S16.3, B38) saves it: a format-5 snapshot holding a cell's number display and vertical position (CellEdit num, valign), and the records of two writers past its frontier – a valign and a num on one cell from two people (both kept), the format painter's paste onto a multi-selection (one record), and an older num on the same cell (Lamport order). Made by hand for M16; added, never edited.",
+  "snapshot": {
+    "format": 5,
+    "gen": 2,
+    "workbook": "Weekly.xlsx",
+    "lamport": 4,
+    "rev": 3,
+    "frontier": {
+      "anna@pc1#aaaaaaaa": 1210,
+      "bob@pc2#bbbbbbbb": 488
+    },
+    "seen": {
+      "anna@pc1#aaaaaaaa": 3,
+      "bob@pc2#bbbbbbbb": 1
+    },
+    "updated": 1792000000000,
+    "updatedBy": "anna",
+    "log": [
+      { "rev": 2, "by": "bob", "at": 1791999990000 },
+      { "rev": 3, "by": "anna", "at": 1792000000000 }
+    ],
+    "at": 1792000005000,
+    "by": "anna",
+    "doc": {
+      "schema": 3,
+      "workbook": "Weekly.xlsx",
+      "rev": 3,
+      "preset": {
+        "sheets": ["LOANS_DEPOSITS"],
+        "tables": [{ "id": "t1", "sheet": "LOANS_DEPOSITS", "kind": "range", "range": "B6:H12" }],
+        "slides": [{ "id": "s1", "type": "content", "title": "Loans", "tables": ["t1"] }]
+      },
+      "style": { "design": "excel" },
+      "edits": {
+        "LOANS_DEPOSITS": {
+          "D8": { "b": true, "num": "0" },
+          "G9": { "valign": "bottom", "num": "#,##0.00;[Red]-#,##0.00" }
+        }
+      }
+    }
+  },
+  "records": [
+    { "l": 5, "w": "bob@pc2#bbbbbbbb", "s": 2, "by": "bob", "at": 1792000050000, "ops": [
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "D8", "patch": { "valign": "top" } }
+    ] },
+    { "l": 6, "w": "anna@pc1#aaaaaaaa", "s": 4, "by": "anna", "at": 1792000060000, "ops": [
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "D8", "patch": { "num": "#,##0.0" } }
+    ] },
+    { "l": 8, "w": "anna@pc1#aaaaaaaa", "s": 5, "by": "anna", "at": 1792000070000, "ops": [
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "E8", "patch": { "num": "0.0%", "valign": "middle", "font": "Arial" } },
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "F8", "patch": { "num": "0.0%", "valign": "middle", "font": "Arial" } },
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "G9", "patch": { "num": "0.0%", "valign": "middle", "font": "Arial" } }
+    ] },
+    { "l": 7, "w": "bob@pc2#bbbbbbbb", "s": 3, "by": "bob", "at": 1792000080000, "ops": [
+      { "op": "cell.patch", "sheet": "LOANS_DEPOSITS", "ref": "E8", "patch": { "num": "#,##0" } }
+    ] }
+  ]
+}
