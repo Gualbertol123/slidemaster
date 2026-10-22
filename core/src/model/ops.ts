@@ -256,10 +256,8 @@ export function docNeedsV5(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean 
    incident to every 4.0–4.8 helper –, the wait, tail, CAS, the Lamport jump). 4.8.0's lists, FROZEN (git show
    v4/M15-lines-icons:core/src/model/ops.ts:6-23, its knownOp) – never add to them: later keys go to the lists at the
    top, and are then needsV6 by themselves. */
-const V48_SLIDE = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs", "notes", "fmt", "sizes", "free", "looks", "hide"];
-const V48_TABLE = ["name", "gridH", "gridV", "cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"];
-const V48_CELL = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role"];
-const V48_STYLE = ["design", "glass", "color", "logo", "radius", "contrast", "logoBubble", "pn", "footer", "theme", "text", "colors", "designs"];
+const V48_SLIDE = [...V40_SLIDE, "free", "looks", "hide"], V48_TABLE = [...V40_TABLE, "cellGrid", "borders"];
+const V48_CELL = V40_CELL, V48_STYLE = V40_STYLE;          // (4.8.0's cell and style keys are 4.0.0's)
 const V48_ITEM = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
   "shape", "icon", "text", "fill", "border", "radius", "tail", "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke", "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt"];
