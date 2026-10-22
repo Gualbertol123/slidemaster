@@ -89,7 +89,7 @@ deck's `incident-format-5.json` / `incident-format-6.json`. `Update Slide Builde
 decks that version would only show read-only and asks first.
 
 **CP-01 – the compatibility check against the real old versions** is `tools/compat-old.mjs` (release checklist §2a).
-It checks out the real older versions (4.0, 4.1, 4.4, 4.5, 4.6 and 4.6p by default; 4.7 and 4.8 with `--versions`), runs each old helper and page beside this
+It checks out the real older versions (by default 4.0, 4.1, 4.4, 4.5, 4.6, 4.6p, 4.7 and 4.8; `--versions` picks fewer), runs each old helper and page beside this
 checkout's on the same deck, and checks that nothing new is lost (cases cp02, a–d, m14, m15, m16). Run it **before
 every release that adds an op, a key or a format**, and at every milestone close; it takes about 35 minutes per
 Python with the real wait (`--bump-wait-s N` shortens it for a quick look, but only the real wait counts). On the
