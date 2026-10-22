@@ -11,7 +11,9 @@
             to PDF and PowerPoint (each one custom geometry, never a picture); Change icon… on one opens the new window at
             its Tabler counterpart.
    ICW-05 – (review) nothing reaches the deck behind the window: a click on its title then Delete / Ctrl+Z / PageDown, a
-            grid scrolled away from its focused tile then Delete; Escape closes from anywhere. */
+            grid scrolled away from its focused tile then Delete; Escape closes from anywhere.
+   ICW-06 – at 1024 × 768 the button is on the bar (PR #39 gives its group data-prio 0) and works; made the least needed
+            group, it goes to More ▾ (from 944 px) and works from there. */
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -72,7 +74,9 @@ async function openPlain(page: Page) {
     await page.click('[data-a="next"]:has-text("Tables")'); await page.click('[data-a="next"]:has-text("Slides")'); await page.click('[data-a="finish"]');
   }
   await expect(page.locator("#fileName")).toHaveText(/^Icons\.xlsx · \d+ slides?/, { timeout: 30_000 });
-  await expect(page.locator(".thumb").first()).toBeVisible({ timeout: 20_000 });
+  // (below 1100 px the side panel is a rail, PR #39: its slide numbers instead of the thumbnails)
+  await expect(page.locator(".thumb").first().or(page.locator("#navRail")).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".thumb").first()).toBeAttached();
   await page.waitForFunction(() => (window as any).__sbTest.stageIdle(), null, { timeout: 30_000 });
 }
 /** the first slide's items as saved */
@@ -286,6 +290,61 @@ test.describe.serial("the icon and shape window (4.12)", () => {
     // removed again
     await page.locator('.itembox[data-item="keep1"]').click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Delete");
     await pollFile(() => Object.keys(items()).includes("keep1"), { timeout: 10_000 }).toBe(false);
+    await saved(page);
+  });
+
+  test("ICW-06: at 1024 × 768 the button is on the bar (its group data-prio 0, PR #39) and works; and from More ▾ when its group is there", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await openPlain(page);
+    await saved(page);
+    const btn = page.locator("#shapeBtn"), bar = page.locator(".obar", { has: btn });
+    // its group in More ▾: the bar is told to show it there (the narrowest case of #39's plan), whatever this window fits
+    const inMore = await btn.evaluate(b => !!b.closest("[data-ovf]"));
+    console.log("ICW-06: Shapes & icons… is " + (inMore ? "in More ▾" : "on the bar") + " at 1024 × 768");
+    if (inMore || !(await btn.isVisible())) {
+      await bar.locator(":scope > .obmore").click();
+      await expect(bar).toHaveAttribute("data-more", "");
+    }
+    await expect(btn).toBeVisible();
+    await btn.click();
+    await expect(page.locator('#iconPicker [role="dialog"]')).toBeVisible();
+    await waitHits(page);
+    const box = (await page.locator(".icdlg").boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(1024);
+    expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(768);
+    const before = Object.keys(items()), u = await undoSteps(page);
+    await page.click('#iconShapes [data-shape="arrow"]');
+    await expect(page.locator("#iconPicker")).toHaveCount(0);
+    await expect.poll(() => undoSteps(page)).toBe(u + 1);
+    await pollFile(() => Object.values(items()).filter((i: any) => i.shape === "arrow").length, { timeout: 10_000 }).toBe(1);
+    const id = Object.keys(items()).find(k => !before.includes(k))!;
+    await page.keyboard.press("Escape");
+    await page.locator(`.itembox[data-item="${id}"]`).click({ position: { x: 4, y: 4 } }); await page.keyboard.press("Delete");
+    await pollFile(() => Object.keys(items()).includes(id), { timeout: 10_000 }).toBe(false);
+    await saved(page);
+    // its group in More ▾ for sure. #39 gives the Insert group data-prio 0 (the most needed: it goes to More last, so at
+    // 1024 × 768 it stays on the bar); here it is made the least needed and the window narrowed until the bar moves it
+    await btn.evaluate(b => b.closest(".grp")!.setAttribute("data-prio", "9"));
+    let w = 1024;
+    await page.setViewportSize({ width: 1000, height: 768 }); await page.setViewportSize({ width: w, height: 768 }); await page.waitForTimeout(150);
+    while (!(await btn.evaluate(b => !!b.closest("[data-ovf]"))) && w > 560) { w -= 40; await page.setViewportSize({ width: w, height: 768 }); await page.waitForTimeout(150); }
+    console.log("ICW-06: in More ▾ from " + w + " px");
+    expect(await btn.evaluate(b => !!b.closest("[data-ovf]"))).toBe(true);
+    await expect(btn).toBeHidden();
+    await bar.locator(":scope > .obmore").click();
+    await expect(bar).toHaveAttribute("data-more", "");
+    await btn.click();
+    await expect(page.locator('#iconPicker [role="dialog"]')).toBeVisible();
+    await waitHits(page);
+    const nb = (await page.locator(".icdlg").boundingBox())!;
+    expect(nb.x).toBeGreaterThanOrEqual(0); expect(nb.x + nb.width).toBeLessThanOrEqual(w);
+    const u2 = await undoSteps(page), before2 = Object.keys(items());
+    await page.click('#iconShapes [data-shape="text"]');
+    await expect(page.locator("#iconPicker")).toHaveCount(0);
+    await expect.poll(() => undoSteps(page)).toBe(u2 + 1);
+    await pollFile(() => Object.keys(items()).filter(k => !before2.includes(k)).length, { timeout: 10_000 }).toBe(1);
+    await page.click("#undoBtn").catch(async () => { await page.keyboard.press("Control+z"); });
+    await pollFile(() => Object.keys(items()).filter(k => !before2.includes(k)).length, { timeout: 10_000 }).toBe(0);
     await saved(page);
   });
 

@@ -17,6 +17,7 @@ import { TextStylesDialog } from "./TextStylesDialog";
 import { CommentDialog } from "./CommentDialog";
 import { ScenarioDialog, ScenarioRun } from "./ScenarioDialog";
 import { Dialogs } from "./Dialogs";
+import { IconPickerHost } from "./IconPicker";
 import { Wizard } from "../wizard/Wizard";
 import { newSlide } from "../editor/slides";
 
@@ -71,6 +72,7 @@ export function App() {
       {D.pick && <PickCellsDialog />}
       {D.setups && <SetupsDialog />}
       {D.run && <ScenarioRun />}
+      <IconPickerHost />{/* the icon and shape window (4.12): over the page, not inside the side panel (it folds to a rail) */}
       <Dialogs />{/* last: confirmations open above the wizard and the other dialogs */}
     </>
   );
