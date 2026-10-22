@@ -294,7 +294,7 @@ describe("the format guard (B53: format 8) and the vectors", () => {
     const doc = applyOps(emptyDoc("W.xlsx"), [{ op: "preset.set", preset: { sheets: [], tables: [], slides: [{ id: "t0", type: "content", title: "", tables: [] }] } } as Op,
       ip({ kind: "chart", type: "line", values: { sheet: "S", range: "A1:A2" }, box: { x: 0, y: 0, w: 100, h: 100 }, nudge: { title: { dx: 0, dy: .1 } } })]).doc;
     expect(docNeedsV8(doc)).toBe(true); expect(docNeedsV7(doc)).toBe(false);
-    expect(needsV8({ op: "slide.add", slide: { id: "x", type: "content", tables: [], items: { c: { kind: "chart", type: "line", nudge: { title: { dx: 0, dy: 0 } } } } } })).toBe(true);
+    expect(needsV8(<Op><unknown>{ op: "slide.add", slide: { id: "x", type: "content", tables: [], items: { c: { kind: "chart", type: "line", nudge: { title: { dx: 0, dy: 0 } } } } } } as Op)).toBe(true);
   });
   for (const v of loadVectors().filter(x => /^B53 /.test(x.name))) it(v.name + ": knownOp, needsV7 / needsV8, docNeedsV7 / docNeedsV8", () => {
     expect(v.ops.map((o: Op) => knownOp(o))).toEqual(v.expect.knownOp);
