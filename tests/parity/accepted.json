@@ -9619,5 +9619,60 @@
   "reason": "B48 (Intesa Sanpaolo template; product owner's default, PROGRESS Decisions 2026-10-21: 'page number on, top right'): in Excel and Excel Refined the page number is on by default when the deck has not set it (model/style.ts resolveStyle), so every slide but the cover of a deck without a page-number setting gains one element, the page number at the template master's top right (pageno). A deck that turned it off keeps it off; the other designs are unchanged.",
   "signedOff": "B48, product owner 2026-10-21: approved recording the page-number-default differences (\"Yes, record them\"), after \"the excel and excel refined will have to follow this template\"",
   "digest": "e6434a64e92537ae"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-formats",
+  "design": "bain",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-formats",
+  "design": "clean",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-formats",
+  "design": "excel",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-formats",
+  "design": "glass",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
+ },
+ {
+  "tool": "parity",
+  "deck": "edge-formats",
+  "design": "mckinsey",
+  "version": "full",
+  "file": "issues.json",
+  "kind": "text",
+  "reason": "S16.4 (Excel conditional formats, B39): colour scales are drawn on the slides now (xlsx/cf.ts), so the Issues panel no longer lists \"Not reproduced on LAYOUT: colorScale conditional formats\" for edge-formats' LAYOUT sheet; the rest of issues.json is unchanged.",
+  "signedOff": "S16.4, approved M16 step (PROGRESS: merged into v4/M16-tables); recorded by the orchestrator under the owner's authorisation to record parity sign-offs for approved changes, 2026-10-22",
+  "digest": "ba5abd4c743ea40b"
  }
 ]
