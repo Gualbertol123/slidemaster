@@ -241,6 +241,20 @@ numbers measured twice). Measured numbers go into the step's line.
   `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
   `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions 4.10.0 (CHANGELOG dated 2026-10-22).
 
+- [x] B55 · Budget achievement (product owner 2026-10-23, image 19: "how do i make these ones?" – BUDGET ACHIEVEMENT, Latest
+  volume / EoM budget, one tall bar per product; branch `v4/B55-achievement` on main 87f0951 = 4.13.1) — (commit: see the
+  branch; runs: by the orchestrator). A chart type `progress` with its spec in one key (ADR-015 amendment: not a column
+  option – its data is no series, its layout none of seriesLayout's): values and targets from ranges or cells, or straight
+  from a long table (per product its last sheet row with a value, the target in that row; a blank target: the latest row
+  with both, named); track 100 %, fill capped, over fill / band; % above, name, gap ("+210 over", "1.700 to go":
+  deltas.ts); the B54 card parts and a new `subtitle` on any chart card. PowerPoint: a native overlapped column chart
+  (% as data labels, the fill a formula of the embedded Value / Target). Panel: Insert chart ▾ › Budget achievement…, the
+  type switch, ChartProgressPanel (280 px). Format 10 (ADR-019 amendment, with deep gating against 4.13.1's frozen item
+  contents), helper MARKER10 / `/format10`, update.py, capture-v3, compat-old 4.13 + m55 / m55-before (4.12, 4.13: 4 / 4
+  PASS). Vectors `b55.json`. Tests: core `chart-progress.test.ts`, `docsync` format 10, `hidden-m16` (B55), helper
+  `Format10Tests` / HTTP / `test_update`, app `chart-progress-panel.test.tsx`, e2e B55-01, pptxcheck 6 / 6. Page budget
+  `page-budget/b55.json` (+48,963 measured). Version 4.14.0 (CHANGELOG unreleased).
+
 - [x] B53 · Chart labels: room for the plot, places for every label, labels dragged on the slide, an axis's bounds from
   cells, the "12000" fix (product owner 2026-10-22, three pictures: "the line is smoother, there are circles at every
   datapoint, we have a clear space management problem … give me more options to place the labels … the scale values for
