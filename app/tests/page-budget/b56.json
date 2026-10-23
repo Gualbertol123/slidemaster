@@ -1,0 +1,4 @@
+{
+  "bytes": 28000,
+  "why": "B56 (every text of a KPI card, a chart and a table editable – font, size, colour, bold, italic, alignment – and the card parts' sizing, positioning and drags; product owner 2026-10-23, image 20): by measurement on v4/B56-text-layout merged with B55's final 143c4db – the page built from that base (5,076,328 bytes) is 5,104,162 bytes (+27,834): core model/textparts.ts and the text / layout / offsets in kpi-dl.ts, chart-card.ts, chart-series.ts, chart-progress.ts and the PowerPoint scene in the app's and the workers' bundles; the Text control (TextFmtBox), the KPI card's Text and Layout, the chart card's Text and Layout, Table text ▾; rounded up to the next 500."
+}

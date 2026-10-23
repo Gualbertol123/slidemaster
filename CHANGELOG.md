@@ -22,7 +22,28 @@ What users notice
   typed or from a cell (chart panel › Card).
 * PowerPoint: the budget-achievement chart is a native column chart (the track and the fill overlapped, the % as data
   labels; Edit Data holds the values and budgets, the fill a formula of them); the names and gaps are text boxes.
-* Decks that use a budget-achievement chart or a chart subtitle open only in Slide Builder 4.14 or later (older versions
+* **Every text of a KPI card, a chart and a table editable** (the owner's request of 2026-10-23, "make fonts on all of
+  this slide, including tables and graphs, editable, as well as sizing and positioning"): one *Text* control (Aa) beside
+  each part – font from the font list, size in points, colour, bold, italic, alignment, capitals – saved in the deck and
+  the same in the PDF and in PowerPoint.
+  * KPI card panel › Text: the header's title, the value, the changes (%) and their labels.
+  * Chart panel: the title, all labels, each axis's tick labels and the category labels, each series' data labels, the
+    legend, the reference lines', gap arrows' and change pills' labels, and on chart cards the stats' labels and values,
+    the tag, the subtitle, the momentum label, changes and captions.
+  * Table text ▾ (ribbon, beside Borders): the font, size, colour, bold, italic and alignment of the whole table, its
+    header, its body or its totals in one step.
+* **Sizing and positioning inside the cards**: KPI card panel › Layout – the value left, centred or right in its section
+  ("centre the 10") and at the top, middle or bottom; the divider's place (%) and on/off; the header bar's height and
+  on/off; the rows spread or as a block at the top, middle or bottom with their spacing; the padding. Chart panel ›
+  Card › Layout – the stats and momentum rows from the left, centred or spread, each chip's width; the tag in the title's
+  corner or under the title; the space under the title, after the stats row and above the momentum row; the plot's
+  margins.
+* **Drag the parts on the slide** with the card selected: a KPI card's value and its rows, a chart card's stat and
+  momentum chips, its tag and the MOMENTUM label – one undo step each; *Reset* in the panel puts them back.
+* The format painter copies a KPI card's or a chart's texts and layout to another of its kind.
+* PowerPoint: a native chart's title, axes, data labels and legend carry their fonts (c:txPr); a KPI card's aligned text
+  is a text box as wide as its section, aligned there.
+* Decks that use a budget-achievement chart, a chart subtitle, or a text format, layout or drag of a card part (B56) open only in Slide Builder 4.14 or later (older versions
   show them read-only); `Update Slide Builder` names those decks before going back to an older version.
 
 ## 4.13.1 - 2026-10-23
