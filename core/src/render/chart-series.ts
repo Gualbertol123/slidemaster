@@ -294,8 +294,13 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent });
     // (B53) a line's value label above its highest point stays inside the frame (not over the title): the plot's top
     // comes down by what it lacks, measured on the label
-    const need = labelRoomAbove(scale, h) - (top - area.y);
-    if (need > .5) { top += need; h = Math.max(10, h - need); scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent }); }
+    // (4.13.1: again while it lacks more than half a px – a point under a typed or cell max comes down with the plot, by
+    // the share of the span it stands under the max: one pass left that share over the edge)
+    for (let pass = 0; pass < 4; pass++) {
+      const need = labelRoomAbove(scale, h) - (top - area.y);
+      if (!(need > .5)) break;
+      top += need; h = Math.max(10, h - need); scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent });
+    }
     tk = mkTicks(scale, num);
     const yw = valShow ? Math.max(...tk.map(t => tw(t.text, valSt))) + 8 : 0;
     let y2w = 4;
@@ -437,6 +442,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   traces.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "area" ? -1 : 1));
   // data labels
   const labs: Lab[] = [], labels: SeriesLayout["labels"] = [];
+  // (4.13.1) the top of the room a line's "auto" label may reach: the area under the title, stats and legend
+  const roomTop = area.y;
   ser.forEach((s, k) => {
     // (a waterfall shows its values unless its labels say otherwise, as Excel's)
     const L = s.src.labels ?? (fall ? { show: ["value" as const] } : undefined);
@@ -459,18 +466,36 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         if (p.blank) { pts.push({ i, hide: true }); return; }
         const pp = s.src.points?.[String(i - s.start)];
         if (pp && pp.label === null) { pts.push({ i, hide: true }); return; }
-        const want = area ? "ctr" : pp && typeof pp === "object" && pp.pos ? linePos(pp.pos) : L?.pos === "auto" ? autoPos(tr.pts.map(x => x ? x.v : null), i) : semPos;
+        const ownPos = !!pp && typeof pp === "object" && !!pp.pos, auto = !area && !ownPos && L?.pos === "auto";
+        let want = area ? "ctr" : ownPos ? linePos(pp!.pos) : auto ? autoPos(tr.pts.map(x => x ? x.v : null), i) : semPos;
         // (a scatter point's "category" is its x, as Excel's X value)
         const text = pp && typeof pp.label === "string" ? pp.label : show.map(w => w === "value" ? valueText(i, p.v) : w === "name" ? s.name : w === "category" ? (scatter ? s.xTexts?.[i] : data.cats[i]) || "" : "").filter(t => t).join(", ");
         if (!text) { pts.push({ i, hide: true }); return; }
         const w = tw(text, st), lh = lineH(st), run = m.run(text, font(st));
         // (the figures' ink in a label's line box: from the baseline – where textNode puts it – up .72 em)
         const figTop = Math.floor((lh - (run.asc + run.desc)) / 2) + run.asc - .72 * st.size;
-        const boxAt = (q: "t" | "b" | "l" | "r" | "ctr"): Box & { x0: number; align: Lab["align"] } => {
+        const rawAt = (q: "t" | "b" | "l" | "r" | "ctr"): Box & { x0: number; align: Lab["align"] } => {
           const y = area ? (p.y + p.lo) / 2 : p.y;
           return q === "t" ? { x: p.x - w / 2, y: y - rr - lh, w, h: lh, x0: p.x, align: "center" } : q === "b" ? { x: p.x - w / 2, y: y + rr, w, h: lh, x0: p.x, align: "center" }
             : q === "l" ? { x: p.x - rr - 2 - w, y: y - lh / 2, w, h: lh, x0: p.x - rr - 2, align: "right" } : q === "r" ? { x: p.x + rr + 2, y: y - lh / 2, w, h: lh, x0: p.x + rr + 2, align: "left" }
               : { x: p.x - w / 2, y: y - lh / 2, w, h: lh, x0: p.x, align: "center" };
+        };
+        // (4.13.1) a line's label stays inside the plot: never past its bottom, over the category labels (any place, the
+        // user's own too); an "auto" one never past the room above it either (the frame's top: the title, the stats, the
+        // card's header). "Auto" first takes the other side when its own would cross and the other fits (a dip on the
+        // axis's floor: above; a peak under the frame's top: below) – else the side with more room – then is held inside.
+        // Half a px over is inside (labelRoomAbove's own tolerance). A dragged label's offset (nudge) is added after, as set.
+        const floor = plot.y + plot.h, ceil = auto ? roomTop : -Infinity;
+        if (auto && (want === "t" || want === "b")) {
+          const room = (q: "t" | "b") => { const r = rawAt(q); return Math.min(r.y - ceil, floor - (r.y + r.h)); };
+          const f = FLIP[want];
+          if (room(want) < -.5 && room(f) > room(want)) want = f;
+        }
+        const boxAt = (q: "t" | "b" | "l" | "r" | "ctr"): Box & { x0: number; align: Lab["align"] } => {
+          const r = rawAt(q);
+          if (area) return r;
+          const y0 = r.y + r.h > floor + .5 ? floor - r.h : r.y, y = y0 < ceil - .5 ? Math.min(ceil, floor - r.h) : y0;
+          return y === r.y ? r : { ...r, y };
         };
         // what a label must not cover: its neighbours' labels (09 §3.1); a line's also the bars (any axis's) and its own
         // stroke on both sides of the point, tested against the text's ink (a figure's height, .72 em, on the baseline;
@@ -481,8 +506,11 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         const hits = (b: Box, q: "t" | "b" | "l" | "r" | "ctr") => {
           if (placed.some(o => over(b, o))) return true;
           if (area) return false;
-          const ink = { x: b.x + 1, y: b.y + figTop, w: Math.max(0, b.w - 2), h: .72 * st.size };
-          return bars.some(r => r.w > 0 && r.h > 0 && over(ink, r)) || (q !== "ctr" && near.some(l => polyHitsBox(l, ink)));
+          const inkOf = (c: Box) => ({ x: c.x + 1, y: c.y + figTop, w: Math.max(0, c.w - 2), h: .72 * st.size }), ink = inkOf(b);
+          // (4.13.1: a label the user placed, held inside the plot, is tested against its own stroke where its place would
+          // have put it – held, it may have to stand on its line; an "auto" one held there tries the other places first)
+          const r = auto ? b : rawAt(q), own = r.y === b.y ? ink : inkOf(r);
+          return bars.some(r => r.w > 0 && r.h > 0 && over(ink, r)) || (q !== "ctr" && near.some(l => polyHitsBox(l, own)));
         };
         let q: "t" | "b" | "l" | "r" | "ctr" | null = want, b = boxAt(want);
         // one that would overlap its neighbour moves to the other side, else is left out (09 §3.1)
@@ -500,8 +528,10 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         const key = `v:${s.id}:${i - s.start}`, o = nudge(key);
         labs.push({ s: k, i, text, x: b.x0 + o.x, top: b.y + o.y, st, align: b.align, inside: false });
         hitOf(key, { x: b.x + o.x, y: b.y + o.y, w: b.w, h: b.h });
-        const ownText = !!pp && typeof pp.label === "string", moved = o.x !== 0 || o.y !== 0;
-        if (ownText || q !== semPos || moved) pts.push({ i, ...(ownText ? { text } : {}), ...(q !== semPos ? { pos: q } : {}), ...(moved ? { dx: frac4(o.x / frame.w), dy: frac4(o.y / frame.h) } : {}) });
+        // (4.13.1) a label held inside the plot: PowerPoint's place moved by as much (the dLbl's manualLayout, with a nudge)
+        const held = b.y - rawAt(q).y;
+        const ownText = !!pp && typeof pp.label === "string", moved = o.x !== 0 || o.y + held !== 0;
+        if (ownText || q !== semPos || moved) pts.push({ i, ...(ownText ? { text } : {}), ...(q !== semPos ? { pos: q } : {}), ...(moved ? { dx: frac4(o.x / frame.w), dy: frac4((o.y + held) / frame.h) } : {}) });
       });
       labels.push({ show: show.filter((w): w is "value" | "name" | "category" => w === "value" || w === "name" || w === "category"), pos: area ? null : semPos, num: numFmt, font: fontSem(st), points: pts });
       return;
