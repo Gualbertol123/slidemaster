@@ -3,6 +3,21 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## Unreleased
+
+Under the hood
+* The bench's big30 read (`read_big30_ms`, budget 1 s) failed on CI run after run (PR #42: 1126 / 1147 / 1138 ms
+  against 1018; PR #43: up to 1270 against 1143 and 1174 / 1184 against 1044). It was not a slow regression of
+  4.8–4.13: CI's own bench logs, grouped by the runner's speed, show the same read on each kind of runner from 4.5 to
+  4.13.1, the read stays 2.16–2.19× the core's big30 parse on the same runner in every release, and the 4.3–4.13.1
+  pages read alike on one machine. The limit's scaling was off: the JS calibration rates some of GitHub's runners at
+  1.00–1.16× the reference PC where this read (like the formula engine, decision 2026-10-18) runs 1.3–1.6× slower, so
+  there the read sat at its limit (a run's worse read a median 1.02× it; every failing run was on such a runner). On CI
+  only, the read's limit now follows the larger of the JS and the engine calibration, as the engine's limits and the
+  CI task limits already do (at most 2×, as before): every kind of runner then reads at a median 0.71–0.77× its limit,
+  the tightest (JS ×1.0–1.1, engine ×1.27) at 0.86–0.93×. The budget, the +10 %, the repeat on CI and every other gate
+  are unchanged; nothing changes off CI.
+
 ## 4.13.1 - 2026-10-23
 
 What users notice

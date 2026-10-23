@@ -52,7 +52,9 @@
                      holds the workbook since S2.4 (Runtime.getHeapUsage over the DevTools protocol)    < 150 MB
    The two time limits are scaled by how much slower this machine is than the reference PC (tools/calibrate.mjs,
    decision 2026-10-12: GitHub's runners are 1.3–1.6× slower and passed or failed by chance; at most 2×, so a
-   slow runner cannot hide a doubling); long tasks and heap are not.
+   slow runner cannot hide a doubling); long tasks and heap are not. On CI the big30 read's limit takes the larger of
+   that factor and the engine calibration's (core/bench/wasmcalib.ts, as the engine's limits and the CI task limits do):
+   the JS workload under-rates the slower runners for this read – see BIG30_CI below.
 
      node tools/bench.mjs [--page DIR] [--json OUT] [--no-gate]
    --page DIR  another build's program folder (e.g. a v3 worktree's backend/, or helper/ from 4.0) – to record its numbers
@@ -102,7 +104,24 @@ const speed = speedFactor(), TIMED = [...TIMED_09, "open_deck20_ms", "read_big30
 // the engine bench measured before this one (core/bench/wasmcalib.ts); keypress and drag frames stay as they are
 const UNTIMED_CI = ["longest_task_ms", "first_draw_task_ms", "longest_navy_task_ms", "first_draw_navy_task_ms", "thumbs_gap_ms", "scenario_task_ms"];
 const ciFactor = (() => { if (!process.env.GITHUB_ACTIONS) return 1; try { return Math.max(1, JSON.parse(fs.readFileSync(path.join(REPO, "bench-calibration.json"), "utf8")).factor || 1); } catch { return 1; } })();
-const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * speed.factor) : UNTIMED_CI.includes(k) ? Math.round(v * ciFactor) : v]));
+/* On CI only, the big30 read's time limit is scaled by the larger of the JS factor and the engine factor above (both
+   ≤ MAX_FACTOR, so a doubling is still caught) – v4/big30-gauge, 2026-10-23. The read failed on CI run after run
+   (PR #42: 1126 / 1147 / 1138 ms against 1018; PR #43: 1139 / 1258 / 1270 against 1143, 1174 / 1184 against 1044) and
+   was taken for a slow regression of 4.8–4.13. It is not one. The bench logs of 110 CI runs (2026-10-18 → 10-23,
+   4.2 → 4.13.1), grouped by the runner's speed, read the same on each kind of runner across the span (first-pass
+   median, 4.5–4.6 → 4.13: fast runners 650–750 ms, slow ones 1170–1190), and the read divided by the core's big30
+   parse on the same runner (core/bench/parse.bench.test.ts) stays 2.16–2.19 in every period from 4.5 to 4.13
+   (nothing grew around the reader in the page); interleaved runs of the 4.3 → 4.13.1 pages on one machine show no
+   trend either. The calibration is what is off: tools/calibrate.mjs times a 12 MB in-cache JS loop, and GitHub's
+   slower runners are slower than that on a 30 MB inflate + 75 MB scan in Chromium's worker – as on the engine's WASM
+   (decision 2026-10-18). The failing runs were all on runners the JS loop rates 1.00–1.10× (engine 1.24–1.29×) that
+   read like the slow ones (1065–1184 ms). With the JS factor alone a run's worse read sat at a median 1.02× its limit
+   on the slow runners (0.71× on the fast ones, where both factors are 1); 14 of 110 runs were over + 10 %. With
+   max(JS, engine) the median is 0.71–0.77× on every kind of runner and the largest 0.97× (the runners above:
+   0.86–0.93×). Off CI ciFactor is 1 and nothing changes; the budget stays 1 s. */
+const BIG30_CI = ["read_big30_ms"];
+const timeFactor = k => BIG30_CI.includes(k) ? Math.max(speed.factor, ciFactor) : speed.factor;
+const LIMITS = Object.fromEntries(Object.entries(BUDGET).map(([k, v]) => [k, TIMED.includes(k) ? Math.round(v * timeFactor(k)) : UNTIMED_CI.includes(k) ? Math.round(v * ciFactor) : v]));
 const CHROME = process.env.CHROME || chromium.executablePath();
 const PY = process.platform === "win32" ? "python" : "python3";
 const BOOKS = path.join(REPO, "tests/corpus/workbooks");
@@ -724,11 +743,11 @@ const { gates, bad } = await judge({ limits: LIMITS, first: worst, ci: GATE && o
   } catch (e) { console.error("bench · the repeat failed: " + (e?.stack || e)); repeat = { keys, values: {}, error: String(e?.message || e) }; }
   return repeat.values;
 } });
-const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs, gates, repeat };
+const out = { page: path.relative(REPO, BACKEND) || BACKEND, chrome: CHROME, machine: `${os.cpus().length} × ${os.cpus()[0].model.trim()}, ${process.platform}`, calibration: { ms: +speed.ms.toFixed(1), factor: +speed.factor.toFixed(2), ci_factor: +ciFactor.toFixed(2) }, budget: BUDGET, limits: LIMITS, worst, info, runs, gates, repeat };
 if (arg("--json")) fs.writeFileSync(arg("--json"), JSON.stringify(out, null, 1));
 const all = [...runs.map((r, i) => ["run " + (i + 1), r]), ...(repeat?.run ? [["repeat", repeat.run]] : [])];
 for (const [i, r] of all) console.log(`bench · ${i}: deck20 open ${r.deck20.open_ms} ms (wizard ${r.deck20.wizard_ms} + slides ${r.deck20.finish_to_slide_ms}) · keypress → pixels (cold ${r.edit.keypress.cold_ms.join(" / ")}) p50 ${r.edit.keypress.p50_ms} / p95 ${r.edit.keypress.p95_ms} / max ${r.edit.keypress.max_ms} ms (tasks ${JSON.stringify(r.edit.longtasks)}) · thumbnails, 100 slides scrolled: ${r.thumbs.fps} fps, ${r.thumbs.frame_ms} ms/frame (longest gap ${r.thumbs.gap_ms} ms, ${r.thumbs.pictures} pictures, tasks ${JSON.stringify(r.thumbs.longtasks)}) · drags ${Object.entries(r.drags).map(([k, d]) => `${k} ${d.frame_ms} ms/frame (${d.frames} frames, longest gap ${d.gap_ms} ms, drop ${d.drop_task_ms} ms)`).join(", ")} · export deck20 Liquid Glass ${r.export.glass_ms} ms ${JSON.stringify(r.export.glass_phases)} ${r.export.glass_kb} KB, Excel ${r.export.excel_ms} ms ${JSON.stringify(r.export.excel_phases)} ${r.export.excel_kb} KB (tasks ${JSON.stringify(r.export.longtasks)}) · big30 index ${r.big30.index_to_wizard_ms} ms, sheet read ${r.big30.read_sheet_ms} ms (grid ${r.big30.read_to_grid_ms} ms) · long tasks ${JSON.stringify([...r.deck20.longtasks, ...r.big30.longtasks])} (first draw ${JSON.stringify(r.deck20.first_draw_longtasks)}) · heap ${r.big30.heap_mb} MB (page ${r.big30.page_heap_mb} + worker ${r.big30.worker_heap_mb}; ${r.big30.export_workers} export workers ${r.big30.export_heap_mb} MB, not gated) · start-up tasks ${JSON.stringify(r.boot.longtasks)}`);
-console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}${ciFactor > 1 ? `; CI: task and gap limits × ${ciFactor.toFixed(2)} (engine calibration)` : ""}`);
+console.log(`bench · calibration ${speed.ms.toFixed(1)} ms: time limits × ${speed.factor.toFixed(2)}${ciFactor > 1 ? `; CI: task and gap limits × ${ciFactor.toFixed(2)} (engine calibration), big30 read × ${timeFactor("read_big30_ms").toFixed(2)}` : ""}`);
 for (const [i, r] of all) if (r.consult) console.log(`bench · ${i}: Consulting Navy long tasks by phase ${JSON.stringify(r.consult.phases)}`);
 for (const [i, r] of all) if (r.icons) console.log(`bench · ${i}: icon picker: the set's first use in the worker ${r.icons.first_use_ms} ms; keystroke → hits drawn (cold ${r.icons.cold_ms.join(" / ")}) p50 ${r.icons.p50_ms} / p95 ${r.icons.p95_ms} / max ${r.icons.max_ms} ms (tasks ${JSON.stringify(r.icons.longtasks)})`);
 for (const [i, r] of all) if (r.scen) console.log(`bench · ${i}: Run for each value on BanksBig (20 slides, Liquid Glass): 1 value ${r.scen.one_ms} ms, 20 values ${r.scen.twenty_ms} ms; preview switch on deck20 ${r.scen.preview_ms} ms; long tasks ${JSON.stringify(r.scen.phases)}`);
