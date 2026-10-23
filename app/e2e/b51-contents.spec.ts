@@ -109,6 +109,10 @@ test.describe.serial("the contents slide's parts in a free layout (B51)", () => 
     await expect(page.locator(toc)).toHaveCount(1); await expect(page.locator(title)).toHaveCount(1);
     const scale = await page.evaluate(() => { const r = document.querySelector(".stagewrap")!.getBoundingClientRect(); return r.width / 1600; });
     const box0 = async (sel: string) => page.locator(sel).evaluate(el => { const s = (el as HTMLElement).style; return { x: parseFloat(s.left), y: parseFloat(s.top), w: parseFloat(s.width), h: parseFloat(s.height) }; });
+    // (4.14 CI: the drag waits for the switch to be saved – its record goes through the deck's raise to format 6 – and for
+    // the list's box to stand still: a drag that starts while the stage draws the free layout again can miss the handle)
+    await saved(page);
+    await expect.poll(async () => { const a = JSON.stringify(await box0(toc)); await page.waitForTimeout(150); return a === JSON.stringify(await box0(toc)); }, { timeout: 10_000 }).toBe(true);
     const L0 = await box0(toc), T0 = await box0(title);
 
     // the list's corner: smaller (it stays where it is); then the list down and to the right; the title to the bottom right
