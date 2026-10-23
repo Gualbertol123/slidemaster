@@ -39,7 +39,7 @@ UPLOAD_TTL = 2 * 3600
 TOKEN_PLACEHOLDER = b"__SB_TOKEN__"
 TOKEN_HEADER = "X-SB-Token"
 FORMATS_HEADER = "X-SB-Formats"
-DECK_FORMATS_HEADER = "X-SB-Deck-Formats"      # "4,5": the deck snapshot formats a 4.6+ page reads (ADR-019); "4,5,6": 4.9+; "4,5,6,7": 4.10+; "4,5,6,7,8": 4.11+
+DECK_FORMATS_HEADER = "X-SB-Deck-Formats"      # "4,5": the deck snapshot formats a 4.6+ page reads (ADR-019); "4,5,6": 4.9+; "4,5,6,7": 4.10+; "4,5,6,7,8": 4.11+; "4,5,6,7,8,9": 4.13+
 
 
 def formats_match(header):
@@ -97,7 +97,7 @@ def find_asset(name):
     return None
 
 
-DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete|format5|format6|format7|format8)$")
+DECK_ROUTE = re.compile(r"^/api/decks/([^/]+)/(snapshot|tail|append|prepare|compact|rotate|history|delete|format5|format6|format7|format8|format9)$")
 
 
 class HttpError(Exception):
@@ -491,6 +491,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, decks.mark_format5(key, fmt=7))
         if action == "format8":                           # 4.11 objects (B53): incident-format-8.json (ADR-019 amendment)
             return self._send(200, decks.mark_format5(key, fmt=8))
+        if action == "format9":                           # 4.13 objects (B54): incident-format-9.json (ADR-019 amendment)
+            return self._send(200, decks.mark_format5(key, fmt=9))
         if action == "append":
             req = self._json()
             return self._send(200, decks.append(key, req.get("writer"), req.get("record")))

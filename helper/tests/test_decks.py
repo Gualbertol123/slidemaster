@@ -210,7 +210,7 @@ class DeckTests(DeckBase):
         with open(p, "rb") as f:
             self.assertEqual(f.read(), b'{"format": 4, "gen": ')     # nothing was written
         with open(p, "w") as f:
-            json.dump({"format": 9, "gen": 3}, f)             # (5 is read since 4.6, 6 since 4.9, 7 since 4.10, 8 since 4.11: ADR-019)
+            json.dump({"format": 10, "gen": 3}, f)            # (5 is read since 4.6, 6 since 4.9, 7 since 4.10, 8 since 4.11, 9 since 4.13: ADR-019)
         with self.assertRaises(decks.DeckError) as e:
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)                     # too new: restart
@@ -966,7 +966,7 @@ class FormatGuardTests(DeckBase):
         self.assertEqual(decks.read_snapshot(self.key)["gen"], 2)
         decks.compact(self.key, 2, dict(down, format=5))               # (5 -> 5: no wait)
         self.assertEqual(decks.read_snapshot(self.key)["format"], 5)
-        for bad in (9, None, "5"):                                     # (7 is 4.10's, B52; 8 is 4.11's, B53)
+        for bad in (10, None, "5"):                                    # (7 is 4.10's, B52; 8 is 4.11's, B53; 9 is 4.13's, B54)
             with self.assertRaises(decks.DeckError) as e:
                 decks.compact(self.key, 3, dict(down, gen=4, format=bad))
             self.assertEqual(e.exception.status, 400, bad)
@@ -1027,7 +1027,7 @@ class FormatGuardTests(DeckBase):
 
     def test_a_newer_format_is_still_refused(self):
         snap = decks.read_snapshot(self.key)
-        decks.write_snapshot(self.key, dict(snap, format=9))         # (7 is read since 4.10, B52; 8 since 4.11, B53)
+        decks.write_snapshot(self.key, dict(snap, format=10))        # (7 is read since 4.10, B52; 8 since 4.11, B53; 9 since 4.13, B54)
         with self.assertRaises(decks.DeckError) as e:
             decks.read_snapshot(self.key)
         self.assertEqual(e.exception.status, 409)
@@ -1084,7 +1084,7 @@ class Format6Tests(DeckBase):
         decks._look(self.key, 0)                                         # this helper: no incident, not read-only
         self.assertIsNone(decks._readonly.get(self.key))
         with self.assertRaises(decks.DeckError) as e:
-            decks.mark_format5(self.key, fmt=9)                          # (7 is 4.10's, B52; 8 is 4.11's, B53)
+            decks.mark_format5(self.key, fmt=10)                         # (7 is 4.10's, B52; 8 is 4.11's, B53; 9 is 4.13's, B54)
         self.assertEqual(e.exception.status, 400)
 
     def test_a_raise_to_6_needs_its_marker_and_the_wait_and_is_never_lowered(self):
@@ -1139,6 +1139,55 @@ class Format6Tests(DeckBase):
             decks.check_page(self.key, {4, 5})
 
 
+class Format9Tests(DeckBase):
+    """B54 (ADR-019 amendment for 4.13): a KPI card and a chart card's stats, tag, separator, momentum row and filter raise
+    the deck to format 9 exactly as B53 raised it to 8 - its own marker (an incident to every 4.0-4.12 helper: 4.11 and
+    4.12 except the format-5 to format-8 markers only), the wait, never lowered; a 4.11 / 4.12 page (4,5,6,7,8) is refused"""
+
+    def raise_to(self, fmt):
+        decks.mark_format5(self.key, fmt=fmt)
+        snap = decks.read_snapshot(self.key)
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            decks.compact(self.key, snap["gen"], dict(snap, gen=snap["gen"] + 1, format=fmt))
+        return decks.read_snapshot(self.key)
+
+    def test_the_marker_is_an_incident_to_4_0_to_4_12_only(self):
+        self.assertEqual(decks.MARKER9, "incident-format-9.json")
+        self.assertEqual(decks.READ_FORMATS, (4, 5, 6, 7, 8, 9))
+        self.assertFalse(decks._is_incident(decks.MARKER9))
+        # 4.12.0's rule (5eab103:helper/slidebuilder/decks.py _is_incident: MARKERS of 5-8)
+        old412 = lambda n: n.startswith("incident-") and n.endswith(".json") and n not in ("incident-format-5.json", "incident-format-6.json", "incident-format-7.json", "incident-format-8.json")
+        self.assertTrue(old412(decks.MARKER9))
+        m = decks.mark_format5(self.key, fmt=9)
+        self.assertTrue(m["created"])
+        self.assertTrue(decks.is_format9(self.key))
+        with open(decks.deck_dir(self.key, decks.MARKER9), encoding="utf-8") as f:
+            body = json.load(f)
+        self.assertEqual(body["format"], 9)
+        self.assertIn("4.13", body["what"])
+        decks.reset()
+        decks._look(self.key, 0)
+        self.assertIsNone(decks._readonly.get(self.key))
+        self.assertEqual(decks._v5.get(self.key), 9)
+
+    def test_a_raise_to_9_is_never_lowered_and_a_4_12_page_is_refused(self):
+        self.raise_to(8)
+        decks.check_page(self.key, {4, 5, 6, 7, 8})                      # format 8: the 4.12 page works
+        cur = self.raise_to(9)
+        self.assertEqual(cur["format"], 9)
+        for low in (8, 7, 4):
+            with self.assertRaises(decks.DeckError) as e:
+                decks.compact(self.key, cur["gen"], dict(cur, gen=cur["gen"] + 1, format=low))
+            self.assertEqual(e.exception.status, 400)
+        decks.check_page(self.key, {4, 5, 6, 7, 8, 9})
+        decks.reset()
+        for snap in (None, decks.read_snapshot(self.key)):
+            for formats in ({4, 5, 6, 7, 8}, {4, 5, 6, 7}, set()):
+                with self.assertRaises(decks.DeckError) as e:
+                    decks.check_page(self.key, formats, snap)
+                self.assertEqual(e.exception.status, 409)
+
+
 class Format8Tests(DeckBase):
     """B53 (ADR-019 amendment for 4.11): label places, labels dragged on the stage and an axis's bounds from cells raise the
     deck to format 8 exactly as 4.10's targets raised it to 7 - its own marker (an incident to every 4.0-4.10 helper: 4.10
@@ -1154,7 +1203,7 @@ class Format8Tests(DeckBase):
 
     def test_the_marker_is_an_incident_to_4_0_to_4_10_only(self):
         self.assertEqual(decks.MARKER8, "incident-format-8.json")
-        self.assertEqual(decks.READ_FORMATS, (4, 5, 6, 7, 8))
+        self.assertEqual(decks.READ_FORMATS[:5], (4, 5, 6, 7, 8))
         self.assertFalse(decks._is_incident(decks.MARKER8))
         # 4.10.1's rule (c504829:helper/slidebuilder/decks.py _is_incident: MARKERS of 5-7), 4.9's
         old410 = lambda n: n.startswith("incident-") and n.endswith(".json") and n not in ("incident-format-5.json", "incident-format-6.json", "incident-format-7.json")

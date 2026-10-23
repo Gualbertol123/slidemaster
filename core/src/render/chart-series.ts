@@ -40,6 +40,7 @@ import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
+import { cardParts, cardRoom } from "./chart-card";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
 import { fontStack } from "../model/fonts";
@@ -125,6 +126,9 @@ export interface SeriesLayout {
   /** the frame the chart is laid out in (PowerPoint's chart space: a dragged point label's manualLayout is a fraction of it) */ frame: Box;
   /** the title's drag offset, px */ titleNudge: { x: number; y: number };
   /** the hits of the labels the stage can drag ("label", id "<item>|<key>"; on screen only) */ labelHits: Node[];
+  /* 4.13 (B54) */
+  /** the chart card's parts (chart-card.ts: the tag, stats, separator, momentum row), drawn over the chart – text boxes
+      and a line over the native chart in PowerPoint */ card: Node[];
 }
 export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number;
   /** the Excel designs' template (ChartLook.trend): the lines' default width, areas as lines */ trend?: { w: number; areaAsLine: boolean } }
@@ -184,6 +188,12 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     const rl = lineOrNone(it.titleRule, null);
     if (rl) { rule = { x1: X0, x2: X0 + W0, y: r2(Y0 + lh + 4 + rl.w / 2), line: rl }; area = { ...area, y: area.y + 8 + rl.w, h: Math.max(10, area.h - 8 - rl.w) }; }
   }
+  // (B54) the chart card: a tag's own line (no title), the stats row and its separator above the plot, the momentum row
+  // below it – the plot shrinks to make room (a chart without them: no room, as before)
+  const room = cardRoom(it, sty.lab, !!title), titleH = title ? lineH(titleSt) : 0;
+  if (room.tagLine) area = { ...area, y: area.y + room.tagLine, h: Math.max(10, area.h - room.tagLine) };
+  const cardTop = area.y, cardBottom = Y0 + H0 - room.bottom;
+  if (room.top || room.bottom) area = { ...area, y: area.y + room.top, h: Math.max(10, area.h - room.top - room.bottom) };
   // the legend
   // (Excel lists a stacked chart's and a bar chart's series bottom-up in a legend beside the plot, as they are drawn)
   // (a waterfall's columns are stacked in PowerPoint: listed bottom-up beside the plot too)
@@ -594,7 +604,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // (B53 review) an axis's own max not above its min (typed, or a max below the automatic minimum): autoScale dropped it
   for (const [nm, ax, S] of [["value", A.y, scale], ["right", A.y2, y2?.scale]] as const)
     if (ax && S && typeof ax.max === "number" && Number.isFinite(ax.max) && ax.max !== S.max) axIssues.push(`the ${nm} axis's max (${ax.max}) is not above its min (${S.min}): automatic instead`);
-  const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues];
+  const card = cardParts(it, { frame, titleH, top: cardTop, bottom: cardBottom, series: ser, cats: data.cats, num, lab: sty.lab, ink: sty.ink, sepColor: look.card.line }, ctx, m);
+  const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues, ...card.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
     grid: typeof A.y?.grid === "boolean" ? A.y.grid : look.gridOn, colors, bars, labs, legend, ticks: tk, labels, issue,
@@ -602,7 +613,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows, native: mk.native }, refs, refSpan,
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null,
-    frame, titleNudge, labelHits };
+    frame, titleNudge, labelHits, card: card.nodes };
 }
 
 /** PowerPoint draws a chart's groups on the secondary axis over those on the primary one; the slide draws areas, then
@@ -638,7 +649,8 @@ export function cardNodes(L: SeriesLayout): Node[] {
     one line shape with native ends from the chart's semantics (ChartSem.arrows, pptx/chart-overlay.ts) */
 export function overlayNodes(L: SeriesLayout, native = false): Node[] {
   const drop = native ? new Set([...L.marks.arrows.flatMap(a => a.drop), ...L.marks.native]) : null;
-  return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...(drop ? L.marks.nodes.filter(n => !drop.has(n)) : L.marks.nodes)];
+  // (B54: the card's parts after the marks – an arrow's place among the overlay's nodes, arrowPlaces, stays)
+  return [...L.dividers.map((d): Node => ({ t: "line", x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, stroke: lineStroke(d.line, "butt") })), ...(drop ? L.marks.nodes.filter(n => !drop.has(n)) : L.marks.nodes), ...(L.card || [])];
 }
 /** (S14.6 review 6) each arrow / line mark's place in overlayNodes(L, true): the count of that overlay's nodes before it
     (the dividers, then the other marks' nodes of a lower id – and none of its own), so that the export writes it where the

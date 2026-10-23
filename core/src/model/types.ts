@@ -145,7 +145,33 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   /** the title's own format (`fmt` is the labels') */ titleFmt?: TextFmt;
   /** (4.11, B53) labels dragged on the stage: per label key ("title", "v:<series>:<i>", "r:<mark>", "g:<mark>",
       "c:<mark>:<i>", "c:<mark>:cap") its offset from where the layout puts it, as fractions of the chart's box (it follows
-      the data and a resize); merged per entry */ nudge?: Record<string, { dx: number; dy: number }> }
+      the data and a resize); merged per entry */ nudge?: Record<string, { dx: number; dy: number }>;
+  /* ---- 4.13 (B54, ADR-015 amendment of 2026-10-23): the chart card – parts inside the chart's box, each switched on and
+     off in the chart panel; the plot shrinks to make room. A chart holding one is format 9 (ops.ts needsV9) ---- */
+  /** the series from a long table: only the rows whose cell in column `by` (a range as tall as the values') shows `eq`
+      (a text, or a cell's text – a scenario or "Run for each value" can change it) */ filter?: ChartFilter;
+  /** the stats row under the title: chips of a label over a big value, merged per entry */ stats?: Record<string, ChartStat>;
+  /** the small tag in the title line's right corner ("ILLUSTRATIVE") – text or a cell, its colour */ tag?: { text: string | DataRef; color?: string };
+  /** the separator under the stats row (an object: drawn; {} = the design's hairline) */ sep?: LineStyle;
+  /** the momentum row at the bottom: chips of a change and its caption, merged per entry */ moms?: Record<string, ChartMom>;
+  /** the momentum row's label (unset: "MOMENTUM"; "" = none) */ momLabel?: string }
+/** (B54) a long table's rows for one value of a column */
+export interface ChartFilter { by: DataRef; eq: string | DataRef }
+/** which way is good for a signed number: up (a rise is green), down (a fall is green), neutral (no colour) */
+export type GoodWay = "up" | "down" | "neutral";
+/** (B54) a stat chip of a chart card: its label over its value – a series' last / first / previous / lowest / highest
+    value, a cell, a reference line's value, the last value's gap to a reference line (absolute or %) */
+export interface ChartStat { n: number; label?: string;
+  src: "last" | "first" | "prev" | "min" | "max" | "cell" | "ref" | "gap" | "gapPct";
+  /** the series (default the first) */ s?: string; /** a "ref" mark's id (default the first reference line) */ ref?: string;
+  /** src "cell" */ cell?: DataRef; /** the number format (else the cells') */ num?: string;
+  /** coloured by sign (default: only a gap) */ signs?: boolean; good?: GoodWay; off?: boolean }
+/** (B54) a momentum chip: the last value's change against the first value, the lowest (since the trough), the highest
+    (since the peak), the previous value, or a cell – absolute, % (of |that value|) or both, coloured by sign */
+export interface ChartMom { n: number; vs: "first" | "trough" | "peak" | "prev" | "cell";
+  s?: string; cell?: DataRef; show?: "abs" | "pct" | "both";
+  /** the small text under it (unset: "vs <first category>", "since trough", "since peak", "vs <previous category>",
+      "vs <the cell's text>"; "" = none) */ caption?: string; num?: string; good?: GoodWay; off?: boolean }
 /* ---- lines and annotations on the slide (4.8, M15; docs/next/09 §2.3) ---- */
 /** "bar" = a limiter tick */
 export type Head = "none" | "arrow" | "triangle" | "stealth" | "oval" | "diamond" | "bar";
@@ -243,13 +269,14 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
-type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge";
+type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms";
 type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach">;
 /** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
   sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;
   axes?: Partial<Record<"x" | "y" | "y2", ChartAxis | null>> | null; marks?: Record<string, ChartMark | null> | null;
   nudge?: Record<string, { dx: number; dy: number } | null> | null;
+  stats?: Record<string, ChartStat | null> | null; moms?: Record<string, ChartMom | null> | null;
   legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }

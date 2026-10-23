@@ -16,8 +16,10 @@ const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "l
 const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
   "shape", "icon", "text", "fill", "border", "radius", "tail",
   "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
-  "route", "a", "b", "mid", "bend", "ends", "style", "stroke"] as const;
-const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge"] as const;
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
+  /* 4.13 (B54): the chart card's filter, tag, separator and momentum label */
+  "filter", "tag", "sep", "momLabel"] as const;
+const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms"] as const;
 const ITEM_KINDS = ["chart", "shape", "line"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
@@ -379,6 +381,41 @@ const presetNeedsV8 = (p: Record<string, unknown>) => Array.isArray(p.slides) &&
 /** the same on a document (fold.ts nextSnapshot writes such a deck as format 8; a 4.11 page opening one below 8 raises it) */
 export function docNeedsV8(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
   return isObj(doc.preset) && presetNeedsV8(doc.preset as unknown as Record<string, unknown>);
+}
+/* ---- format 9 (ADR-019 amendment of 2026-10-23 for B54, 4.13) ----
+   4.12.0 skips a "kpi" item whole (an unknown kind: its item.patch is not applied) and applies a chart's B54 keys as
+   nothing (the stats row, the corner tag, the separator, the momentum row, the long table's filter: its applyOp copies
+   only the keys it lists, so its compaction would lose them and its exports draw the chart unfiltered). A deck that
+   receives or holds one is raised to format 9 exactly as to 8 (marker incident-format-9.json – an incident to every
+   4.0–4.12 helper –, the wait, tail, CAS, the Lamport jump). 4.12.0's lists, FROZEN (git show 5eab103:core/src/model/ops.ts
+   ITEM_KEYS / ITEM_MAPS / ITEM_KINDS) – never add to them: later keys and kinds go to the lists at the top, and are then
+   needsV9 by themselves. (4.12's mark, series, axis and point keys are 4.11's: needsV8 covers them.) */
+const V412_ITEM = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
+  "shape", "icon", "text", "fill", "border", "radius", "tail", "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
+  "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge"];
+const V412_ITEM_KINDS = ["chart", "shape", "line"];
+/** an item (or an item.patch) holding what 4.12.0 does not apply whole: a later kind, or a later key set (not null, not
+    an empty or all-null map) */
+const itemV9 = (p: unknown) => isObj(p) && ((typeof p.kind === "string" && !V412_ITEM_KINDS.includes(p.kind))
+  || Object.keys(p).some(k => !V412_ITEM.includes(k) && p[k] !== null && p[k] !== undefined && !(isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))));
+const itemsV9 = (items: unknown) => some(items, itemV9);
+/** an op 4.12.0 does not apply whole: the deck must be format 9 before it is appended – an item.patch creating a KPI card
+    or writing a B54 key, a slide.add or preset.set carrying one. Removing it (null) is not: 4.12 applies that whole
+    (an item.patch null on a KPI card deletes it there too) */
+export function needsV9(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>;
+  switch (o.op) {
+    case "item.patch": return itemV9(o.patch);
+    case "slide.add": return isObj(o.slide) && itemsV9(o.slide.items);
+    case "preset.set": return isObj(o.preset) && presetNeedsV9(o.preset);
+  }
+  return false;
+}
+const presetNeedsV9 = (p: Record<string, unknown>) => Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV9(s.items));
+/** the same on a document (fold.ts nextSnapshot writes such a deck as format 9; a 4.13 page opening one below 9 raises it) */
+export function docNeedsV9(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  return isObj(doc.preset) && presetNeedsV9(doc.preset as unknown as Record<string, unknown>);
 }
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
