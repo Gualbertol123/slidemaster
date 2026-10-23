@@ -84,7 +84,7 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
     : ch.bars.series.map(s => ({ name: s.name, values: s.values, ...(s.f ? { f: s.f } : {}), fmt: (i: number) => s.fmts?.[i] || s.fmt }))) : [{ name: ch.series || "Series 1", values: ch.values, fmt: () => ch.fmt }];
   // (S14.4 review 3: columns no series reads – a waterfall's running total – after the series')
   const book = !xy && ch.bars?.book ? ch.bars.book : null, nSer = cols.length;
-  if (book) cols.push(...book.extra.map(c => ({ ...c, fmt: cols[book.values]?.fmt })));
+  if (book) cols.push(...book.extra.map(({ fmt, ...c }) => ({ ...c, fmt: fmt ? () => fmt : cols[book.values]?.fmt })));
   // the number formats as cell styles: 0 = General, then one per other code (custom ids from 164)
   const codes: string[] = [], styleOf = (code: string | undefined) => {
     const c = (code || "").trim();
@@ -94,7 +94,8 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   };
   const cats = ch.bars ? ch.bars.cats : ch.labels, lv = ch.bars?.levels || null, f = xy ? 1 : lv ? 3 : 2, last = numToCol(cols.length + f - 1);
   // a formula's cell names: {V} the values column, {R} the running total (the first extra column), {Rp} the row before's
-  const fx = (t: string, row: number) => !book ? t : t.replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
+  // ((B55) {E1}, {E2} …: the extra columns' cells of the row)
+  const fx = (t: string, row: number) => !book ? t : t.replace(/\{E(\d)\}/g, (_, k: string) => numToCol(nSer + f + +k - 1) + row).replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
   const cell = (c: { values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }, k: number, i: number) => {
     // (S14.6 review 8: the cell's attributes built whole – its reference, then its style when not General)
     const v = c.values[i], st = styleOf(c.fmt?.(i)), at = `r="${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i]?.replace(/\{TOP\}/g, `$${numToCol(k + f)}$2`);

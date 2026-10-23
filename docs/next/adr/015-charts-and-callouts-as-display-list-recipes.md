@@ -198,3 +198,38 @@ PowerPoint, never pictures. A chart without them lays out byte-identical.
 are filtered alike; Issues lines for a missing column or value cell, a column of another height, no matching row, an
 empty value; a scatter chart takes none. (A sub-range of the table draws one product too, but breaks when the table's
 rows move or grow – the filter does not.) Format 9 (ADR-019 amendment of the same day).
+
+
+**Amendment 2026-10-23 (B55, 4.14): the budget-achievement chart and a chart card's subtitle.** The owner's picture 19
+(next to the B54 slide: "BUDGET ACHIEVEMENT – Latest volume / EoM budget", one tall bar per product) asks for a progress
+chart. Two models were weighed: an option on the column chart (`progress: { target }` on a series chart) and a chart type
+of its own. **Chosen: a chart type, `type: "progress"`, with its whole spec in one plain key `progress`**
+(types.ts ChartProgress), laid out by its own module render/chart-progress.ts inside the same card as every chart. Why:
+its data is not a series (a value AND a target per category, or a long table's last row per group – neither fits
+`sers` / `groups`), its layout shares nothing with seriesLayout's axes, ticks, legends and labels (the % above, the name
+and gap under, no axis), and a series chart with an option would have to switch most of seriesLayout off; a type keeps
+seriesLayout untouched (no snapshot moves) and makes the switch in the chart panel one key. What it shares is reused:
+the chart's card and padding per design (chartNodes), the B54 card parts (title, the new subtitle, tag, separator:
+chart-card.ts cardRoom / cardParts), one delta rule (deltas.ts: the gap's sign "+210" and never "−0", the value
+cell's number format, General as #,##0), the cell rules (chart-data.ts: hidden rows, a version's removed cells,
+reload / scenario through ctx.sheet()).
+* Data: `vals` / `targets` (rectangles read in order: a range or single cells; ONE target cell serves every category),
+  `cats` (a range or names; else the item's labels, else the text beside the values); or `table: { by, val, target }` –
+  per value of column `by`, in the order the values first appear, its LAST row with a number in `val` (the latest
+  period) and the target in that row. Issues lines for a missing value or target, a target of 0 or less ("no
+  achievement": "n/a" above the bar, an empty track), columns of other heights, more than 8 categories; never a throw.
+* Look: the track (100 %), the fill up to value / target capped at the track; `over` "color" (another fill) or "mark"
+  (a band of it at the bar's top), default none; colours `fill` / `track` / `overFill`, unset the design's dark (the KPI
+  card's header colour – the B54 slide's), a light grey of it, the design's positive colour. The % above (`pct`: off,
+  number format, text format; default the design's accent, 1.9 × the label size, bold), the name under it (`cat`: off,
+  caps), the gap under that (`gap`: off, words "over" / "to go", sign "over" | "both" | "none", number format). The bars
+  stand at Excel's slots (a bar is 1 / (1 + gap) of its slot, the item's `gap`, default 40 %; never wider than 180 px –
+  the gap then grows, at most 500 %). The value axis and gridlines only when `axes.y.show` / `axes.y.grid` is true.
+* PowerPoint: a NATIVE clustered column chart of two series overlapped 100 % – the track (1 per category) and the fill
+  (value / target capped at 1; in the embedded workbook a formula of the Value and Target columns written after the
+  series, `{E1}` / `{E2}` tokens of chart.ts) –, its gap width as drawn, the plot at the drawn rectangle, the axes
+  deleted unless shown, the % as the track's data labels (static rich text, refreshed at every export), the title as the
+  chart's own; the subtitle, tag, separator, names, gaps and over bands are text boxes and shapes over it (the overlay).
+* `subtitle` (any chart, text or a cell): a small grey line right under the title (cardRoom reserves it, the plot moves
+  down); a chart without one lays out byte-identical.
+Format 10 (ADR-019 amendment of the same day).

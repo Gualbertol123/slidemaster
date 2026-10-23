@@ -19,7 +19,7 @@ export class FakeDeck {
   private current = new Map<string, string>();      // writer -> its open journal
   private next = new Map<string, number>();
   private clock = Date.now();          // the file server's ms, as `at` is
-  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0, format5: 0, format6: 0, format7: 0, format8: 0, format9: 0 };
+  calls = { append: 0, tail: 0, compact: 0, snapshot: 0, rotate: 0, format5: 0, format6: 0, format7: 0, format8: 0, format9: 0, format10: 0 };
   /** incident-format-5.json (ADR-019): when it was written (server ms) */
   marker: number | null = null;
   /** incident-format-6.json (ADR-019 amendment of 2026-10-22, 4.9): when it was written (server ms) */
@@ -30,6 +30,8 @@ export class FakeDeck {
   marker8: number | null = null;
   /** incident-format-9.json (ADR-019 amendment for B54, 4.13): when it was written (server ms) */
   marker9: number | null = null;
+  /** incident-format-10.json (ADR-019 amendment for B55, 4.14): when it was written (server ms) */
+  marker10: number | null = null;
   /** every call, in order (the bump's sequence) */
   log: string[] = [];
   /** every complete record ever written (journals deleted since included) */
@@ -88,7 +90,7 @@ export class FakeDeck {
     this.calls.compact++; this.log.push("compact:" + s.format);
     if (this.readonly) throw status(423, this.readonly);
     if (s.gen !== baseGen + 1) throw status(400, "gen");
-    if (s.format !== 4 && s.format !== 5 && s.format !== 6 && s.format !== 7 && s.format !== 8 && s.format !== 9) throw status(400, "format");
+    if (s.format !== 4 && s.format !== 5 && s.format !== 6 && s.format !== 7 && s.format !== 8 && s.format !== 9 && s.format !== 10) throw status(400, "format");
     if (this.snap.gen !== baseGen) throw status(409, "compacted meanwhile");
     for (const [j, off] of Object.entries(this.snap.frontier)) {
       if (s.frontier[j] === undefined ? this.journals.has(j) : s.frontier[j] < off) throw status(409, "behind");
@@ -97,7 +99,7 @@ export class FakeDeck {
     if (s.format < this.snap.format) throw status(400, "this deck uses Slide Builder 4.6 objects");   // never lowered
     if (s.format > this.snap.format && s.format >= 5) {
       // the marker first, and the bump's wait from it (decks.compact): else 409, the page asks again and waits
-      const k = s.format === 9 ? "marker9" : s.format === 8 ? "marker8" : s.format === 7 ? "marker7" : s.format === 6 ? "marker6" : "marker";
+      const k = s.format === 10 ? "marker10" : s.format === 9 ? "marker9" : s.format === 8 ? "marker8" : s.format === 7 ? "marker7" : s.format === 6 ? "marker6" : "marker";
       if (this[k] == null) { this[k] = this.now(); throw status(409, "the deck is being prepared"); }
       if (this.clock - this[k]! < this.bumpWaitMs) throw status(409, "the deck is being prepared");
     }
@@ -110,9 +112,9 @@ export class FakeDeck {
     return { gen: s.gen };
   }
   /** POST /api/decks/<key>/format5 (format6): the marker (O_EXCL: the first one stays) */
-  doFormat5(format: 5 | 6 | 7 | 8 | 9 = 5) {
-    const k = format === 9 ? "marker9" : format === 8 ? "marker8" : format === 7 ? "marker7" : format === 6 ? "marker6" : "marker";
-    this.calls[format === 9 ? "format9" : format === 8 ? "format8" : format === 7 ? "format7" : format === 6 ? "format6" : "format5"]++; this.log.push("format" + format);
+  doFormat5(format: 5 | 6 | 7 | 8 | 9 | 10 = 5) {
+    const k = format === 10 ? "marker10" : format === 9 ? "marker9" : format === 8 ? "marker8" : format === 7 ? "marker7" : format === 6 ? "marker6" : "marker";
+    this.calls[format === 10 ? "format10" : format === 9 ? "format9" : format === 8 ? "format8" : format === 7 ? "format7" : format === 6 ? "format6" : "format5"]++; this.log.push("format" + format);
     const created = this[k] == null;
     if (created) this[k] = this.now();
     this.fresh = true;

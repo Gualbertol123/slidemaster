@@ -3,6 +3,28 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.14.0 - unreleased
+
+What users notice
+* **Budget achievement** (the owner's picture of 2026-10-23, "how do I make these ones?"): a new chart – *Insert chart ▾ ›
+  Budget achievement…*, or *Budget* in the chart panel's type switch – with one tall bar per product: a light track for
+  100 % of the budget and a dark fill up to the latest value, capped at the track; the achievement % above each bar in
+  large blue ("101.8%"), the product's name under it in capitals, and the gap under that in grey – "+210 over" when
+  over the budget, "1,700 to go" when under (the words, the sign and the number format editable).
+  * Straight from a long table like Volumes (Product, Period, Volume, Budget): choose the table and each product's
+    **latest row** is taken – no helper cells. Or the values and budgets from ranges or single cells (one budget cell
+    can serve every bar).
+  * The colours of the track, the fill and an optional over-budget fill (or a small band at the bar's top) follow the
+    design and can be changed; the bars' width, the value axis and gridlines (off by default) too. 1 to 8 bars.
+  * It sits in the same card as the KPI cards and chart cards beside it, in every design; a zero or missing budget is
+    named in the Issues panel.
+* **Subtitles on chart cards**: any chart can carry a small grey line under its title ("Latest volume / EoM budget") –
+  typed or from a cell (chart panel › Card).
+* PowerPoint: the budget-achievement chart is a native column chart (the track and the fill overlapped, the % as data
+  labels; Edit Data holds the values and budgets, the fill a formula of them); the names and gaps are text boxes.
+* Decks that use a budget-achievement chart or a chart subtitle open only in Slide Builder 4.14 or later (older versions
+  show them read-only); `Update Slide Builder` names those decks before going back to an older version.
+
 ## 4.13.1 - 2026-10-23
 
 What users notice

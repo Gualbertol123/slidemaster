@@ -82,13 +82,13 @@ export function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref
   return hideSize(h) ? h : null;
 }
 /** a cell as a chart value: its number, or null (text, blank, an error, a cell the version removes) */
-function numberAt(S: Sheet, r: number, c: number, removed: (r: number, c: number) => boolean): number | null {
+export function numberAt(S: Sheet, r: number, c: number, removed: (r: number, c: number) => boolean): number | null {
   const x = S.get(r, c);
   return !x || x.t !== "n" || typeof x.v !== "number" || !Number.isFinite(x.v) || removed(r, c) ? null : x.v;
 }
 /** the label of value k of a rectangle: the labels range's cell k, else the headers beside the values – the nearest
     column on the left with text in those rows (a column of values), or the nearest row above (a row of values) */
-function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide?: HideSet | null): (r: number, c: number, k: number) => string {
+export function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide?: HideSet | null): (r: number, c: number, k: number) => string {
   const lcells = L?.S && L.g ? cellsOf(L.S, L.g, L.S === S ? hide : null) : null, col = g.c1 === g.c2 && g.r2 > g.r1;
   if (lcells) return (_r, _c, k) => lcells[k] ? shown(L!.S!, lcells[k][0], lcells[k][1], ctx).trim() : "";
   if (col) {
@@ -160,9 +160,9 @@ export type SeriesData =
   | { ok: true; cats: string[]; groups: GroupData[]; series: SerData[]; issues: string[]; key: string }
   | { ok: false; source: string; why: "missing" | "empty"; key: string };
 /** a number per cell: its value (null = a gap), its text, its format */
-interface Val { v: number | null; text: string; fmt: string }
+export interface Val { v: number | null; text: string; fmt: string }
 /** the cells of several rectangles, concatenated (a series from different places); `missing` when one is not found */
-function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): { vals: Val[]; source: string; missing: boolean; first: { S: Sheet; g: Range; hide: HideSet | null } | null; /** the cells read, before a filter */ count: number } {
+export function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): { vals: Val[]; source: string; missing: boolean; first: { S: Sheet; g: Range; hide: HideSet | null } | null; /** the cells read, before a filter */ count: number } {
   const list = Array.isArray(refs) ? refs as DataRef[] : refs && typeof refs === "object" ? [refs as DataRef] : [];
   const vals: Val[] = [], sources: string[] = [];
   let missing = !list.length, first: { S: Sheet; g: Range; hide: HideSet | null } | null = null;
@@ -213,7 +213,7 @@ export function filterKeep(it: ChartItem, ctx: RenderCtx, issues: string[]): Kee
   return { at, n: texts.length, pick: <T>(xs: T[]) => at.filter(k => k < xs.length).map(k => xs[k]) };
 }
 /** a category list: a DataRef's texts (hidden rows / columns skipped; a removed cell is an empty name) or given names */
-function catsOf(cats: ChartGroup["cats"] | undefined, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): string[] | null {
+export function catsOf(cats: ChartGroup["cats"] | undefined, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): string[] | null {
   if (Array.isArray(cats)) return cats.map(c => typeof c === "string" ? c : String(c ?? ""));
   const T = refTarget(cats as DataRef | undefined, ctx);
   if (!T.S || !T.g) return null;
@@ -239,7 +239,7 @@ export function seriesList(it: ChartItem): [string, ChartSeries][] {
 /** a sheet object's generation: a reload or a scenario's view is another object, so another number (the cache key) */
 const GEN = new WeakMap<Sheet, number>();
 let gens = 0;
-const genOf = (S: Sheet | null) => { if (!S) return 0; let g = GEN.get(S); if (g === undefined) GEN.set(S, g = ++gens); return g; };
+export const genOf = (S: Sheet | null) => { if (!S) return 0; let g = GEN.get(S); if (g === undefined) GEN.set(S, g = ++gens); return g; };
 /** every sheet id a series chart reads (values, targets, names, categories, labels) */
 function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   const out = new Set<string>(), add = (ref: unknown) => {
@@ -259,6 +259,8 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   if (it.filter && typeof it.filter === "object") { add(it.filter.by); add(it.filter.eq); }
   for (const x of [...Object.values(it.stats && typeof it.stats === "object" ? it.stats : {}), ...Object.values(it.moms && typeof it.moms === "object" ? it.moms : {})]) if (x && typeof x === "object") add(x.cell);
   if (it.tag && typeof it.tag === "object") add(it.tag.text);
+  // (B55) the subtitle's cell
+  add(it.subtitle);
   out.delete("");
   return [...out].sort();
 }

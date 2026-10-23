@@ -19,8 +19,8 @@ import type { TextFmt } from "./types";
 /** a KPI card's texts: the header's title, the big value, each row's change (delta %) and its label */
 export const KPI_PARTS = ["head", "value", "delta", "label"] as const;
 /** a chart card's texts that had no format of their own: the legend, a stat chip's label and value, the tag, a momentum
-    chip's change and caption, the momentum row's label word */
-export const CARD_PARTS = ["legend", "statLabel", "statValue", "tag", "momVal", "momCap", "momHead"] as const;
+    chip's change and caption, the momentum row's label word, the subtitle under the title (B55) */
+export const CARD_PARTS = ["legend", "statLabel", "statValue", "tag", "momVal", "momCap", "momHead", /* B55's subtitle line */ "sub"] as const;
 export type KpiPart = typeof KPI_PARTS[number];
 export type CardPart = typeof CARD_PARTS[number];
 export type TextPart = KpiPart | CardPart;

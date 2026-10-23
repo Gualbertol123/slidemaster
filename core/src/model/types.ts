@@ -49,7 +49,9 @@ export interface Box { x: number; y: number; w: number; h: number }
 export type ItemKind = "chart" | "shape" | "line" | "kpi";
 /* ---- charts with series (4.7, M14; docs/next/09 §2.2, ADR-015 amendment). Every field optional: a chart without `sers`
    draws exactly as before (values / labels / series / legend / colors keep their meaning; a pie stays a pie) ---- */
-export type ChartType = "pie" | "donut" | "bar" | "column" | "line" | "area" | "scatter" | "waterfall" | "combo";
+/** "progress" (4.14, B55): a budget-achievement chart – one tall bar per category, a track for 100 % of its target and a
+    fill up to value / target (ChartItem.progress; render/chart-progress.ts) */
+export type ChartType = "pie" | "donut" | "bar" | "column" | "line" | "area" | "scatter" | "waterfall" | "combo" | "progress";
 export type SeriesType = "column" | "bar" | "line" | "area" | "scatter";
 /** a line's look: colour, weight px, dash */
 export interface LineStyle { color?: string; w?: number; dash?: "solid" | "dashed" | "dotted" | "dashdot" }
@@ -157,8 +159,36 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   /** the separator under the stats row (an object: drawn; {} = the design's hairline) */ sep?: LineStyle;
   /** the momentum row at the bottom: chips of a change and its caption, merged per entry */ moms?: Record<string, ChartMom>;
   /** the momentum row's label (unset: "MOMENTUM"; "" = none) */ momLabel?: string;
+  /* ---- 4.14 (B55, ADR-015 amendment of 2026-10-23): the subtitle line of any chart card, and the budget-achievement
+     chart. A chart holding either, or of type "progress", is format 10 (ops.ts needsV10) ---- */
+  /** a small grey line under the title ("Latest volume / EoM budget") – text, or a cell's text */ subtitle?: string | DataRef;
+  /** type "progress": where its values and targets come from and how it looks */ progress?: ChartProgress;
   /* ---- 4.14 (B56, model/textparts.ts): the card's texts, its parts' layout and offsets – merged per entry ---- */
   texts?: import("./textparts").TextParts; lay?: import("./textparts").ItemLay; offs?: import("./textparts").Offs }
+/** (B55) a budget-achievement chart: per category a tall bar – a light track standing for 100 % of the category's target,
+    a fill up to value / target, capped at the track –, the achievement % above it, the category's name under it and the
+    gap under that ("+210 over", "1,700 to go"). Its bars' gap is the item's `gap` (Excel's gap width, % of a bar); its
+    value axis and gridlines the item's `axes.y` (show, grid: both off unless set) */
+export interface ChartProgress {
+  /** the values, one per category: one or more rectangles read in order (a range, or single cells) */ vals?: DataRef[];
+  /** the targets likewise; ONE cell is every category's target */ targets?: DataRef[];
+  /** the categories' names: a range, or names typed (else the item's labels, else the text beside the values) */ cats?: DataRef | string[];
+  /** a long table, over vals / targets / cats: per value of column `by` (in the order they first appear) its LAST row with
+      a number in `val` – the latest period – and the target in that row of `target`; the three columns equally tall */
+  table?: { by: DataRef; val: DataRef; target: DataRef };
+  /** the fill, the track and an over-target fill (#RRGGBB; unset: the design's dark, a light grey of it, its positive colour) */
+  fill?: string; track?: string; overFill?: string;
+  /** a bar over its target: "color" fills it in overFill, "mark" draws a small band of overFill at its top; unset / "none": as any bar */
+  over?: "none" | "color" | "mark";
+  /** the achievement % above each bar: off, its number format (default 0.0%), its text (default the design's accent, large, bold) */
+  pct?: { off?: boolean; num?: string; fmt?: TextFmt };
+  /** the category's name under each bar: off, in capitals (default yes), its text */
+  cat?: { off?: boolean; caps?: boolean; fmt?: TextFmt };
+  /** the gap under the name: off, the words after a bar over / under its target (default "over" / "to go"), its sign
+      ("over": "+210 over" and "1,700 to go" – the owner's picture, the default; "both": "−1,700 to go" too; "none"), its
+      number format (default the value cell's, General as #,##0), its text */
+  gap?: { off?: boolean; over?: string; under?: string; sign?: "over" | "both" | "none"; num?: string; fmt?: TextFmt };
+}
 /** (B54) a long table's rows for one value of a column */
 export interface ChartFilter { by: DataRef; eq: string | DataRef }
 /** which way is good for a signed number: up (a rise is green), down (a fall is green), neutral (no colour) */

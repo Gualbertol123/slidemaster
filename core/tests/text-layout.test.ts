@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { strFromU8, unzipSync } from "fflate";
 import { validate, type DisplayList, type Node, type TextNode } from "../src/dl/types";
 import { readWorkbook } from "../src/xlsx/workbook";
-import { applyOps, emptyDoc, inverseOf, knownOp, needsV9 } from "../src/model/ops";
+import { applyOps, docNeedsV10, emptyDoc, inverseOf, knownOp, needsV10, needsV9 } from "../src/model/ops";
 import { runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
@@ -342,6 +342,21 @@ describe("B56 · the ops", () => {
     }
     // removing an entry (null) is not new content
     expect(needsV9(patch("k1", { texts: { value: null }, lay: null, offs: { kv: null } }))).toBe(false);
+  });
+  it("format 10 (B55's needsV10): each new key alone – texts, lay, offs on a KPI card and a chart – raises the deck; removing it does not; a deck holding one is format 10", async () => {
+    for (const p of P) for (const id of ["k1", "cd"]) {
+      expect(needsV10(patch(id, p)), `${id} ${JSON.stringify(p)}`).toBe(true);
+      const k = Object.keys(p)[0];
+      expect(needsV10(patch(id, { [k]: null })), `${id} ${k}: null`).toBe(false);
+      expect(needsV10(patch(id, { [k]: { x: null } })), `${id} ${k}: {x: null}`).toBe(false);
+    }
+    for (const k of ["texts", "lay", "offs"]) {
+      expect(needsV10({ op: "slide.add", after: null, slide: { id: "n", type: "content", tables: [], items: { k: { kind: "kpi", box: { x: 0, y: 0, w: 9, h: 9 }, [k]: { kv: { dx: .1, dy: 0 } } } } } }), k).toBe(true);
+      const { view } = await deck("excel", [patch("k1", { [k]: k === "lay" ? { split: 40 } : k === "texts" ? { value: { b: true } } : { kv: { dx: .1, dy: 0 } } })]);
+      expect(docNeedsV10(view), k).toBe(true);
+    }
+    const { view } = await deck("excel");
+    expect(docNeedsV10(view)).toBe(false);
   });
   it("one drag is one op: its inverse puts the offset back (an earlier offset kept)", async () => {
     const { view } = await deck("excel", [patch("k1", { offs: { kv: { dx: .1, dy: 0 } } })]);

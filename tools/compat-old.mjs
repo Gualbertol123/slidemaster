@@ -57,6 +57,11 @@
             filter – raise the deck to format 9 (incident-format-9.json); every older page (4.0–4.12) gets the 409 wall, the
             deck byte-intact and the B54 item byte-equal. m54-before (4.11, 4.12): a format-8 deck open in the old page,
             which edits a cell and runs Finish in the gap and after the raise -> as m53-before, format 9
+     m55    (4.14, B55) the m54 chart card (format 9), then B55's – a chart subtitle and a budget-achievement chart (type
+            "progress") – raise the deck to format 10 (incident-format-10.json); every older page (4.0–4.13) gets the 409
+            wall, the deck byte-intact and the B55 items byte-equal. m55-before (4.11, 4.12, 4.13): a deck at the old page's
+            highest format (9 for 4.13, 8 for 4.11 / 4.12) open in the old page, which edits a cell and runs Finish in the
+            gap and after the raise to 10 -> as m54-before, format 10
    The old pages are driven through Playwright (open, Continue, a cell typed, ✦ Wizard -> Finish); the 4.6 page's
    objects are made with the page's own change() (window.__sbTest.change: the op path of its buttons). Direct API
    probes are sent from inside the old page with its own headers (X-SB-Token from its meta tag, X-SB-Formats, no
@@ -65,8 +70,8 @@
    No network: the helpers run with SLIDEBUILDER_NO_NET=1 and the browser aborts every request that is not to
    127.0.0.1. Prints one RESULT line per version x case and writes a JSON report.
 
-   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9,4.10,4.11,4.12] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
-        [--cases cp02,a,b,c,d,m14,m15,m16,m52,m53,m54] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
+   node tools/compat-old.mjs [--versions 4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9,4.10,4.11,4.12,4.13] [--pythons "python3.12,py38/bin/python"] [--new-python python3]
+        [--cases cp02,a,b,c,d,m14,m15,m16,m52,m53,m54,m55] [--modes journal,lean-lock] [--port 8961] [--out compat-old.json]
         [--worktrees <dir>] [--keep-worktrees] [--keep-data] [--bump-wait-s N]
    --pythons: the interpreters for the OLD helpers (each version runs once per interpreter; "py -3.8" works on
    Windows). --bump-wait-s sets SLIDEBUILDER_TEST_BUMP_WAIT_S on the 4.6 helper only (default: unset = the real
@@ -88,27 +93,31 @@ const REFS = { "4.0": "v4.0.0", "4.1": "061a5b3", "4.4": "a1d3aba", "4.5": "637f
   "4.9": "v4.9.0",     // (4.9: the released 4.9.0, M16 – main's merge of its release branch, c293100 – the same tree as 7a658ec)
   "4.10": "v4.10.1",   // (4.10: the released 4.10.1, B52 + the .xlsb fix – main's c504829)
   "4.11": "v4.11.0",   // (4.11: the released 4.11.0, B53 – main's f3efa60)
-  "4.12": "v4.12.0" }; // (4.12: the released 4.12.0, the icon window – main's 5eab103)
+  "4.12": "v4.12.0",   // (4.12: the released 4.12.0, the icon window – main's 5eab103)
+  "4.13": "v4.13.1" }; // (4.13: the released 4.13.1, B54 and the label floor – main's 87f0951)
 /** a release tag not yet made in this clone (4.8.0's merge was prepared before the 4.7.0 tag, 4.9.0's before the 4.8.0
     tag): the commit it will name – M14's head d327882, "M14 · 4.7.0: dated, runs recorded"; main's 36d689a, the merge of
     M15 for 4.8.0 (logged when used) */
-const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a", "v4.9.0": "c293100", "v4.10.1": "c504829", "v4.11.0": "f3efa60", "v4.12.0": "5eab103" };
+const REF_FALLBACK = { "v4.7.0": "d327882", "v4.8.0": "36d689a", "v4.9.0": "c293100", "v4.10.1": "c504829", "v4.11.0": "f3efa60", "v4.12.0": "5eab103", "v4.13.1": "87f0951" };
 /** the versions that read format 5 (4.6.0, M13's format guard): cases a–d expect a refusal, so only cp02, m14, m15, m16 and m52 run */
-const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8", "4.9", "4.10", "4.11", "4.12"]);
+const READS_V5 = new Set(["4.6", "4.6p", "4.7", "4.8", "4.9", "4.10", "4.11", "4.12", "4.13"]);
 /** the versions that read format 6 too (4.9.0, AUDIT-3 COMPAT-1): m16 expects them to open the deck and keep its 4.9
     objects through Continue and ✦ Wizard -> Finish; m52's "before" variant runs for them (format 6 -> 7 under the page) */
-const READS_V6 = new Set(["4.9", "4.10", "4.11", "4.12"]);
+const READS_V6 = new Set(["4.9", "4.10", "4.11", "4.12", "4.13"]);
 /** the versions that read format 7 too (4.10, B52): m52 is no wall for them (not run); m53's "before" variant runs for
     them (format 7 -> 8 under the page) */
-const READS_V7 = new Set(["4.10", "4.11", "4.12"]);
+const READS_V7 = new Set(["4.10", "4.11", "4.12", "4.13"]);
 /** the versions that read format 8 too (4.11, 4.12; B53): m53 is no wall for them (not run); m54's "before" variant runs
     for them (format 8 -> 9 under the page) */
-const READS_V8 = new Set(["4.11", "4.12"]);
-const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9,4.10,4.11,4.12").split(",").filter(Boolean);
+const READS_V8 = new Set(["4.11", "4.12", "4.13"]);
+/** the versions that read format 9 too (4.13; B54): m54 is no wall for them (not run); m55's "before" variant runs for
+    them (format 9 -> 10 under the page; for 4.11 / 4.12 it runs from format 8 -> 10) */
+const READS_V9 = new Set(["4.13"]);
+const VERSIONS = arg("--versions", "4.0,4.1,4.4,4.5,4.6,4.6p,4.7,4.8,4.9,4.10,4.11,4.12,4.13").split(",").filter(Boolean);
 const DEFAULT_PY = process.platform === "win32" ? "python" : "python3";
 const PYTHONS = arg("--pythons", DEFAULT_PY).split(",").filter(Boolean);
 const NEW_PY = arg("--new-python", DEFAULT_PY);
-const CASES = arg("--cases", "cp02,a,b,c,d,m14,m15,m16,m52,m53,m54").split(",").filter(Boolean);
+const CASES = arg("--cases", "cp02,a,b,c,d,m14,m15,m16,m52,m53,m54,m55").split(",").filter(Boolean);
 const MODES = arg("--modes", "journal,lean-lock").split(",").filter(Boolean);
 const OUT = path.resolve(arg("--out", path.join(os.tmpdir(), "sb-compat-old", "compat-old.json")));
 const WT = path.resolve(arg("--worktrees", path.join(os.tmpdir(), "sb-compat-old", "worktrees")));
@@ -123,14 +132,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s]`, ...a);
 const sha = b => createHash("sha256").update(b).digest("hex");
-const MARKER5 = "incident-format-5.json", MARKER6 = "incident-format-6.json", MARKER7 = "incident-format-7.json", MARKER8 = "incident-format-8.json", MARKER9 = "incident-format-9.json";
+const MARKER5 = "incident-format-5.json", MARKER6 = "incident-format-6.json", MARKER7 = "incident-format-7.json", MARKER8 = "incident-format-8.json", MARKER9 = "incident-format-9.json", MARKER10 = "incident-format-10.json";
 
 // ---- the core's fold and guard (bundled from this checkout: the same code the 4.6 page runs)
 const { build } = require(require.resolve("esbuild", { paths: [path.join(ROOT, "app")] }));
 const coreJs = path.join(os.tmpdir(), "sb-compat-old", "core-" + process.pid + ".mjs");
 fs.mkdirSync(path.dirname(coreJs), { recursive: true });
 fs.writeFileSync(coreJs, (await build({
-  stdin: { contents: `export { fold, recordOrder } from "./core/src/model/fold"; export { needsV5, docNeedsV5, needsV7, needsV8, needsV9 } from "./core/src/model/ops";`, resolveDir: ROOT, loader: "ts" },
+  stdin: { contents: `export { fold, recordOrder } from "./core/src/model/fold"; export { needsV5, docNeedsV5, needsV7, needsV8, needsV9, needsV10 } from "./core/src/model/ops";`, resolveDir: ROOT, loader: "ts" },
   bundle: true, write: false, platform: "node", format: "esm", target: "es2022", logLevel: "error",
 })).outputFiles[0].text);
 const core = await import(pathToFileURL(coreJs).href);
@@ -1418,6 +1427,173 @@ async function caseM54Before(run, oldDir, py) {
   } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
 }
 
+/** m55 (B55, 4.14): the m54 chart card (format 9), then B55's – a subtitle on it, and a budget-achievement chart (type
+    "progress") of the slide table's numbers against a target cell – as the chart panel and Insert chart ▾ write them */
+function m55Steps(slide, t0) {
+  const r = range => ({ table: t0, range });
+  return [...m54Steps(slide, t0),
+    ["Chart subtitle", [{ op: "item.patch", slide, id: "cpTarget", patch: { subtitle: "Latest volume / EoM budget" } }]],
+    ["Insert budget achievement", [{ op: "item.patch", slide, id: "cpAch", patch: { kind: "chart", type: "progress", title: "BUDGET ACHIEVEMENT", values: r("C6:C8"), box: { x: 1180, y: 200, w: 300, h: 560 },
+      progress: { vals: [r("C6:C8")], targets: [r("C6")], cats: r("B6:B8") } } }]],
+  ];
+}
+/** the B55 items (the chart with its subtitle, the budget-achievement chart), as JSON */
+const m55Item = (doc, slide) => JSON.stringify([doc.preset?.slides.find(s => s.id === slide)?.items?.cpTarget ?? null, doc.preset?.slides.find(s => s.id === slide)?.items?.cpAch ?? null]);
+/** the B55 keys the items hold (the subtitle, the progress chart's type and its `progress`) */
+const m55Marks = doc => { try { const [it, ach] = JSON.parse(doc) || []; return [it?.subtitle ? "subtitle" : "", ach?.type === "progress" ? "type" : "", ach?.progress?.vals ? "progress" : ""].filter(Boolean); } catch { return []; } };
+
+/** m55 (B55, 4.14; ADR-019 amendment): the m54 chart card (format 9), then the new page's chart subtitle and a
+    budget-achievement chart (type "progress") raise the deck to FORMAT 10 (incident-format-10.json); as m54 for format 9;
+    every older page (4.0–4.8 read at most 5, 4.9 reads 6, 4.10 reads 7, 4.11 / 4.12 read 8, 4.13 reads 9) opens it -> PASS only when the open is refused (409 "saved by a newer Slide Builder (format 9)"), the page
+    offers no Continue, no record is written by it, its direct calls (the old page's own token; 4.9's X-SB-Deck-Formats
+    4,5,6, 4.10's 4,5,6,7) are all refused, every file of the deck byte-intact and the B55 items byte-equal (JSON) */
+async function caseM55(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m55");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  let a, b, bob, w;
+  try {
+    a = await openPage(anna, "4.14");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const s1 = pre.slides.filter(s => s.type === "content")[0], t0 = s1.tables[0];
+    for (const [l, ops] of m55Steps(s1.id, t0)) { if (!await change(a, l, ops)) throw new Error("the 4.14 page refused " + l); await sleep(200); }
+    const dir = deckDir(env), key = path.basename(dir);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === 10, 90_000, 500)) throw new Error("the 4.14 page did not raise the deck to 10 (format " + readJson(path.join(dir, "snapshot.json")).format + ")");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.14 page did not save its objects");
+    await closePage(a); a = null;
+    await sleep(2000);
+    const want = m55Item(deckDoc(dir).doc, s1.id), snap0 = readJson(path.join(dir, "snapshot.json"));
+    const snapSha0 = sha(fs.readFileSync(path.join(dir, "snapshot.json"))), files0 = deckFiles(env, dir);
+    if (m55Marks(want).length !== 3) throw new Error("the 4.14 deck lacks a B55 key: " + want.slice(0, 200));
+    w = watchDeck(env, MARKER10);
+    bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+    b = await openPage(bob, run.version);
+    const resp = b.page.waitForResponse(r => r.url().endsWith("/api/decks/open"), { timeout: 30_000 });
+    await openWorkbook(b);
+    const r = await resp, openStatus = r.status();
+    let openError = ""; try { openError = (await r.json()).error || ""; } catch { /* not JSON */ }
+    await sleep(2000);
+    let wiz = "not run", saved = null;
+    const continued = await b.page.locator('[data-a="continue"]').isVisible().catch(() => false);
+    if (openStatus < 400 && continued) {
+      await b.page.click('[data-a="continue"]');
+      await b.page.locator(".thumb").first().waitFor({ timeout: 30_000 }).catch(() => {});
+      try { wiz = await wizardFinish(b); } catch (e) { wiz = "ERROR " + e.message.slice(0, 140); }
+      saved = await waitSaved(b, 30_000);
+      await sleep(3000);
+    }
+    const toast = (await toastText(b)).slice(0, 200);
+    // the old page's own calls (its token; 4.9's deck-formats header as its page sends it) and, for the record, the
+    // 4.10 header against the old helper: every one refused
+    const probes = await probeFromPage(b, key, "bob@pc-bob#cp55prob", snap0, READS_V9.has(run.version) ? "4,5,6,7,8,9" : READS_V8.has(run.version) ? "4,5,6,7,8" : READS_V7.has(run.version) ? "4,5,6,7" : READS_V6.has(run.version) ? "4,5,6" : undefined);
+    const tok = await tokenOf(bob);
+    const probesNoHeader = await probeDirect(bob, key, "bob@pc-bob#cp55prob", snap0, tok, null);
+    const probesHeader10 = await probeDirect(bob, key, "bob@pc-bob#cp55prob", snap0, tok, "4,5,6,7,8,9,10");
+    await sleep(1500);
+    w.stop();
+    const after = deckDoc(dir), got = m55Item(after.doc, s1.id), changed = diffFiles(files0, deckFiles(env, dir));
+    // (every call but the tail refused: a frozen old helper still serves GET …/tail – reads only, of bytes the page it
+    // serves cannot fold without the open and the snapshot, both refused; listed in the report)
+    const refused = o => Object.entries(o).every(([k, v]) => k === "tail" || /^4\d\d/.test(v));
+    const obs = { openStatus, openError: openError.slice(0, 160), toast, continueOffered: continued, wizard: wiz, saved,
+      formatNow: after.snap.format, marker10: fs.existsSync(path.join(dir, MARKER10)), snapshotUnchanged: sha(fs.readFileSync(path.join(dir, "snapshot.json"))) === snapSha0,
+      filesChanged: changed, b55ItemEqual: got === want, b55Marks: m55Marks(got), recordsByOld: [...w.recs.values()].filter(x => x.by === "bob" || /^bob/.test(x.w)).length,
+      probesFromOldPage: probes, probesOldHelperNoDeckFormats: probesNoHeader, probesOldHelperDeckFormats45678910: probesHeader10,
+      pageCalls: statusCounts(b.calls), helperLog: bob.out.filter(l => /409|format/i.test(l)).slice(-4), pageErrors: b.errors.filter(e => !/409|Conflict/.test(e)).slice(0, 4).map(e => e.slice(0, 140)) };
+    const pass = openStatus === 409 && /newer Slide Builder \(format 10\)/.test(openError) && !continued && obs.snapshotUnchanged && !changed.length
+      && obs.recordsByOld === 0 && got === want && obs.b55Marks.length === 3 && after.snap.format === 10 && obs.marker10
+      && refused(probes) && refused(probesNoHeader) && refused(probesHeader10) && noProbeWritten(after.doc);
+    result(run, "m55", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
+/** m55-before (B55; for the format-8 and format-9 readers, 4.11–4.13; as m54-before): a deck at the old page's highest
+    format – 9 for 4.13 (the m54 chart card), 8 for 4.11 / 4.12 (the chart, its reference line and B53's keys) – the old
+    page has it open and edits a cell; then the new page adds the rest (B54's card for 4.11 / 4.12) and B55's subtitle and
+    budget-achievement chart, raising the deck straight to 10; then the new page adds B53's keys (marker 8, wait, raise, Lamport jump) while the
+    4.10 page edits a cell and runs ✦ Wizard -> Finish in the gap and after the raise, and is left alone past the
+    compaction margin -> its edit from before kept, none of its records after the marker folds after the first format-8
+    record, no snapshot / backup / successful compact from it after the marker, it ends read-only, the B53 chart item
+    byte-equal (JSON) and the deck format 9 */
+async function caseM55Before(run, oldDir, py) {
+  const env = scenarioEnv(run.version + "-m55b");
+  const anna = await startHelper({ dir: ROOT, py: NEW_PY, port: nextPort(), user: "anna", env, extra: ext46 });
+  const bob = await startHelper({ dir: oldDir, py, port: nextPort(), user: "bob", env });
+  let a, b, w;
+  const steps = [];
+  try {
+    a = await openPage(anna, "4.14");
+    await wizardNew(a);
+    const pre = await a.page.evaluate(() => window.__sbTest.preset());
+    const s1 = pre.slides.filter(s => s.type === "content")[0], t0 = s1.tables[0];
+    const all = m55Steps(s1.id, t0), base = READS_V9.has(run.version) ? all.length - 2 : 5, oldF = READS_V9.has(run.version) ? 9 : 8, markSteps = all.slice(base);
+    for (const [l, ops] of all.slice(0, base)) {
+      if (!await change(a, l, ops)) throw new Error("the 4.14 page refused " + l); await sleep(200); }
+    const dir = deckDir(env), key = path.basename(dir);
+    if (!await waitFor(() => readJson(path.join(dir, "snapshot.json")).format === oldF, 90_000, 500)) throw new Error("the deck was not raised to " + oldF + " (format " + readJson(path.join(dir, "snapshot.json")).format + ")");
+    if (!await waitSaved(a, 60_000)) throw new Error("the 4.14 page did not save");
+    w = watchDeck(env, MARKER10);
+    b = await openPage(bob, run.version);
+    await continueOpen(b);
+    steps.push("old page open (storage " + b.storage + ", writer " + b.writer + ")");
+    steps.push("edit before: " + await editCell(b, "Alpha", "OldBefore", "C6") + ", saved " + await waitSaved(b, 15_000));
+    await sleep(2500);                                                      // (the new page tails the old edit)
+    if (readJson(path.join(dir, "snapshot.json")).format !== oldF) throw new Error("the deck is not format " + oldF + " before the raise");
+    const t9 = Date.now();
+    for (const [l, ops] of markSteps) { if (!await change(a, l, ops)) throw new Error("the 4.14 page refused " + l); await sleep(150); }
+    const mk = await waitFor(() => w.marker, 20_000, 100);
+    if (!mk) throw new Error("no " + MARKER10 + " after the 4.14 change");
+    steps.push(`marker after ${mk.seenAt - t9} ms`);
+    const gapStart = Date.now();
+    steps.push("gap edit: " + await editCell(b, "Gamma", "OldGap", "C8") + " -> " + (await waitSaved(b, 6000) ? "saved" : (await saveText(b)).slice(0, 80)));
+    try { steps.push("gap wizard: " + await wizardFinish(b) + " -> " + (await waitSaved(b, 6000) ? "saved" : (await saveText(b)).slice(0, 80))); }
+    catch (e) { steps.push("gap wizard: not run (" + e.message.slice(0, 220) + ")"); }
+    steps.push(`gap actions took ${Date.now() - gapStart} ms after the marker was seen`);
+    const raised = await waitFor(() => w.snaps.find(s => s.format === 10), 90_000, 250);
+    if (!raised) throw new Error("the deck was not raised to format 10");
+    steps.push(`raised to 10 (gen ${raised.gen}) ${raised.seenAt - mk.seenAt} ms after the marker`);
+    await waitSaved(a, 30_000);
+    await sleep(1500);
+    steps.push("edit after raise: " + await editCell(b, "OldBefore", "OldAfter", "C6") + " -> " + (await saveText(b)).slice(0, 100));
+    try { steps.push("wizard after raise: " + await wizardFinish(b) + " -> " + (await saveText(b)).slice(0, 100)); }
+    catch (e) { steps.push("wizard after raise: not run (" + e.message.slice(0, 220) + ")"); }
+    const probesOld = await probeFromPage(b, key, b.writer, readJson(path.join(dir, "snapshot.json")), READS_V9.has(run.version) ? "4,5,6,7,8,9" : "4,5,6,7,8");
+    const want = m55Item(deckDoc(dir).doc, s1.id);
+    await closePage(a); a = null;
+    const aloneFrom = Date.now();
+    await sleep(70_000);
+    const sv = { text: (await saveText(b)).slice(0, 160), cls: await saveClass(b) };
+    w.stop();
+    const doc = deckDoc(dir), got = m55Item(doc.doc, s1.id);
+    const recs = [...w.recs.values()];
+    const bobW = new Set(recs.filter(r => r.by === "bob" || (b.writer && r.w === b.writer)).map(r => r.w));
+    const markerAt = mk.at;
+    const recs9 = recs.filter(r => r.ops.some(o => core.needsV10(o)) && !bobW.has(r.w));
+    const first9 = recs9.slice().sort(core.recordOrder)[0];
+    const bobAll = recs.filter(r => bobW.has(r.w));
+    const bobAfter = bobAll.filter(r => (r.at ?? 0) >= markerAt);
+    const late = bobAll.filter(r => first9 && core.recordOrder(r, first9) > 0);
+    const bobSnaps = w.snaps.filter(s => s.by === "bob" && (s.at ?? 0) >= markerAt);
+    let backupsByBob = [];
+    try { const bd = path.join(env.data, "backups", "v4", key); backupsByBob = fs.readdirSync(bd).map(n => readJson(path.join(bd, n))).filter(s => s.by === "bob" && (s.at ?? 0) >= markerAt).map(s => s.gen); } catch { /* none */ }
+    const bobCompacts = b.calls.filter(c => c.path.endsWith("/compact") && c.at >= mk.seenAt && !c.probe);
+    const ro = /read-only|damaged|newer|reload/i.test(sv.text) || /err/.test(sv.cls || "");
+    const editBefore = doc.doc.edits?.SLIDE_1?.C6?.text ?? null;
+    const obs = { storage: b.storage, steps, probesFromOldPage: probesOld, oldPageState: sv,
+      oldRecords: bobAll.map(r => ({ s: r.s, l: r.l, at: r.at - markerAt, ops: r.ops.map(o => o.op).join("+"), journal: r.journal })),
+      first9: first9 ? { l: first9.l, w: first9.w.split("#")[0], at: first9.at - markerAt } : null,
+      oldRecordsFoldingAfter8: late.length, oldRecordsAfterMarker: bobAfter.length, oldSnapshotsAfterMarker: bobSnaps.map(s => s.gen), oldBackupsAfterMarker: backupsByBob,
+      oldCompactCallsAfterMarker: bobCompacts.map(c => c.status), snapshots: w.snaps.map(s => `gen ${s.gen} f${s.format} ${s.by}`),
+      editBeforeKept: editBefore, b55ItemEqual: got === want, b55Marks: m55Marks(got), formatNow: doc.snap.format, probeWritten: !noProbeWritten(doc.doc),
+      aloneSeconds: Math.round((Date.now() - aloneFrom) / 1000), pageCalls: statusCounts(b.calls, mk.seenAt), pageErrors: b.errors.slice(0, 4).map(e => e.slice(0, 140)) };
+    const wizardTried = steps.some(x => /^(gap wizard|wizard after raise): finish/.test(x));
+    obs.wizardTried = wizardTried;
+    const pass = wizardTried && ro && !late.length && !bobSnaps.length && !backupsByBob.length && !bobCompacts.some(c => c.status < 400)
+      && editBefore === "OldBefore" && got === want && m55Marks(got).length === 3 && noProbeWritten(doc.doc) && doc.snap.format === 10 && !!first9;
+    result(run, "m55-before", pass, obs);
+  } finally { if (w) w.stop(); await closePage(a); await closePage(b); await stopHelper(anna); await stopHelper(bob); }
+}
+
 // ================================================================ main
 let failed = false;
 try {
@@ -1440,8 +1616,10 @@ try {
       if (CASES.includes("m52") && READS_V6.has(v) && !READS_V7.has(v)) await step("m52-before", () => caseM52Before(run, oldDir, py));
       if (CASES.includes("m53") && !READS_V8.has(v)) await step("m53", () => caseM53(run, oldDir, py));
       if (CASES.includes("m53") && READS_V7.has(v) && !READS_V8.has(v)) await step("m53-before", () => caseM53Before(run, oldDir, py));
-      if (CASES.includes("m54")) await step("m54", () => caseM54(run, oldDir, py));
-      if (CASES.includes("m54") && READS_V8.has(v)) await step("m54-before", () => caseM54Before(run, oldDir, py));
+      if (CASES.includes("m54") && !READS_V9.has(v)) await step("m54", () => caseM54(run, oldDir, py));
+      if (CASES.includes("m54") && READS_V8.has(v) && !READS_V9.has(v)) await step("m54-before", () => caseM54Before(run, oldDir, py));
+      if (CASES.includes("m55")) await step("m55", () => caseM55(run, oldDir, py));
+      if (CASES.includes("m55") && READS_V8.has(v)) await step("m55-before", () => caseM55Before(run, oldDir, py));
       if (READS_V5.has(v)) { if (!flag("--keep-data")) for (const e of envs.splice(0)) fs.rmSync(e.base, { recursive: true, force: true }); continue; }
       const aged = [];
       if (CASES.includes("a") || CASES.includes("d")) { const r = await step("a", () => caseA(run, oldDir, py)); if (r) aged.push({ ...r, label: "a (made by 4.6)" }); }

@@ -55,6 +55,7 @@ export interface BarSerSem {
   /** drawn with no fill and no line (a waterfall's base, values and labels' carrier; 09 §4.2) – never in the legend */ invisible?: boolean;
   /** per category, the formula of its cell in the embedded workbook (null / unset = the number itself; S14.4 review 3: a
       waterfall's construction columns follow its values in Edit Data). Tokens: {V} the values column's cell of the row,
+      {E1}, {E2}, … (B55) the first, second … extra column's cell of the row,
       {R} the running total's cell of the row, {Rp} the row before's (0 on the first row); {TOP} this column's first value
       (B52: a reference line's rows follow its first) */ f?: (string | null)[];
 }
@@ -75,5 +76,5 @@ export interface BarsSem {
   /** (B52) the secondary axes carry the reference lines across the whole plot: the hidden category axis "on tick marks"
       (the value axis's crossBetween midCat), the hidden value axis with the primary one's bounds (val2) */ refAxis?: boolean;
   /** columns of the embedded workbook after the series' that no series reads (a waterfall's running total, S14.4 review
-      3), and the series whose column {V} names */ book?: { values: number; extra: { name: string; values: (number | null)[]; f: (string | null)[] }[] };
+      3), and the series whose column {V} names */ book?: { values: number; extra: { name: string; values: (number | null)[]; f: (string | null)[]; /** (B55) its cells' number format (unset: the {V} series') */ fmt?: string }[] };
 }
