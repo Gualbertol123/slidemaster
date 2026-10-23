@@ -20,6 +20,9 @@ import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
 import { ISP } from "./isp";
 import { solid } from "../dl/color";
+import type { TextFmt } from "../model/types";
+import { fmtAlign, fmtColor, fmtSize, layNum, layOff, layWord, offOf, partFmt } from "../model/textparts";
+import { fontStack } from "../model/fonts";
 
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const isGeneral = (f: string) => !f || /^general$/i.test(f.trim());
@@ -96,6 +99,13 @@ export function fitText(m: Metrics, text: string, st: St, maxW: number, min: num
   return w(min) <= maxW + .01 ? { text, st: at, cut: false } : { text: ellipsis(m, text, at, Math.max(0, maxW)), st: at, cut: true };
 }
 const MIN_TEXT = 7;
+/** a style with a part's format over it (B56: font, size – 6–150 px –, colour, bold, italic) */
+function styled(st: St, f: TextFmt | undefined): St {
+  if (!f) return st;
+  const z = fmtSize(f), c = fmtColor(f);
+  return { ...st, ...(f.font ? { family: fontStack(f.font) } : {}), ...(z ? { size: z } : {}), ...(f.b !== undefined ? { weight: f.b ? 700 : 400 } : {}),
+    ...(f.i !== undefined ? { italic: !!f.i } : {}), ...(c ? { color: c } : {}) };
+}
 /** the card's nodes (its hit first) and its Issues line */
 export function kpiNodes(it: KpiItem, id: string, box: Box, ctx: RenderCtx, env: KpiEnv): { nodes: Node[]; issue: string | null } {
   const { x, y, w, h } = box, d = ctx.style.design, rk = ctx.style.radius / 100, D = kpiData(it, ctx);
@@ -103,46 +113,80 @@ export function kpiNodes(it: KpiItem, id: string, box: Box, ctx: RenderCtx, env:
   const toneC = (t: "good" | "bad" | "neutral") => t === "good" ? T.pos : t === "bad" ? T.neg : T.zero;
   const label = [D.title, D.value, ...D.rows.map(r => r.text + " " + r.label)].join(" ");
   const cut: string[] = [];
+  // (B56) each text's own format, the layout, the value's and the rows' offsets; on screen the hits the stage drags
+  const F = { head: partFmt(it, "head"), value: partFmt(it, "value"), delta: partFmt(it, "delta"), label: partFmt(it, "label") };
+  const screen = !ctx.forExport, drags: Node[] = [];
+  const dragHit = (key: string, b: Box) => { if (screen) drags.push({ t: "hit", kind: "label", id: `${id}|${key}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)), label: key }); };
+  // (an aligned text in PowerPoint: a text box as wide as its section, aligned there – only when the part's alignment is set)
+  const frameHit = (key: string, b: Box, al: "left" | "center" | "right") => { if (!screen) inner.push({ t: "hit", kind: "kbox", id: `${key}:${al === "center" ? "ctr" : al === "right" ? "r" : "l"}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)) }); };
   // the card per design (as a callout's: shape-dl.ts lookOf)
   const C = isConsult(d) ? specOf(ctx) : null;
   const rad = Math.max(0, Math.min(C ? C.look.card.radius : d === "glass" ? Math.round(14 * rk) : Math.round(6 * rk), w / 2, h / 2));
   const inner: Node[] = [];
   // the header bar: the card's top corners, square at the bottom (one rect, its own corners: PowerPoint keeps it)
-  const hh = r2(Math.max(Math.min(16, h * .4), Math.min(56, h * .26))), head = kpiHeadColor(ctx), rr = r2(Math.min(rad, hh));
-  inner.push({ t: "rect", x: r2(x), y: r2(y), w: r2(w), h: hh, r: [rr, rr, 0, 0], fill: solid(head) });
-  const pad = r2(Math.max(4, Math.min(24, w * .04)));
-  const t0: St = { family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(28, hh * .42))), weight: 700, italic: false, color: lum(head) < .5 ? "#FFFFFF" : "#16181D" };
-  const tf = fitText(env.m, D.title.toUpperCase(), t0, w - 2 * pad, Math.min(t0.size, MIN_TEXT));
-  if (tf.text) inner.push(textNode(env.m, tf.text, x + pad, y + (hh - lineH(tf.st)) / 2, tf.st));
+  const ownH = layNum(it, "headH", 8, 200), bar = !layOff(it, "bar");
+  const hh = r2(ownH !== undefined ? Math.min(ownH, h * .6) : Math.max(Math.min(16, h * .4), Math.min(56, h * .26))), head = kpiHeadColor(ctx), rr = r2(Math.min(rad, hh));
+  if (bar) inner.push({ t: "rect", x: r2(x), y: r2(y), w: r2(w), h: hh, r: [rr, rr, 0, 0], fill: solid(head) });
+  const ownPad = layNum(it, "pad", 0, 80), pad = r2(ownPad !== undefined ? Math.min(ownPad, w / 4) : Math.max(4, Math.min(24, w * .04)));
+  const t0: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(28, hh * .42))), weight: 700, italic: false, color: bar ? lum(head) < .5 ? "#FFFFFF" : "#16181D" : ink }, F.head);
+  const tf = fitText(env.m, F.head?.caps === false ? D.title : D.title.toUpperCase(), t0, w - 2 * pad, Math.min(t0.size, MIN_TEXT));
+  if (tf.text) {
+    const al = fmtAlign(F.head) || "left", tx = al === "center" ? x + w / 2 : al === "right" ? x + w - pad : x + pad;
+    if (fmtAlign(F.head)) frameHit("kh", { x: x + pad, y, w: w - 2 * pad, h: hh }, al);
+    inner.push(textNode(env.m, tf.text, tx, y + (hh - lineH(tf.st)) / 2, tf.st, al));
+  }
   if (tf.cut) cut.push("the title");
   // the body: the value on the left, the divider, the rows on the right
-  const by = y + hh, bh = Math.max(0, h - hh), n = D.rows.length;
-  const vw = n ? w * .36 : w, v0: St = { family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(bh * .45, vw * .3, 120))), weight: 700, italic: false, color: toneC(D.tone) };
+  const by = y + hh, bh = Math.max(0, h - hh), n = D.rows.length, split = layNum(it, "split", 10, 90);
+  const vw = n ? w * (split !== undefined ? split / 100 : .36) : w;
+  const v0: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(bh * .45, vw * .3, 120))), weight: 700, italic: false, color: toneC(D.tone) }, F.value);
   const vf = fitText(env.m, D.value, v0, vw - 2 * pad, Math.min(v0.size, MIN_TEXT * 1.5));
   if (vf.cut) cut.push("the value");
-  if (lineH(vf.st) <= bh + .01) inner.push(textNode(env.m, vf.text, x + pad, by + (bh - lineH(vf.st)) / 2, vf.st));
+  if (lineH(vf.st) <= bh + .01) {
+    const va = layWord(it, "valign", ["top", "middle", "bottom"] as const) || "middle", al = fmtAlign(F.value) || "left", lh = lineH(vf.st), mv = Math.min(bh * .14, (bh - lh) / 2);
+    const vy = va === "top" ? by + mv : va === "bottom" ? by + bh - mv - lh : by + (bh - lh) / 2, o = offOf(it, "kv", { w, h });
+    const vx = al === "center" ? x + vw / 2 : al === "right" ? x + vw - pad : x + pad;
+    const vn = textNode(env.m, vf.text, vx + o.x, vy + o.y, vf.st, al);
+    if (fmtAlign(F.value)) frameHit("kv", { x: x + pad + o.x, y: vy + o.y, w: vw - 2 * pad, h: lh }, al);
+    inner.push(vn);
+    dragHit("kv", { x: (al === "center" ? vx - vn.w / 2 : al === "right" ? vx - vn.w : vx) + o.x, y: vy + o.y, w: vn.w, h: lh });
+  }
   if (n) {
     const dx = r2(x + vw), m = bh * .14;
-    inner.push({ t: "line", x1: dx, y1: r2(by + m), x2: dx, y2: r2(by + bh - m), stroke: { w: 1, paint: solid(T.muted === "#6E6E73" ? "#C7C7CC" : "#D0D5DD") } });
+    if (!layOff(it, "div")) inner.push({ t: "line", x1: dx, y1: r2(by + m), x2: dx, y2: r2(by + bh - m), stroke: { w: 1, paint: solid(T.muted === "#6E6E73" ? "#C7C7CC" : "#D0D5DD") } });
     // rows at a minimum pitch (the text's line and a little air): rows that do not fit the card are not drawn
-    const rs0 = r2(Math.max(MIN_TEXT, Math.min((bh - 2 * m) / n * .62, w * .045, 40))), pitch = Math.max((bh - 2 * m) / n, Math.round(rs0 * 1.25) + 2);
-    const rx = dx + pad, rw = Math.max(0, x + w - pad - rx), cw = rw * .42, fits = Math.max(0, Math.floor((bh - 2 * m) / pitch + .001));
-    const ds0: St = { family: env.family, size: rs0, weight: 700, italic: false, color: T.zero };
-    // the change column: one size for all rows (the widest fits), never cut above the minimum
-    const sz = Math.min(...D.rows.map(r => fitText(env.m, r.text, ds0, cw - 4, MIN_TEXT).st.size), rs0);
+    const own = fmtSize(F.delta), rs0 = own ?? r2(Math.max(MIN_TEXT, Math.min((bh - 2 * m) / n * .62, w * .045, 40)));
+    const place = layWord(it, "rows", ["spread", "top", "middle", "bottom"] as const) || "spread", gap = layNum(it, "rowGap", 0, 80) ?? 4;
+    const pitch = place === "spread" ? Math.max((bh - 2 * m) / n, Math.round(rs0 * 1.25) + 2) : Math.round(rs0 * 1.25) + gap;
+    const rx = dx + pad, rw = Math.max(0, x + w - pad - rx), cw = rw * .42, fits = Math.max(0, Math.floor((bh - 2 * m + (place === "spread" ? 0 : gap)) / pitch + .001));
+    const ds0: St = styled({ family: env.family, size: rs0, weight: 700, italic: false, color: T.zero }, F.delta && { ...F.delta, size: undefined, color: undefined });
+    // the change column: one size for all rows (the widest fits), never cut above the minimum (a size of its own: kept)
+    const sz = own ?? Math.min(...D.rows.map(r => fitText(env.m, r.text, ds0, cw - 4, MIN_TEXT).st.size), rs0);
+    const shown = Math.min(fits, n), block = shown * pitch - (place === "spread" ? 0 : gap);
+    const top0 = place === "top" ? by + m : place === "bottom" ? by + bh - m - block : place === "middle" ? by + (bh - block) / 2 : by + m;
+    const o = offOf(it, "kr", { w, h }), da = fmtAlign(F.delta) || "right", la = fmtAlign(F.label) || "left";
+    const lx0 = rx + cw + 8, lw = Math.max(0, rw - cw - 8);
     D.rows.slice(0, fits).forEach((r, i) => {
-      const ds: St = { ...ds0, size: sz, color: toneC(r.tone) }, ls: St = { family: env.family, size: sz, weight: 400, italic: false, color: T.muted };
-      const top = by + m + i * pitch + (pitch - lineH(ds)) / 2;
+      const ds: St = { ...ds0, size: sz, color: fmtColor(F.delta) ?? toneC(r.tone) };
+      const ls: St = styled({ family: env.family, size: sz, weight: 400, italic: false, color: T.muted }, F.label);
+      const top = top0 + i * pitch + (place === "spread" ? (pitch - lineH(ds)) / 2 : 0) + o.y;
       const f = fitText(env.m, r.text, ds, cw - 4, sz);
       if (f.cut) cut.push(`row ${i + 1}'s change`);
-      inner.push(textNode(env.m, f.text, rx + cw - 4, top, f.st, "right"));
-      if (r.label) inner.push(textNode(env.m, ellipsis(env.m, r.label, ls, Math.max(0, rw - cw - 8)), rx + cw + 8, top, ls));
+      if (fmtAlign(F.delta)) frameHit("kd", { x: rx + o.x, y: top, w: cw - 4, h: lineH(ds) }, da);
+      inner.push(textNode(env.m, f.text, (da === "left" ? rx : da === "center" ? rx + (cw - 4) / 2 : rx + cw - 4) + o.x, top, f.st, da));
+      if (r.label) {
+        const lt = ellipsis(env.m, r.label, ls, lw);
+        if (fmtAlign(F.label)) frameHit("kl", { x: lx0 + o.x, y: top, w: lw, h: lineH(ls) }, la);
+        inner.push(textNode(env.m, lt, (la === "center" ? lx0 + lw / 2 : la === "right" ? lx0 + lw : lx0) + o.x, top, ls, la));
+      }
     });
+    if (shown) dragHit("kr", { x: rx + o.x, y: top0 + o.y, w: rw, h: shown * pitch });
     if (fits < n) D.issues.push(`the card is too small for its rows: ${n - fits} of ${n} not shown`);
   }
   if (cut.length) D.issues.push(`${cut.join(", ")} cut to fit the card (make it larger)`);
   const issue = D.issues.length ? D.issues.join("; ") : null;
   const hit = { kind: "item", id, label };
+  inner.push(...drags);
   if (d === "glass") return { nodes: glassBox("gls wb card kpi", x, y, w, h, rad, env.V, { x: 0, y: 0, scale: 1 }, env.wall, { content: inner, hit }), issue };
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), label };
   const X = r2(x), Y = r2(y), W = r2(w), H = r2(h);

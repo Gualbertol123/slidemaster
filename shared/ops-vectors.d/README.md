@@ -18,3 +18,6 @@ file is such an array with unique names (the helper itself applies no operation)
 
 4.9 (M16): each step its own `m16-<step>.json` – `m16-hidden.json` (S16.1), `m16-versions.json` (S16.2),
 `m16-cells.json` (S16.3), `m16-slides.json` (S13.7's duplicated slide, moved out of the main file by AUDIT-3 VEC-2).
+
+4.14 (B56): `m19-text.json` – an item's `texts` (a part's text format), `lay` (its parts' layout) and `offs` (parts dragged
+on the stage), each merged per entry (a KPI card's and a chart card's).

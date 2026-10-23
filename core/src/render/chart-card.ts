@@ -24,6 +24,9 @@ import { tickText } from "./chart-axes";
 import { ellipsis, font, lineH, textNode, type St } from "./chart-font";
 import { changeOf, changeText, goodColor, goodOf, shownSign, shownZero } from "./deltas";
 import { lineStyleOf, lineStroke } from "./chart-lines";
+import type { TextFmt } from "../model/types";
+import { fmtAlign, fmtColor, fmtSize, layNum, layWord, offOf, partFmt, type CardPart } from "../model/textparts";
+import { fontStack } from "../model/fonts";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const MINUS = "−";
@@ -46,35 +49,50 @@ export const hasCard = (it: ChartItem) => statsOf(it).length > 0 || momsOf(it).l
 export function tagText(it: ChartItem, ctx: RenderCtx): { text: string; issue?: string } {
   const tag = tagOf(it);
   if (!tag) return { text: "" };
-  if (typeof tag.text === "string") return { text: tag.text.trim().toUpperCase() };
+  if (typeof tag.text === "string") return { text: caps(it, "tag", tag.text.trim()) };
   const c = cellOf(tag.text, ctx);
-  return c ? { text: c.text.trim().toUpperCase() } : { text: "", issue: `the tag's cell ${refTarget(tag.text, ctx).source} not found` };
+  return c ? { text: caps(it, "tag", c.text.trim()) } : { text: "", issue: `the tag's cell ${refTarget(tag.text, ctx).source} not found` };
 }
-/** the card's text styles, from the chart's label style */
+/** the card's text styles, from the chart's label style; (B56) each part's own format over it (`it.texts`) */
 export interface CardStyles { label: St; value: St; tag: St; momVal: St; momCap: St; momHead: St }
-export function cardStyles(lab: St, ink: string, muted: string): CardStyles {
+export function cardStyles(lab: St, ink: string, muted: string, it?: ChartItem): CardStyles {
   const s = lab.size, sz = (k: number) => Math.max(6, Math.round(s * k));
+  const own = (st: St, part: CardPart) => it ? partStyle(st, partFmt(it, part)) : st;
   return {
-    label: { ...lab, size: sz(.82), weight: 700, italic: false, color: muted },
-    value: { ...lab, size: sz(1.9), weight: 700, italic: false, color: ink },
-    tag: { ...lab, size: sz(.78), weight: 700, italic: false, color: muted },
-    momHead: { ...lab, size: sz(.86), weight: 700, italic: false, color: ink },
-    momVal: { ...lab, size: sz(.92), weight: 700, italic: false, color: ink },
-    momCap: { ...lab, size: sz(.82), weight: 400, italic: false, color: muted },
+    label: own({ ...lab, size: sz(.82), weight: 700, italic: false, color: muted }, "statLabel"),
+    value: own({ ...lab, size: sz(1.9), weight: 700, italic: false, color: ink }, "statValue"),
+    tag: own({ ...lab, size: sz(.78), weight: 700, italic: false, color: muted }, "tag"),
+    momHead: own({ ...lab, size: sz(.86), weight: 700, italic: false, color: ink }, "momHead"),
+    momVal: own({ ...lab, size: sz(.92), weight: 700, italic: false, color: ink }, "momVal"),
+    momCap: own({ ...lab, size: sz(.82), weight: 400, italic: false, color: muted }, "momCap"),
   };
 }
+/** a style with a part's format over it (6–72 px, as a chart's texts) */
+export function partStyle(st: St, f: TextFmt | undefined): St {
+  if (!f) return st;
+  const z = fmtSize(f, 72), c = fmtColor(f);
+  return { ...st, ...(f.font ? { family: fontStack(f.font) } : {}), ...(z ? { size: z } : {}), ...(f.b !== undefined ? { weight: f.b ? 700 : 400 } : {}),
+    ...(f.i !== undefined ? { italic: !!f.i } : {}), ...(c ? { color: c } : {}) };
+}
+/** (B56) the card's spacing: under the title, above the plot (after the stats row), above the momentum row */
+export const cardGaps = (it: ChartItem) => ({ head: layNum(it, "gapH", 0, 80) ?? 8, plot: layNum(it, "gapP", 0, 120) ?? 10, foot: layNum(it, "gapF", 0, 120) ?? 14 });
+/** (B56) the tag's place: the title line's right corner, or a line of its own under the title */
+export const tagBelow = (it: ChartItem) => layWord(it, "tag", ["right", "below"] as const) === "below";
+const caps = (it: ChartItem, part: CardPart, t: string) => partFmt(it, part)?.caps === false ? t : t.toUpperCase();
 /** the room the card's parts take: above the plot (a tag's own line when there is no title; the stats row and the
     separator) and below it (the momentum row), px */
 export interface CardRoom { tagLine: number; top: number; bottom: number }
 export function cardRoom(it: ChartItem, lab: St, hasTitle: boolean, ctx: RenderCtx): CardRoom {
   if (!hasCard(it)) return { tagLine: 0, top: 0, bottom: 0 };
-  const S = cardStyles(lab, "#000000", "#000000"), sep = sepOf(it), stats = statsOf(it).length, moms = momsOf(it);
-  // (a tag whose text is empty – an empty cell – takes no line)
-  const tagLine = tagOf(it) && !hasTitle && tagText(it, ctx).text ? lineH(S.tag) + 6 : 0;
+  const S = cardStyles(lab, "#000000", "#000000", it), sep = sepOf(it), stats = statsOf(it).length, moms = momsOf(it), G = cardGaps(it);
+  // (a tag whose text is empty – an empty cell – takes no line; B56: a tag placed under the title takes its own line too)
+  const tagLine = tagOf(it) && (!hasTitle || tagBelow(it)) && tagText(it, ctx).text ? lineH(S.tag) + 6 : 0;
   let top = stats ? 2 + lineH(S.label) + 2 + lineH(S.value) + 10 : 0;
   if (sep) top += Math.max(.5, +(sep.w ?? 1) || 1) + 12;
+  // (B56: the space above the plot, over the 10 px the stats row leaves)
+  if (top && G.plot !== 10) top = Math.max(0, top + G.plot - 10);
   const caps = moms.some(([, k]) => capOf(k, null) !== "");
-  const bottom = moms.length ? 14 + lineH(S.momVal) + (caps ? 2 + lineH(S.momCap) : 0) : 0;
+  const bottom = moms.length ? G.foot + lineH(S.momVal) + (caps ? 2 + lineH(S.momCap) : 0) : 0;
   return { tagLine, top, bottom };
 }
 /** a chip's caption: its own, else the automatic one (null: categories unknown yet – only whether there is one) */
@@ -91,20 +109,38 @@ export interface CardFrame {
   /** the rows left out for want of room (a box too small: seriesLayout) */ skip?: { stats?: boolean; sep?: boolean; moms?: boolean };
   series: SerData[]; cats: string[]; /** the value axis's number format (a General cell's fallback) */ num: string;
   lab: St; ink: string; sepColor: string;
+  /** (B56) the chart's box (offsets are fractions of it), the tag's line when it has one of its own, the stage's drag hits */
+  unit?: { w: number; h: number }; tagY?: number; hit?: (key: string, b: { x: number; y: number; w: number; h: number }) => void;
+}
+/** (B56) the x of each chip of a row: from the left in slots (as before 4.14), or as a group centred / spread to both
+    edges, each chip its own width (or the width set) */
+function chipXs(n: number, x0: number, W: number, slot0: number, align: "left" | "center" | "spread", own: number | undefined, widths: number[], gap: number): { x: number; w: number }[] {
+  if (align === "left") { const sl = own ?? slot0; return widths.map((_, j) => ({ x: x0 + j * sl, w: sl })); }
+  const ws = widths.map(w => own ?? Math.ceil(w) + 1), sum = ws.reduce((a, b) => a + b, 0);
+  const g = align === "spread" && n > 1 ? Math.max(0, (W - sum) / (n - 1)) : own ? 0 : gap;
+  let x = align === "spread" && n > 1 ? x0 : x0 + Math.max(0, (W - sum - g * (n - 1)) / 2);
+  return ws.map(w => { const r = { x, w }; x += w + g; return r; });
 }
 /** the card's nodes and its Issues lines */
 export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metrics): { nodes: Node[]; issues: string[] } {
   const out: Node[] = [], issues: string[] = [];
   if (!hasCard(it)) return { nodes: out, issues };
-  const look = targetLook(ctx, F.ink), S = cardStyles(F.lab, F.ink, look.muted), { x: X0, y: Y0, w: W0 } = F.frame;
-  // the corner tag: in the title's line, at its right; else on a line of its own
+  const look = targetLook(ctx, F.ink), S = cardStyles(F.lab, F.ink, look.muted, it), { x: X0, y: Y0, w: W0 } = F.frame;
+  // (B56) a part dragged on the stage: its offset (fractions of the chart's box); the hits the stage drags
+  const unit = F.unit || F.frame, off = (key: string) => offOf(it, key, unit), hit = F.hit || (() => undefined);
+  const own = (part: CardPart) => partFmt(it, part);
+  // the corner tag: in the title's line, at its right; else on a line of its own (B56: also under the title, when asked)
   const tag = tagOf(it);
   if (tag) {
     const T = tagText(it, ctx);
     if (T.issue) issues.push(T.issue);
-    const st = { ...S.tag, color: HEX.test(tag.color || "") ? tag.color!.toUpperCase() : look.muted };
-    const lh = lineH(st), y = F.titleH ? Y0 + (F.titleH - lh) / 2 : Y0;
-    if (T.text) out.push(textNode(m, ellipsis(m, T.text, st, W0 * .45), X0 + W0, y, st, "right"));
+    const st = { ...S.tag, color: fmtColor(own("tag")) ?? (HEX.test(tag.color || "") ? tag.color!.toUpperCase() : look.muted) };
+    const below = tagBelow(it) && F.tagY !== undefined, lh = lineH(st), y = below ? F.tagY! : F.titleH ? Y0 + (F.titleH - lh) / 2 : Y0, o = off("tag");
+    if (T.text) {
+      const al = below ? fmtAlign(own("tag")) || "left" : "right", t = ellipsis(m, T.text, st, below ? W0 : W0 * .45);
+      const n = textNode(m, t, (al === "left" ? X0 : al === "center" ? X0 + W0 / 2 : X0 + W0) + o.x, y + o.y, st, al);
+      out.push(n); hit("tag", { x: n.x, y: y + o.y, w: n.w, h: lh });
+    }
   }
   const on = (x: unknown) => Object.values(isObj(x) ? x : {}).filter(v => isObj(v) && !v.off).length;
   if (on(it.stats) > MAX_STATS) issues.push(`the stats row draws ${MAX_STATS} chips: ${on(it.stats) - MAX_STATS} more not drawn`);
@@ -121,9 +157,9 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   let y = F.top;
   if (stats.length) {
     const slot = W0 / Math.max(3, stats.length), lhL = lineH(S.label);
-    stats.forEach(([sid, k], j) => {
+    const chips = stats.map(([sid, k]) => {
       const s = serOf(k.s), P = pts(s), last = P[P.length - 1], fmt = fmtOf(s, k.num);
-      let text = "–", col = F.ink, d: number | null = null;
+      let text = "–", col = fmtColor(own("statValue")) ?? F.ink, d: number | null = null;
       const R = k.ref ? refs.find(r => r.id === k.ref) : refs[0];
       switch (k.src) {
         case "first": case "last": case "prev": case "min": case "max": {
@@ -158,9 +194,19 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
       }
       const bySign = typeof k.signs === "boolean" ? k.signs : k.src === "gap" || k.src === "gapPct";
       if (bySign && d !== null) col = goodColor(d, goodOf(k.good), look, F.ink);
-      const x = X0 + j * slot, w = Math.max(1, slot - 12);
-      out.push(textNode(m, ellipsis(m, label(k, sid).toUpperCase(), S.label, w), x, y + 2, S.label));
-      out.push(textNode(m, ellipsis(m, text, { ...S.value, color: col }, w), x, y + 2 + lhL + 2, { ...S.value, color: col }));
+      const lt = caps(it, "statLabel", label(k, sid)), vs = { ...S.value, color: col };
+      return { sid, lt, text, vs, w: Math.max(m.run(lt, font(S.label)).w, m.run(text, font(vs)).w) };
+    });
+    // (B56) the row: from the left in thirds (as before), centred or spread; each chip's texts aligned in it
+    const align = layWord(it, "stats", ["left", "center", "spread"] as const) || "left", sw = layNum(it, "statW", 5, 100);
+    const xs = chipXs(chips.length, X0, W0, slot, align, sw !== undefined ? W0 * sw / 100 : undefined, chips.map(c => c.w), 24);
+    const la = fmtAlign(own("statLabel")) || "left", va = fmtAlign(own("statValue")) || "left";
+    chips.forEach((c, j) => {
+      const { x, w: cw } = xs[j], w = align === "left" ? Math.max(1, cw - 12) : Math.max(1, cw), o = off("st:" + c.sid);
+      const at = (a: "left" | "center" | "right") => (a === "center" ? x + w / 2 : a === "right" ? x + w : x) + o.x;
+      out.push(textNode(m, ellipsis(m, c.lt, S.label, w), at(la), y + 2 + o.y, S.label, la));
+      out.push(textNode(m, ellipsis(m, c.text, c.vs, w), at(va), y + 2 + lhL + 2 + o.y, c.vs, va));
+      hit("st:" + c.sid, { x: x + o.x, y: y + 2 + o.y, w: Math.min(w, Math.max(c.w, 8)) + (la === "left" && va === "left" ? 0 : w - Math.min(w, Math.max(c.w, 8))), h: lhL + 2 + lineH(c.vs) });
     });
     y += 2 + lhL + 2 + lineH(S.value) + 10;
   }
@@ -173,13 +219,17 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   // the momentum row
   const moms = F.skip?.moms ? [] : momsOf(it);
   if (moms.length) {
-    const head = typeof it.momLabel === "string" ? it.momLabel.trim() : "MOMENTUM", y0 = F.bottom + 14;
+    const head = typeof it.momLabel === "string" ? it.momLabel.trim() : "MOMENTUM", y0 = F.bottom + cardGaps(it).foot, ht = caps(it, "momHead", head);
     let x0 = X0;
-    if (head) { out.push(textNode(m, ellipsis(m, head.toUpperCase(), S.momHead, W0 * .3), X0, y0, S.momHead)); x0 = X0 + Math.min(W0 * .3, m.run(head.toUpperCase(), font(S.momHead)).w) + 28; }
+    if (head) {
+      const o = off("mh"), n = textNode(m, ellipsis(m, ht, S.momHead, W0 * .3), X0 + o.x, y0 + o.y, S.momHead);
+      out.push(n); hit("mh", { x: n.x, y: y0 + o.y, w: n.w, h: lineH(S.momHead) });
+      x0 = X0 + Math.min(W0 * .3, m.run(ht, font(S.momHead)).w) + 28;
+    }
     const slot = Math.max(10, (X0 + W0 - x0) / Math.max(3, moms.length));
-    moms.forEach(([mid, k], j) => {
+    const chips = moms.map(([mid, k]) => {
       const s = serOf(k.s), P = pts(s), last = P[P.length - 1], fmt = fmtOf(s, k.num), show = k.show === "abs" || k.show === "pct" ? k.show : "both";
-      let base: number | null = null, auto = "", text = "–", col = F.ink;
+      let base: number | null = null, auto = "", text = "–", col = fmtColor(own("momVal")) ?? F.ink;
       const name = (i: number) => (F.cats[i] || "").trim();
       switch (k.vs) {
         case "first": if (P[0]) { base = P[0].v; auto = "vs " + name(P[0].i); } break;
@@ -201,11 +251,20 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
         const c = changeOf(last.v, base);
         text = changeText(c, show, fmt);
         if (c.pct === null && show !== "abs") issues.push(`momentum '${mid}': the value compared with is 0 – no %`);
-        col = goodColor(shownSign(c, show, fmt), goodOf(k.good), look, F.ink);
+        col = goodColor(shownSign(c, show, fmt), goodOf(k.good), look, fmtColor(own("momVal")) ?? F.ink);
       }
-      const x = x0 + j * slot, w = Math.max(1, slot - 10), cap = capOf(k, auto);
-      out.push(textNode(m, ellipsis(m, text, { ...S.momVal, color: col }, w), x, y0, { ...S.momVal, color: col }));
-      if (cap) out.push(textNode(m, ellipsis(m, cap, S.momCap, w), x, y0 + lineH(S.momVal) + 2, S.momCap));
+      const cap = capOf(k, auto), vs = { ...S.momVal, color: col };
+      return { mid, text, cap, vs, w: Math.max(m.run(text, font(vs)).w, cap ? m.run(cap, font(S.momCap)).w : 0) };
+    });
+    const align = layWord(it, "moms", ["left", "center", "spread"] as const) || "left", mw = layNum(it, "momW", 5, 100);
+    const xs = chipXs(chips.length, x0, X0 + W0 - x0, slot, align, mw !== undefined ? W0 * mw / 100 : undefined, chips.map(c => c.w), 24);
+    const va = fmtAlign(own("momVal")) || "left", ca = fmtAlign(own("momCap")) || "left";
+    chips.forEach((c, j) => {
+      const { x, w: cw } = xs[j], w = align === "left" ? Math.max(1, cw - 10) : Math.max(1, cw), o = off("mo:" + c.mid);
+      const at = (a: "left" | "center" | "right") => (a === "center" ? x + w / 2 : a === "right" ? x + w : x) + o.x;
+      out.push(textNode(m, ellipsis(m, c.text, c.vs, w), at(va), y0 + o.y, c.vs, va));
+      if (c.cap) out.push(textNode(m, ellipsis(m, c.cap, S.momCap, w), at(ca), y0 + lineH(S.momVal) + 2 + o.y, S.momCap, ca));
+      hit("mo:" + c.mid, { x: x + o.x, y: y0 + o.y, w: va === "left" && ca === "left" ? Math.min(w, Math.max(c.w, 8)) : w, h: lineH(S.momVal) + (c.cap ? 2 + lineH(S.momCap) : 0) });
     });
   }
   return { nodes: out, issues };

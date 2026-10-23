@@ -17,6 +17,7 @@ export interface ChartSem {
   /** (4.7, S14.6) the arrow and line marks over the chart, slide px: each written as one plain line shape from a to b
       with native ends (a:headEnd at a, a:tailEnd at b; never p:cxnSp) – pptx/chart-overlay.ts */
   arrows?: ArrowSem[];
+  /** (B56) the legend's own font (unset: labelFont) */ legendFont?: FontSem;
 }
 export interface ArrowSem { a: { x: number; y: number }; b: { x: number; y: number }; stroke: Stroke; head?: Head; tail?: Head; size?: Heads["size"];
   /** (S14.6 review 6) its place in the chart's overlay: the count of the overlay's nodes drawn under it (unset: over all) */

@@ -26,7 +26,9 @@ export type Side = "top" | "bottom" | "left" | "right";
 /** text box next to a table; key in SlideDef.notes = "<tableId>:<side>" */
 /** formatting of one piece of slide text (titles, cover texts, text boxes, deck text styles); size in slide px */
 export interface TextFmt { font?: string; size?: number; b?: boolean; i?: boolean; color?: string; align?: "left" | "center" | "right";
-  /** line spacing (1 = single) */ lh?: number }
+  /** line spacing (1 = single) */ lh?: number;
+  /** (B56) a part's text in capitals (an item's `texts` only: the KPI card's title, a stat label, the tag, the momentum
+      label – default on there) */ caps?: boolean }
 /** deck-wide text styles: one per kind of text, so all text of a kind is edited in one place */
 export type TextRole = "title" | "subtitle" | "table" | "note" | "index" | "pageno";
 /** slide texts that can be formatted one by one (stored in SlideDef.fmt) */
@@ -154,7 +156,9 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   /** the small tag in the title line's right corner ("ILLUSTRATIVE") – text or a cell, its colour */ tag?: { text: string | DataRef; color?: string };
   /** the separator under the stats row (an object: drawn; {} = the design's hairline) */ sep?: LineStyle;
   /** the momentum row at the bottom: chips of a change and its caption, merged per entry */ moms?: Record<string, ChartMom>;
-  /** the momentum row's label (unset: "MOMENTUM"; "" = none) */ momLabel?: string }
+  /** the momentum row's label (unset: "MOMENTUM"; "" = none) */ momLabel?: string;
+  /* ---- 4.14 (B56, model/textparts.ts): the card's texts, its parts' layout and offsets – merged per entry ---- */
+  texts?: import("./textparts").TextParts; lay?: import("./textparts").ItemLay; offs?: import("./textparts").Offs }
 /** (B54) a long table's rows for one value of a column */
 export interface ChartFilter { by: DataRef; eq: string | DataRef }
 /** which way is good for a signed number: up (a rise is green), down (a fall is green), neutral (no colour) */
@@ -271,15 +275,16 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
-type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms";
-type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach"> & Omit<KpiItem, "kind" | "box" | "attach">;
+type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms" | "texts" | "lay" | "offs";
+type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach"> & Omit<KpiItem, "kind" | "box" | "attach" | ItemMaps>;
 /** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
   sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;
   axes?: Partial<Record<"x" | "y" | "y2", ChartAxis | null>> | null; marks?: Record<string, ChartMark | null> | null;
   nudge?: Record<string, { dx: number; dy: number } | null> | null;
   stats?: Record<string, ChartStat | null> | null; moms?: Record<string, ChartMom | null> | null;
-  legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
+  legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null;
+  /* (B56) */ texts?: Record<string, TextFmt | null> | null; lay?: Record<string, string | number | boolean | null> | null; offs?: Record<string, { dx: number; dy: number } | null> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null; hidden?: Record<string, true | null> | null } }

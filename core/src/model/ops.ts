@@ -20,7 +20,8 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
   /* 4.13 (B54): the chart card's filter, tag, separator and momentum label; a KPI card's keys (model/kpi.ts) */
   "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num"] as const;
-const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms"] as const;
+const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms",
+  /* 4.14 (B56, model/textparts.ts): a part's text format, the parts' layout, their offsets */ "texts", "lay", "offs"] as const;
 const ITEM_KINDS = ["chart", "shape", "line", /* 4.13 (B54) */ "kpi"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */

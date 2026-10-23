@@ -348,7 +348,7 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   // (review 6: each with its place among the overlay's nodes, so that it stacks as on the slide)
   const at = arrowPlaces(L), arrows = L.marks.arrows.map(({ drop: _d, ...a }, k) => ({ ...a, at: at[k] }));
   return {
-    ...(arrows.length ? { arrows } : {}),
+    ...(arrows.length ? { arrows } : {}), ...(L.legendSt ? { legendFont: fontSem(L.legendSt) } : {}),
     type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
     labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
     legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,

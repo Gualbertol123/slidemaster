@@ -249,7 +249,7 @@ function barXml(ch: ChartSem, B: BarsSem, rid: string, face: (css: string) => st
   const Lg = B.legend;
   const legend = Lg ? `<c:legend><c:legendPos val="${Lg.pos}"/>${Lg.hide.map(i => `<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`).join("")}`
     + `${manual({ x: Lg.box.x - 4, y: Lg.box.y - 2, w: Lg.box.w + 8, h: Lg.box.h + 4 }, frame, false)}<c:overlay val="${Lg.overlay ? 1 : 0}"/>`
-    + `${Lg.overlay ? `<c:spPr><a:solidFill>${clr([255, 255, 255], .85)}</a:solidFill>${lnOf({ color: "#D9D9D9", w: 1 })}</c:spPr>` : ""}${txPr(ch.labelFont, face)}</c:legend>` : "";
+    + `${Lg.overlay ? `<c:spPr><a:solidFill>${clr([255, 255, 255], .85)}</a:solidFill>${lnOf({ color: "#D9D9D9", w: 1 })}</c:spPr>` : ""}${txPr(ch.legendFont ?? ch.labelFont, face)}</c:legend>` : "";
   return XML_HEAD + `<c:chartSpace xmlns:c="${NS.c}" xmlns:a="${NS.a}" xmlns:r="${NS.r}"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>`
     + `<c:chart>${title}<c:plotArea>${manual(B.plot, frame, true)}${chartPart}${X ? "" : catAx}${valAx}${second}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
     + `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${txPr(ch.labelFont, face)}<c:externalData r:id="${rid}"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>`;
