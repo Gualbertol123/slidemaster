@@ -65,6 +65,10 @@ async function openPlain(page: Page, url: string) {
   await expect(page.locator("#fileName")).toHaveText(/^B54\.xlsx · \d+ slides?/, { timeout: 30_000 });
 }
 const undoSteps = (page: Page) => page.evaluate(() => (window as any).__sbTest.history().undo as number);
+/** the page's history mirror counts the change labelled `label` as its last step. change() returns at once (the page's own
+    prediction); the worker sends its history with the next document event, after the redraws queued before it – under
+    load seconds later – so a count read before that is one step short (4.13.2: the line-128 failure) */
+const counted = (page: Page, label: string) => expect.poll(() => page.evaluate(() => (window as any).__sbTest.history().undoLabel as string), { timeout: 30_000 }).toBe(label);
 const change = (page: Page, label: string, ops: object[]) => page.evaluate(([l, o]) => (window as any).__sbTest.change(l, o), [label, ops] as const);
 async function exported(page: Page, click: () => Promise<unknown>): Promise<string[]> {
   await page.evaluate(() => { (window as any).__sbTest.lastExport.files = []; });
@@ -92,7 +96,7 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await saved(page);
     const slides0 = () => ((doc().preset?.slides || []) as any[]);
     // the owner's slide: a slide of its own (whatever the wizard made), first
-    await change(page, "New slide", [{ op: "slide.add", slide: { id: "b54s", type: "content", title: HEADLINE, tables: [] }, after: null }]);
+    expect(await change(page, "New slide", [{ op: "slide.add", slide: { id: "b54s", type: "content", title: HEADLINE, tables: [] }, after: null }])).toBe(true);
     await pollFile(() => slides0().some(s => s.id === "b54s"), { timeout: 20_000 }).toBe(true);
     const k = slides0().findIndex(s => s.id === "b54s"), S = slides0()[k];
     await page.locator(`.thumb[data-i="${k}"]`).click(); await page.locator(`.thumb.on[data-i="${k}"]`).waitFor();
@@ -100,6 +104,7 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await expect(page.locator("#stage .emptyslide")).toBeVisible({ timeout: 20_000 });
 
     // KPI cards from table: the sheet view, KPI!A1:H5, one step – four cards, one per product
+    await counted(page, "New slide");
     let u = await undoSteps(page);
     await page.click("#chartBtn");
     await page.click('[data-a="kpi-pick"]');
@@ -110,7 +115,7 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await expect(page.locator("#pkSel")).toHaveText("A1:H5");
     await page.click("#pkUse");
     await expect(page.locator("#pickCells")).toHaveCount(0);
-    await expect.poll(() => undoSteps(page)).toBe(u + 1);
+    await expect.poll(() => undoSteps(page), { timeout: 30_000 }).toBe(u + 1);
     const items = () => (slides0().find(s => s.id === S.id).items || {}) as Record<string, any>;
     await pollFile(() => Object.values(items()).filter(i => i.kind === "kpi").length, { timeout: 20_000 }).toBe(4);
     // (4.13.2, image 20) KPI cards and no table: not an empty slide – no hint over the cards
@@ -119,13 +124,15 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     expect(kpis.map(([, i]) => i.head)).toEqual(["A2", "A3", "A4", "A5"].map(range => ({ sheet: "KPI", range })));
     // the row as the owner's picture: four cards across, the two chart cards under them
     const w = 350, gap = 26, x0 = 61;
-    await change(page, "KPI row", kpis.map(([id], j) => ({ op: "item.patch", slide: S.id, id, patch: { box: { x: x0 + j * (w + gap), y: 180, w, h: 130 } } })));
+    expect(await change(page, "KPI row", kpis.map(([id], j) => ({ op: "item.patch", slide: S.id, id, patch: { box: { x: x0 + j * (w + gap), y: 180, w, h: 130 } } })))).toBe(true);
+    await counted(page, "KPI row");
+    expect(await undoSteps(page)).toBe(u + 2);
     u = await undoSteps(page);
-    await change(page, "Insert chart cards", [
+    expect(await change(page, "Insert chart cards", [
       // (4.13.2, image 20) the Loans card as the owner's deck holds it: its names the Product column, the filter's column too
       { op: "item.patch", slide: S.id, id: "cl", patch: { ...volumeCard("Loans", "D2", { x: x0, y: 340, w: 725, h: 520 }, { text: "Actual loans" }), labels: { sheet: "Volumes", range: "A2:A9" } } },
-      { op: "item.patch", slide: S.id, id: "cd", patch: volumeCard("Deposits", "D6", { x: x0 + 725 + gap, y: 340, w: 725, h: 520 }, { text: "Illustrative", color: "#D93025" }) }]);
-    await expect.poll(() => undoSteps(page)).toBe(u + 1);
+      { op: "item.patch", slide: S.id, id: "cd", patch: volumeCard("Deposits", "D6", { x: x0 + 725 + gap, y: 340, w: 725, h: 520 }, { text: "Illustrative", color: "#D93025" }) }])).toBe(true);
+    await expect.poll(() => undoSteps(page), { timeout: 30_000 }).toBe(u + 1);
     await pollFile(() => items().cd?.filter?.eq, { timeout: 20_000 }).toBe("Deposits");
     // format 9: the marker and the snapshot
     await pollFile(() => fs.existsSync(path.join(deckDir(BOOK)!, "incident-format-9.json")), { timeout: 40_000 }).toBe(true);
