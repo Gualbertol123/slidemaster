@@ -35,10 +35,22 @@ describe("4.13.2 · the empty slide's hint", () => {
     expect(emptySlide(R({ items: { k1: { kind: "kpi", head: { sheet: "KPI", range: "A2" }, box } as never, cl: { kind: "chart", type: "line", values: { sheet: "Volumes", range: "C2:C9" }, box } } }))).toBe(false);
     for (const it of [{ kind: "shape", shape: "rect", box }, { kind: "line", route: "straight", a: { x: 0, y: 0 }, b: { x: 9, y: 9 }, box }, { kind: "sticker", box }])
       expect(emptySlide(R({ items: { i1: it as never } })), it.kind).toBe(false);
-    expect(emptySlide(R({ notes: { "t1:right": { text: "Note" } } }))).toBe(false);
+    // the slide's notes section is drawn on its own; a removed (or missing) table's text box is not drawn at all
+    expect(emptySlide(R({ notes: { "slide:notes": { text: "Source: ALM" } } }))).toBe(false);
+    expect(emptySlide(R({ notes: { "t1:right": { text: "Note" } } }))).toBe(true);
+    expect(emptySlide({ ...R({ notes: { "t1:right": { text: "Note" } } }), missing: 1 } as RuntimeSlide)).toBe(true);
     expect(emptySlide(R({}, [{}]))).toBe(false);
     expect(emptySlide(R({}, [], "cover"))).toBe(false);
     expect(emptySlide(R({ items: { gone: null as never } }))).toBe(true);           // (a removed item's leftover)
+  });
+  it("review of PR #43: the only table removed (table.remove keeps its right-side text box): blank, so the hint and the Issues line", () => {
+    const ops: Op[] = [{ op: "preset.set", preset: { sheets: ["Volumes"], tables: [{ id: "t1", sheet: "Volumes", kind: "range", range: "A1:D9" }], slides: [{ id: "s", type: "content", tables: ["t1"], notes: { "t1:right": { text: "Loans grew" } } }] } }];
+    const before = applyOps(emptyDoc("B54.xlsx"), ops).doc.preset!.slides[0];
+    expect(emptySlide(R(before, [{}]))).toBe(false);
+    const after = applyOps(emptyDoc("B54.xlsx"), [...ops, { op: "table.remove", id: "t1", slide: "s" }]).doc.preset!.slides[0];
+    expect([after.tables, Object.keys(after.notes || {})]).toEqual([[], ["t1:right"]]);
+    expect(emptySlide(R(after))).toBe(true);
+    expect(slideIssues(R(after), { slides: [], edits: {}, preset: null, style: resolveStyle({}, { design: "excel" } as never) } as never).map(x => x.html)).toContain("No tables on this slide.");
   });
   it("the Issues panel: \"No tables on this slide.\" only on an empty slide", () => {
     const html = (S: RuntimeSlide) => slideIssues(S, { slides: [S], edits: {}, preset: null, style: resolveStyle({}, { design: "excel" } as never) } as never).map(x => x.html);

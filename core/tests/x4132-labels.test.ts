@@ -78,4 +78,14 @@ describe("4.13.2 · a filtered chart's categories are never its filter column", 
     expect(plain.ok && plain.cats).toEqual(["Loans", "Loans", "Loans", "Loans"]);
     expect(plain.ok && plain.issues).toEqual(["every category is named “Loans”: choose the names in Change the cells… (e.g. the Period column)"]);
   });
+  it("review of PR #43: groups of one category each named alike (\"Total\") are no Issues line; a filtered chart whose only text column is the filter's is numbered by the rows drawn", async () => {
+    const { ctx, it: c } = await deck(loans(V("B2:B9")));
+    const grouped = seriesData({ ...c, filter: undefined, labels: undefined, groups: { g1: { n: 1, cats: ["Total"], label: "Loans" }, g2: { n: 2, cats: ["Total"], label: "Deposits" } },
+      sers: { a: { n: 1, vals: [V("C5")], group: "g1" }, b: { n: 2, vals: [V("C9")], group: "g2" } } }, ctx);
+    expect(grouped.ok && [grouped.cats, grouped.issues]).toEqual([["Total", "Total"], []]);
+    // the KPI sheet: Product (A) the only text column; filtered on it, the WM row (the 3rd of the table) is category 1
+    const K = (range: string) => ({ sheet: "KPI", range });
+    const one = seriesData({ ...c, labels: undefined, values: K("C2:C5"), sers: { vol: { n: 1, vals: [K("C2:C5")] } }, filter: { by: K("A2:A5"), eq: "WM" }, marks: undefined, stats: undefined, moms: undefined }, ctx);
+    expect(one.ok && one.cats).toEqual(["1"]);
+  });
 });

@@ -159,7 +159,11 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     expect(sx).toBeTruthy();
     for (const s of ["DEPOSITS", "vs prev. Week", "MOMENTUM", "GAP TO BUDGET", 'name="KPI card ']) expect(sx, s).toContain(s);
     expect(sx).not.toContain("<p:cxnSp");
-    expect(sx).not.toContain("No tables");                                   // (4.13.2: the stage's hint is never exported)
+    // (4.13.2) the Loans chart (its numbers 11576 …, stored with the Product names): its categories in PowerPoint are the periods
+    const lx = Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).map(n => strFromU8(z[n])).find(x => /<c:v>11576<\/c:v>/.test(x))!;
+    expect(lx).toBeTruthy();
+    const cats = [...(/<c:cat>([\s\S]*?)<\/c:cat>/.exec(lx)?.[1] || "").matchAll(/<c:v>([^<]*)<\/c:v>/g)].map(m => m[1]);
+    expect(cats).toEqual(["Q3", "W37", "W38", "W39"]);
     expect(Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).length).toBeGreaterThanOrEqual(2);
     // PDF: the numbers as text
     const pdf = read((await exported(page, () => page.click("#exportBtn")))[0]).toString("latin1");
