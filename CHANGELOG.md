@@ -3,6 +3,29 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.1 - 2026-10-23
+
+What users notice
+* **A line's value labels stay inside the chart** (the owner's B54 slide): with the axis's minimum close to a dip (the
+  Deposits card on 6,900–9,100, W39 at 7,000), the *Auto* label under the point ran past the plot's bottom over the
+  category label "W39". *Auto* now puts such a label on the other side of its point; likewise a peak's label that would
+  run into the title, the stats or the card's header goes below it. Where neither side has room the label goes on the
+  side with more and is kept inside the plot. A place you chose for a series or a point (above, below, …) is kept, only
+  moved inside the plot (clear of the category labels and of the title, stats and header above). A label you dragged
+  is left exactly where you dropped it (as 4.13.0 drew it). PowerPoint shows the same.
+* Charts where no label reached past the plot draw exactly as in 4.13.0.
+
+Details
+- 4.13.1 · chart-series.ts: in "auto", a line point's label above / below takes the other side when its own crosses the plot's bottom (the category labels) or the room above the plot (the area's top: title, stats, legend, card header) and the other fits, else the side with more room; every place is then held inside (half a px tolerance); the collision order after it (other side, then right / left) is unchanged. A place the user set (series or point) keeps its side and is held inside the same way (tested against its own line where its place would put it). A dragged label (nudge) is neither flipped nor held: its place plus its offset is exactly 4.13.0's, on the slide and in PowerPoint (the nudge is an offset from that place). PowerPoint: the flipped side is the dLbl's dLblPos; a held label's shift goes into its manualLayout (with a nudge, as B53's). labelRoomAbove repeats (up to 4 passes, the first pass's tick count kept) while a label above a peak under a typed or cell max lacks more than half a px. No format change. Tests: core/tests/label-floor.test.ts.
+
+Under the hood
+* e2e RZ-01 (responsive.spec.ts) failed now and then (CI on PR #42): it read a toolbar's `data-has-more` right after
+  `setViewportSize`, before the page's `resize` event (where OverflowBar measures again) had run – the marks of the
+  previous window size – then waited 90 s on a More ▾ button the new size had hidden. The app was right; the spec now
+  resizes through `resize()` (one animation frame: Chromium dispatches `resize` before it) and checks a bar's
+  `data-has-more` and its More button in one read. New RZ-04: right after `resize()` the marks are the new width's
+  (fails 5 of 5 without the wait).
+
 ## 4.13.0 - 2026-10-23
 
 What users notice
