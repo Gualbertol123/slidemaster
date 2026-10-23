@@ -97,12 +97,12 @@ export function cardRoom(it: ChartItem, lab: St, hasTitle: boolean, ctx: RenderC
   const S = cardStyles(lab, "#000000", "#000000", it), sep = sepOf(it), stats = statsOf(it).length, moms = momsOf(it), G = cardGaps(it);
   // (a tag whose text is empty – an empty cell – takes no line; B56: a tag placed under the title takes its own line too)
   const tagLine = tagOf(it) && (!hasTitle || tagBelow(it)) && tagText(it, ctx).text ? lineH(S.tag) + 6 : 0;
-  let top = stats ? 2 + lineH(S.label) + 2 + lineH(S.value) + 10 : 0;
+  // (B56: the space after the stats row – above the separator and the plot – from the layout, 10 px unless set)
+  let top = stats ? 2 + lineH(S.label) + 2 + lineH(S.value) + G.plot : 0;
   // (B55) the subtitle's line, right under the title (a subtitle whose text is empty – an empty cell – takes none)
   if (subOf(it) && subtitleText(it, ctx).text) top += subRoom(S);
   if (sep) top += Math.max(.5, +(sep.w ?? 1) || 1) + 12;
   // (B56: the space above the plot, over the 10 px the stats row leaves)
-  if (top && G.plot !== 10) top = Math.max(0, top + G.plot - 10);
   const caps = moms.some(([, k]) => capOf(k, null) !== "");
   const bottom = moms.length ? G.foot + lineH(S.momVal) + (caps ? 2 + lineH(S.momCap) : 0) : 0;
   return { tagLine, top, bottom };
@@ -167,7 +167,8 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   if (on(it.stats) > MAX_STATS) issues.push(`the stats row draws ${MAX_STATS} chips: ${on(it.stats) - MAX_STATS} more not drawn`);
   if (on(it.moms) > MAX_MOMS) issues.push(`the momentum row draws ${MAX_MOMS} chips: ${on(it.moms) - MAX_MOMS} more not drawn`);
   if (F.skip?.moms) issues.push("the chart is too small for its momentum row: not drawn");
-  if (F.skip?.stats) issues.push("the chart is too small for its stats row: not drawn");
+  // ((B55) the subtitle goes with the stats row: named too)
+  if (F.skip?.stats) { const gone = [subOf(it) ? "subtitle" : "", statsOf(it).length ? "stats row" : ""].filter(Boolean); if (gone.length) issues.push(`the chart is too small for its ${gone.join(" and ")}: not drawn`); }
   // the series a chip reads (its own, else the first) and its values
   const serOf = (sid: string | undefined) => (sid ? F.series.find(s => s.id === sid) : null) || F.series[0] || null;
   const fmtOf = (s: SerData | null, num?: string) => typeof num === "string" && num.trim() ? num : s && !isGeneral(s.fmt) ? s.fmt : F.num || "General";
@@ -228,7 +229,7 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
       out.push(textNode(m, ellipsis(m, c.text, c.vs, w), at(va), y + 2 + lhL + 2 + o.y, c.vs, va));
       hit("st:" + c.sid, { x: x + o.x, y: y + 2 + o.y, w: Math.min(w, Math.max(c.w, 8)) + (la === "left" && va === "left" ? 0 : w - Math.min(w, Math.max(c.w, 8))), h: lhL + 2 + lineH(c.vs) });
     });
-    y += 2 + lhL + 2 + lineH(S.value) + 10;
+    y += 2 + lhL + 2 + lineH(S.value) + cardGaps(it).plot;
   }
   // the separator
   const sep = F.skip?.sep ? null : sepOf(it);

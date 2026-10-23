@@ -70,7 +70,7 @@ export function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, num
     A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
 /** a chart's slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an
     object of its own; a copy on no slide skips nothing of a slide's) */
-const slideOf = (it: ChartItem, ctx: RenderCtx) => ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
+export const slideOf = (it: ChartItem, ctx: RenderCtx) => ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
 export function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
   const h = dropHidden(ctx.version?.drop?.[S.name]);
   for (const L of slideOf(it, ctx)?.tables || []) {

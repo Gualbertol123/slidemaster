@@ -11,6 +11,7 @@ import type { ChartItem, ItemPatch } from "@slide-builder/core/model/types";
 import { deleteItem, itemOf, itemPatch, refText, selectItem } from "../editor/charts";
 import { Input } from "./Input";
 import { ChartSeriesPanel } from "./ChartSeriesPanel";
+import { ChartProgressPanel } from "./ChartProgressPanel";
 import { CHART_TYPES, typePatch } from "../editor/chart-panel";
 import { hasSeries } from "@slide-builder/core/render/chart-data";
 import "./chart-panel.css";
@@ -30,9 +31,10 @@ export function ChartPanel() {
   if (!itemSel || !it || it.kind !== "chart" || !R) return null;
   const c = it as ChartItem, id = itemSel.id, show = c.show ?? ["percent"], legend = c.legend ?? "right";
   const set = (label: string, p: ItemPatch) => itemPatch(label, id, p);
-  const slices = info?.slices ?? [], series = hasSeries(c);
-  // (the type the chart draws as: one without series draws as a pie, whatever its type says – 09 §2.2)
-  const drawn = series ? c.type : c.type === "donut" ? "donut" : "pie";
+  const slices = info?.slices ?? [], prog = c.type === "progress", series = !prog && hasSeries(c);
+  // (the type the chart draws as: one without series draws as a pie, whatever its type says – 09 §2.2; B55's
+  // budget-achievement chart as itself)
+  const drawn = prog || series ? c.type : c.type === "donut" ? "donut" : "pie";
   return <div className="chartpanel" id="chartPanel" data-item={id}>
     <h4>Chart</h4>
     <div className="row typerow"><span className="lbl">Type</span><div className="seg small ctypes">
@@ -42,9 +44,9 @@ export function ChartPanel() {
         placeholder={typeof c.title === "string" ? "No title" : "From the data"} onCommit={v => set("Chart title", { title: v.trim() })} />
       <button className="btn small" id="chartTitleAuto" disabled={typeof c.title !== "string"} title="The name of the numbers as the title (the header above them)" onClick={() => set("Chart title from the data", { title: null })}>Auto</button></div>
     {/* (B56) the title's and all labels' text: font, size, colour, bold, italic (the title's alignment too) */}
-    {series && <TextFmtBox id="chart-title" label="Title text" value={c.titleFmt} dflt={{ b: true, align: "center" }} onChange={(l, f) => set(l, { titleFmt: fmtMapPatch(c.titleFmt, f) })} />}
+    {(series || prog) && <TextFmtBox id="chart-title" label="Title text" value={c.titleFmt} dflt={{ b: true, align: "center" }} onChange={(l, f) => set(l, { titleFmt: fmtMapPatch(c.titleFmt, f) })} />}
     <TextFmtBox id="chart-labels" label="All labels" value={c.fmt} can={{ align: false }} onChange={(l, f) => set(l, { fmt: fmtMapPatch(c.fmt, f) })} />
-    {series ? <ChartSeriesPanel c={c} id={id} sel={itemSel} /> : <>
+    {prog ? <ChartProgressPanel c={c} id={id} set={(l, p) => { if (p) set(l, p); }} /> : series ? <ChartSeriesPanel c={c} id={id} sel={itemSel} /> : <>
     <div className="row"><span className="lbl">Labels</span>
       {SHOW.map(([k, l]) => <label key={k} className="chk"><Input type="checkbox" data-show={k} checked={show.includes(k)}
         onCommit={e => set("Chart labels", { show: (e.target as HTMLInputElement).checked ? [...SHOW.map(s => s[0]).filter(x => x === k || show.includes(x))] : show.filter(x => x !== k) })} />{l}</label>)}</div>

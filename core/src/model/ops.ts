@@ -438,11 +438,68 @@ const V4131_ITEM = ["kind", "type", "values", "labels", "series", "title", "lege
   "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", "stats", "moms"];
 const V4131_ITEM_KINDS = ["chart", "shape", "line", "kpi"];
 const V4131_CHART_TYPES = ["pie", "donut", "bar", "column", "line", "area", "scatter", "waterfall", "combo"];
-/** an item (or an item.patch) holding what 4.13.1 does not apply or draw whole: a later kind, a later chart type, or a
-    later key set (not null, not an empty or all-null map) */
+/* 4.13.1's item contents, FROZEN (git show 87f0951:core/src/model/{ops,types,kpi}.ts) – the keys and the values of the
+   objects inside an item that it draws: a later key or value inside one of them (a 4.14 axis, series, label, point,
+   mark, stat, momentum chip, KPI row, tag, filter, separator or text-format key, or a value of an enum 4.13.1 does not
+   know) is needsV10 too. A schema: `k` the keys an object may hold (each with its own schema, or 0 = any value), `m` the
+   schema of every entry of a map, `a` of every element of an array, `e` the strings allowed. A primitive passes unless
+   `e` lists the strings; null / undefined is a removal and never counts. Never edit these: a later format freezes its own */
+type Sch = { k?: Record<string, Sch | 0>; m?: Sch; a?: Sch; e?: string[] };
+const V4131_REF: Sch = { k: { sheet: 0, table: 0, range: 0 } };
+const V4131_FMT: Sch = { k: { font: 0, size: 0, b: 0, i: 0, color: 0, align: { e: ["left", "center", "right"] }, lh: 0, /* a shape's */ valign: { e: ["top", "middle", "bottom"] }, pad: 0 } };
+const V4131_DASH: Sch = { e: ["solid", "dashed", "dotted", "dashdot"] };
+const V4131_LINE: Sch = { k: { color: 0, w: 0, dash: V4131_DASH }, e: ["none"] };
+const V4131_HEAD: Sch = { e: ["none", "arrow", "triangle", "stealth", "oval", "diamond", "bar"] };
+const V4131_AT: Sch = { k: { s: 0, i: 0, g: 0, edge: { e: ["start", "end"] }, x: 0, y: 0, axis: { e: ["y", "y2"] } } };
+const V4131_GOOD: Sch = { e: ["up", "down", "neutral"] };
+const V4131_AXIS: Sch = { k: { show: 0, min: 0, max: 0, step: 0, num: 0, title: 0, grid: 0, fmt: V4131_FMT, line: V4131_LINE, cells: { k: { min: V4131_REF, max: V4131_REF, step: V4131_REF } } } };
+const V4131_SERIES: Sch = { k: { n: 0, name: V4131_REF, vals: { a: V4131_REF }, xs: { a: V4131_REF }, target: { a: V4131_REF }, group: 0,
+  type: { e: ["column", "bar", "line", "area", "scatter"] }, axis: { e: ["y", "y2"] }, stack: 0, color: 0, line: V4131_LINE, fill: { e: ["solid", "none"] }, smooth: 0,
+  marker: { k: { shape: { e: ["circle", "square", "diamond", "triangle", "none"] }, size: 0, color: 0 } },
+  labels: { k: { show: { a: { e: ["value", "name", "category", "percent", "ofTarget"] } }, pos: { e: ["above", "below", "left", "right", "center", "inEnd", "inBase", "outEnd", "auto"] }, fmt: V4131_FMT, num: 0 } },
+  points: { m: { k: { color: 0, marker: 0, label: 0, total: 0, pos: { e: ["above", "below", "left", "right", "center"] } } } }, hide: 0 } };
+const V4131_MARK: Sch = { k: { kind: { e: ["arrow", "line", "band", "icon", "text", "ref", "gap", "change"] }, a: V4131_AT, b: { ...V4131_AT, e: ["floor", "ceiling"] },
+  style: { k: { color: 0, w: 0, dash: V4131_DASH, heads: { k: { a: V4131_HEAD, b: V4131_HEAD, size: { e: ["s", "m", "l"] } } } } }, icon: 0, size: 0, text: 0, fmt: V4131_FMT, dy: 0,
+  value: V4131_REF, name: V4131_REF, axis: { e: ["y", "y2"] }, show: { e: ["both", "name", "value", "none"] }, pos: { e: ["right", "left", "above", "below", "inside", "axis", "line", "point"] },
+  ref: 0, caption: 0, num: 0, pct: 0, abs: 0, signs: { k: { pos: 0, neg: 0, zero: 0 }, e: ["fixed"] }, pairs: { e: ["all", "last"] }, off: 0,
+  labelSide: { e: ["right", "left"] }, from: { e: ["line", "point"] }, capPos: { e: ["below", "above", "left", "right"] } } };
+/** what 4.13.1 reads inside an item's keys (the keys themselves: V4131_ITEM) */
+const V4131_INSIDE: Record<string, Sch> = {
+  axes: { k: { x: V4131_AXIS, y: V4131_AXIS, y2: V4131_AXIS } },
+  sers: { m: V4131_SERIES },
+  groups: { m: { k: { n: 0, cats: { ...V4131_REF, a: {} }, divider: V4131_LINE, label: 0 } } },
+  marks: { m: V4131_MARK },
+  stats: { m: { k: { n: 0, label: 0, src: { e: ["last", "first", "prev", "min", "max", "cell", "ref", "gap", "gapPct"] }, s: 0, ref: 0, cell: V4131_REF, num: 0, signs: 0, good: V4131_GOOD, off: 0 } } },
+  moms: { m: { k: { n: 0, vs: { e: ["first", "trough", "peak", "prev", "cell"] }, s: 0, cell: V4131_REF, show: { e: ["abs", "pct", "both"] }, caption: 0, num: 0, good: V4131_GOOD, off: 0 } } },
+  rows: { a: { k: { src: { k: { cell: V4131_REF, ref: V4131_REF, mode: { e: ["pct", "abs", "both"] } } }, label: 0, good: V4131_GOOD, num: 0 } } },
+  head: V4131_REF, cur: V4131_REF, good: V4131_GOOD,
+  tag: { k: { text: V4131_REF, color: 0 } }, filter: { k: { by: V4131_REF, eq: V4131_REF } }, sep: { k: { color: 0, w: 0, dash: V4131_DASH } },
+  titleFmt: V4131_FMT, fmt: V4131_FMT, nudge: { m: { k: { dx: 0, dy: 0 } } },
+};
+/** a value holding what its 4.13.1 schema does not (a removal – null – never does) */
+function beyond(v: unknown, sc: Sch | 0): boolean {
+  if (v === null || v === undefined || sc === 0) return false;
+  if (typeof v === "string") return !!sc.e && !sc.e.includes(v);
+  if (Array.isArray(v)) return sc.a ? v.some(x => beyond(x, sc.a!)) : false;
+  if (!isObj(v)) return false;
+  if (sc.m) return Object.values(v).some(x => beyond(x, sc.m!));
+  if (!sc.k) return false;
+  return Object.entries(v).some(([k, x]) => x !== null && x !== undefined && (!(k in sc.k!) || beyond(x, sc.k![k])));
+}
+/** (4.14, B55) the budget-achievement chart's `progress` as 4.14 draws it – the list a later format freezes (a key or value
+    outside it is that format's) */
+export const V414_PROGRESS: Sch = { k: { vals: { a: V4131_REF }, targets: { a: V4131_REF }, cats: { ...V4131_REF, a: {} }, table: { k: { by: V4131_REF, val: V4131_REF, target: V4131_REF } },
+  fill: 0, track: 0, overFill: 0, over: { e: ["none", "color", "mark"] },
+  pct: { k: { off: 0, num: 0, fmt: V4131_FMT } }, cat: { k: { off: 0, caps: 0, fmt: V4131_FMT } },
+  gap: { k: { off: 0, over: 0, under: 0, sign: { e: ["over", "both", "none"] }, num: 0, fmt: V4131_FMT } } } };
+/** an item (or an item.patch) holding what 4.13.1 does not apply or draw whole: a later kind, a later chart type, a later
+    key set (not null; for a MAP key – merged per entry – not an empty or all-null map, a removal; a plain key's {} is
+    content: `progress: {}` draws a budget-achievement chart's defaults), or a later key or value inside one of its keys */
 const itemV10 = (p: unknown) => isObj(p) && ((typeof p.kind === "string" && !V4131_ITEM_KINDS.includes(p.kind))
   || (typeof p.type === "string" && !V4131_CHART_TYPES.includes(p.type))
-  || Object.keys(p).some(k => !V4131_ITEM.includes(k) && p[k] !== null && p[k] !== undefined && !(isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))));
+  || Object.keys(p).some(k => !V4131_ITEM.includes(k) && p[k] !== null && p[k] !== undefined
+    && !((ITEM_MAPS as readonly string[]).includes(k) && isObj(p[k]) && Object.values(p[k] as object).every(x => x === null)))
+  || Object.entries(p).some(([k, v]) => k in V4131_INSIDE && beyond(v, V4131_INSIDE[k])));
 const itemsV10 = (items: unknown) => some(items, itemV10);
 /** an op 4.13.1 does not apply or draw whole: the deck must be format 10 before it is appended – an item.patch writing a
     subtitle or a budget-achievement chart (its `progress`, or its type), a slide.add or preset.set carrying one. Removing

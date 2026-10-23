@@ -183,7 +183,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
   // a series chart (4.7, S14.2: columns and bars) is laid out by chart-series.ts; a chart without series is a pie
   const frame = { x: x + look.pad, y: y + look.pad, w: Math.max(10, w - 2 * look.pad), h: Math.max(10, h - 2 * look.pad) };
   // (B55) a budget-achievement chart: laid out by chart-progress.ts in the same card
-  const sty = seriesStyle(look, lab, ttl, rk), PL = it.type === "progress" ? progressLayout(it, frame, ctx, m, sty) : null;
+  const sty = seriesStyle(look, lab, ttl, rk), PL = it.type === "progress" ? progressLayout(it, frame, ctx, m, sty, id, { w, h }) : null;
   const SL = !PL && hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id, { w, h }) : null, LL = PL || SL;
   const data: ChartData = LL ? ("why" in LL ? { ok: false, source: LL.source, why: LL.why } : { ok: true, source: "", series: LL.title, slices: [] }) : chartData(it, ctx);
   const label = LL && !("why" in LL) ? LL.title || "Budget achievement" : data.ok ? titleOf(it, data) : "";

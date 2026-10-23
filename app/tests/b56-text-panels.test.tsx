@@ -190,7 +190,7 @@ describe("on the page", () => {
     await step(() => type(q("#chartStatW"), "22"), "Stats row chip width");
     await step(() => click(q('#chartMomsAlign [data-v="spread"]')), "Momentum row alignment");
     await step(() => type(q("#chartGapH"), "12"), "Space under the title");
-    await step(() => type(q("#chartGapP"), "16"), "Space above the plot");
+    await step(() => type(q("#chartGapP"), "16"), "Space after the stats row");
     await step(() => type(q("#chartGapF"), "18"), "Space above the momentum row");
     await step(() => type(q("#chartPadL"), "20"), "Plot margin, left");
     await step(() => type(q("#chartPadB"), "999"), "Plot margin, bottom");

@@ -42,7 +42,7 @@ export interface CardLay {
   /** a stat chip's width, % of the chart (5–100; unset: a third of the row on the left, each chip's own width else) */ statW?: number;
   /** the momentum row, as the stats row */ moms?: "left" | "center" | "spread"; momW?: number;
   /** the tag: in the title line's right corner (default) or on a line of its own under the title */ tag?: "right" | "below";
-  /** the space under the title, px (0–80; default 8); above the plot (after the stats row, 0–120; default 10); between the
+  /** the space under the title, px (0–80; default 8); after the stats row – above its separator and the plot (0–120; default 10; none without a stats row); between the
       plot and the momentum row (0–120; default 14) */ gapH?: number; gapP?: number; gapF?: number;
   /** the plot's margins inside the chart, px (0–400 each; default 0) */ padL?: number; padR?: number; padT?: number; padB?: number }
 export type ItemLay = KpiLay & CardLay;

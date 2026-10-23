@@ -133,7 +133,7 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
     <details className="sec" id="chartLegend"><summary>Legend</summary>
       <div className="row"><span className="lbl">Place</span><select id="chartLegendAt" value={legendAtOf(c)} onChange={e => set("Chart legend", legendAtPatch((e.target as HTMLSelectElement).value as LegendAt))}>
         {LEGEND_AT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-      <TextFmtBox id="chart-legend" label="Legend text" value={c.texts?.legend} can={{ align: false }} onChange={(l, f) => set(l, textsPatch("legend", f))} />
+      {t !== "pie" && t !== "donut" && <TextFmtBox id="chart-legend" label="Legend text" value={c.texts?.legend} can={{ align: false }} onChange={(l, f) => set(l, textsPatch("legend", f))} />}
       <div className="row hides">{(fall ? [["up", "Increase"], ["down", "Decrease"], ["total", "Total"]] as [string, string][] : sers.filter(([, s]) => !s.hide).map(([sid, s]): [string, string] => [sid, typeof s.name === "string" && s.name ? s.name : sid]))
         .map(([key, l]) => <label key={key} className="chk"><Input type="checkbox" data-hide={key} checked={!c.legendHide?.[key]} onCommit={e => set("Legend entry", legendHidePatch(key, !(e.target as HTMLInputElement).checked))} />{l}</label>)}</div>
     </details>

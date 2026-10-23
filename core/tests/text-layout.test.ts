@@ -28,6 +28,7 @@ import type { RenderCtx } from "../src/render/context";
 import type { ChartItem, Design, ItemPatch, Op } from "../src/model/types";
 import type { KpiItem } from "../src/model/kpi";
 import { b54Ops } from "./b54-deck";
+import { b55Ops } from "./b55-deck";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BOOK = path.join(here, "../../app/tests/fixtures/B54.xlsx");
@@ -45,9 +46,10 @@ const NEG = "−";
 const hex = (n: TextNode) => "#" + ("solid" in n.fill ? n.fill.solid : [0, 0, 0]).map(v => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase();
 const patch = (id: string, p: Record<string, unknown>): Op => ({ op: "item.patch", slide: "b54", id, patch: p as ItemPatch });
 
-async function deck(design: Design, extra: Op[] = [], forExport = true) {
+async function deckWith(ops: Op[], forExport = true) { return deck("excel", ops, forExport, true); }
+async function deck(design: Design, extra: Op[] = [], forExport = true, own = false) {
   const wb = await readWorkbook(ab(BOOK));
-  const { doc: view, skipped } = applyOps(emptyDoc("B54.xlsx"), [...b54Ops(), ...extra]);
+  const { doc: view, skipped } = applyOps(emptyDoc("B54.xlsx"), own ? [b54Ops()[0], ...extra] : [...b54Ops(), ...extra]);
   expect(skipped).toEqual([]);
   const style = resolveStyle({}, { ...view.style, design }), slides = runtimeSlides(wb, view.preset, "B54.xlsx", design);
   const ctx: RenderCtx = { style, edits: {}, slides, preset: view.preset || null, workbook: "B54.xlsx", logoSrc: "", sheet: n => wb.sheets.find(s => s.name === n) || null, version: null, forExport };
@@ -193,6 +195,27 @@ describe("B56 · KPI card: sizing and positioning", () => {
     expect(hits(base)).toEqual([]);
     expect(hits(await node({}, "excel", false))).toEqual(["k1|kv", "k1|kr"]);
     expect(hits(await node({}, "glass", false))).toEqual(["k1|kv", "k1|kr"]);
+  });
+  it("(review) a value's or title's own size larger than its section is held to it – drawn, and said in the Issues line", async () => {
+    const { item } = await deck("excel", [patch("k1", { texts: { value: { size: 80 }, head: { size: 60 } } })]);
+    const T = texts(item("k1").nodes), v = T.find(t => t.src === "10"), h = T.find(t => t.src === "LOANS")!;
+    const hh = 33.8, bh = 130 - hh;
+    expect(v).toBeTruthy();
+    expect(v!.size).toBeLessThanOrEqual(bh / 1.25);
+    expect(h.size).toBeLessThanOrEqual(hh / 1.25);
+    expect(item("k1").info.issue).toMatch(/the title's size, the value cut to fit the card/);
+    // (a size that fits: kept, no Issues line)
+    const ok = await deck("excel", [patch("k1", { texts: { value: { size: 40 } } })]);
+    expect(texts(ok.item("k1").nodes).find(t => t.src === "10")!.size).toBe(40);
+    expect(ok.item("k1").info.issue).toBeNull();
+  });
+  it("(review) a label's own size larger than the changes' sets the rows' pitch: no two rows overlap", async () => {
+    for (const rows of ["spread", "top"]) {
+      const ns = await node({ texts: { label: { size: 22 } }, lay: { rows, rowGap: 0 }, box: { x: 61, y: 180, w: 350, h: 200 } });
+      const L = texts(ns).filter(t => t.src.startsWith("vs ")).sort((a, b) => a.y - b.y);
+      expect(L.length, rows).toBeGreaterThan(1);
+      for (let i = 1; i < L.length; i++) expect(L[i].y - L[i - 1].y, rows).toBeGreaterThanOrEqual(Math.round(22 * 1.25) - .01);
+    }
   });
   it("every design draws a styled, laid-out card with valid nodes", async () => {
     for (const d of DESIGNS) {
@@ -363,5 +386,42 @@ describe("B56 · the ops", () => {
     const { view } = await deck("excel", [patch("k1", { offs: { kv: { dx: .1, dy: 0 } } })]);
     const op = patch("k1", { offs: { kv: { dx: .2, dy: .1 } } }), inv = inverseOf(view, op)!;
     expect(inv).toEqual(patch("k1", { offs: { kv: { dx: .1, dy: 0 } } }));
+  });
+});
+
+describe("(review) B55's budget-achievement chart follows the card's text and layout", () => {
+  const prog = async (p: Record<string, unknown>, fe = true) => {
+    const { lists } = await deckWith([...b55Ops("b54").slice(1), patch("ba", { tag: { text: "Illustrative" }, ...p })], fe);
+    const l = lists[0], at = l.items.ba.at;
+    return { nodes: l.nodes.slice(at[0], at[1]), info: l.items.ba };
+  };
+  it("the tag under the title on a line of its own, the title then whole; the space under the title; the tag's font; a drag hit for the tag", async () => {
+    const base = await prog({}), below = await prog({ lay: { tag: "below", gapH: 30 }, texts: { tag: { font: "Georgia", size: 14 } } });
+    const t = (r: { nodes: Node[] }, s: string) => texts(r.nodes).find(x => x.src === s)!;
+    const title = t(below, "BUDGET ACHIEVEMENT"), tag = t(below, "ILLUSTRATIVE"), tag0 = t(base, "ILLUSTRATIVE");
+    // (default: in the title's line, the title cut clear of it; below it: the title whole)
+    const t0 = texts(base.nodes).find(x => x.src.startsWith("BUDGET"))!;
+    expect(Math.abs(tag0.y - t0.y)).toBeLessThan(10);
+    expect(title).toBeTruthy();
+    expect(tag.y).toBeGreaterThan(title.y + 10);
+    expect(tag.x).toBeLessThan(tag0.x);
+    expect([tag.css.split(",")[0], tag.size]).toEqual(["'Georgia'", 14]);
+    expect(t(below, "Latest volume / EoM budget").y).toBeGreaterThan(t(base, "Latest volume / EoM budget").y + 22);
+    const hits = (r: { nodes: Node[] }) => flat(r.nodes).filter(n => n.t === "hit" && n.kind === "label").map(n => (n as { id: string }).id);
+    expect(hits(base)).toEqual([]);
+    expect(hits(await prog({}, false))).toEqual(["ba|tag"]);
+    const moved = await prog({ offs: { tag: { dx: 0, dy: .05 } } });
+    expect(t(moved, "ILLUSTRATIVE").y - tag0.y).toBeCloseTo(34, 5);
+  });
+});
+
+describe("(review) format 10 inside the keys 4.13.1 already had (B55's deep gating)", () => {
+  it("the panel writes only 4.13.1's TextFmt keys into titleFmt, fmt, an axis's, a series' labels' and a mark's fmt: not format 10 by themselves; a caps there would be", () => {
+    const F = { font: "Georgia", size: 20, color: "#112233", b: true, i: false, align: "center" };
+    const ser = { n: 1, vals: [{ sheet: "Volumes", range: "C2:C9" }], labels: { show: ["value"], fmt: F } };
+    for (const p of [{ titleFmt: F }, { fmt: { ...F, align: undefined } }, { axes: { y: { fmt: F }, x: { fmt: F } } }, { sers: { vol: ser } },
+      { marks: { r1: { kind: "ref", value: 1, fmt: F } } }]) expect(needsV10(patch("cd", p)), JSON.stringify(p)).toBe(false);
+    for (const p of [{ titleFmt: { caps: false } }, { fmt: { caps: true } }, { axes: { y: { fmt: { caps: true } } } }, { sers: { vol: { ...ser, labels: { show: ["value"], fmt: { caps: true } } } } },
+      { marks: { r1: { kind: "ref", value: 1, fmt: { caps: true } } } }]) expect(needsV10(patch("cd", p)), JSON.stringify(p)).toBe(true);
   });
 });

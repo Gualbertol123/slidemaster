@@ -19,10 +19,11 @@ import type { Node } from "../dl/types";
 import type { Metrics } from "./excel-dl";
 import type { RenderCtx } from "./context";
 import type { BarsSem, BarSerSem, LineSem } from "../pptx/chart-sem";
-import { cardParts, cardRoom, cardStyles, tagText } from "./chart-card";
-import { catsOf, cellsOf, chartHide, genOf, labelsFor, numberAt, readRefs, refTarget, removedOf, shown, type Val } from "./chart-data";
+import { cardGaps, cardParts, cardRoom, cardStyles, tagBelow, tagText } from "./chart-card";
+import { catsOf, cellsOf, chartHide, genOf, slideOf, labelsFor, numberAt, readRefs, refTarget, removedOf, shown, type Val } from "./chart-data";
 import { tickText } from "./chart-axes";
-import { ellipsis, font, lineH, textNode, type St } from "./chart-font";
+import { A1 } from "../xlsx/util";
+import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
 import { axisLook, fontSem, withFmt, type SeriesStyle } from "./chart-series";
 import { isGeneral, targetLook } from "./chart-targets";
 import { shownZero, signedText } from "./deltas";
@@ -64,7 +65,9 @@ const CACHE = new Map<string, ProgressData>();
 export function progressData(it: ChartItem, ctx: RenderCtx): ProgressData {
   const P = progressOf(it), sheets = progressSheets(it, ctx);
   const key = JSON.stringify(["progress", P.vals ?? null, P.targets ?? null, P.cats ?? null, P.table ?? null, it.labels ?? null,
-    sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null]);
+    sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null,
+    // (the rows and columns its slide hides on a table it reads: chartHide – as seriesData's key)
+    slideOf(it, ctx)?.cfg.hidden ?? null]);
   const hit = CACHE.get(key); if (hit) return hit;
   const out = isObj(P.table) ? fromTable(it, P.table as NonNullable<ChartProgress["table"]>, ctx, key) : fromCells(it, P, ctx, key);
   if (CACHE.size > 200) CACHE.clear();
@@ -122,20 +125,28 @@ function fromTable(it: ChartItem, tb: NonNullable<ChartProgress["table"]>, ctx: 
   if (!B || !V) { const ref = !B ? tb.by : tb.val; return { ok: false, why: "missing", source: isRef(ref) ? refTarget(ref, ctx).source : !B ? "the group column" : "the value column", key }; }
   if (V.cells.length !== B.cells.length) issues.push(`the value column ${V.source} has ${V.cells.length} cells for ${B.cells.length} in ${B.source}`);
   if (T && T.cells.length !== B.cells.length) issues.push(`the target column ${T.source} has ${T.cells.length} cells for ${B.cells.length} in ${B.source}`);
-  const groups = new Map<string, { name: string; last: number }>();
+  const groups = new Map<string, { name: string; last: number; both: number }>();
   B.cells.forEach(([r, c], k) => {
     const name = B.removed(r, c) ? "" : shown(B.S, r, c, ctx).trim();
     if (!name) return;
-    const g = groups.get(name.toLowerCase()) || { name, last: -1 };
+    const g = groups.get(name.toLowerCase()) || { name, last: -1, both: -1 };
     groups.set(name.toLowerCase(), g);
     const vc = V.cells[k];
-    if (vc && numberAt(V.S, vc[0], vc[1], V.removed) !== null) g.last = k;
+    if (vc && numberAt(V.S, vc[0], vc[1], V.removed) !== null) {
+      g.last = k;
+      const tc = T?.cells[k];
+      if (T && tc && numberAt(T.S, tc[0], tc[1], T.removed) !== null) g.both = k;
+    }
   });
   if (!groups.size) return { ok: false, why: "empty", source: B.source, key };
   const rows = [...groups.values()].map((g): ProgressRow => {
     if (g.last < 0) return { cat: g.name, v: null, t: null, fmt: "General", ratio: null };
-    const [vr, vcc] = V.cells[g.last], x = V.S.get(vr, vcc), v = numberAt(V.S, vr, vcc, V.removed);
-    const tc = T?.cells[g.last], t = T && tc ? numberAt(T.S, tc[0], tc[1], T.removed) : null;
+    // (the latest row: the last sheet row with a value; its target blank – the budget not yet typed –: the group's latest
+    // row with both, said in the Issues panel)
+    let at = g.last;
+    if (g.both >= 0 && g.both !== g.last) { at = g.both; const tc = T!.cells[g.last]; issues.push(`'${g.name}': no target in its latest row (${T!.S.name}!${A1(tc[0], tc[1])}): the latest row with both is used`); }
+    const [vr, vcc] = V.cells[at], x = V.S.get(vr, vcc), v = numberAt(V.S, vr, vcc, V.removed);
+    const tc = T?.cells[at], t = T && tc ? numberAt(T.S, tc[0], tc[1], T.removed) : null;
     return { cat: g.name, v, t, fmt: x?.fmt || "General", ratio: ratioOf(v, t) };
   });
   // (a group whose value column holds no number at all: said once, its bar empty)
@@ -157,7 +168,9 @@ function finish(rows: ProgressRow[], issues: string[], name: string, source: str
 
 /* ---- the words ---- */
 /** the % above a bar: value / target in the chart's format (default 0.0 %); "n/a" without one */
-export const pctText = (r: ProgressRow, num?: string) => r.ratio === null ? (r.v === null ? "–" : "n/a") : tickText(r.ratio, typeof num === "string" && num.trim() ? num : "0.0%");
+export const pctText = (r: ProgressRow, num?: string) => r.ratio === null ? (r.v === null ? "–" : "n/a")
+  // (a value below zero: deltas.ts's minus "−"; one that shows as zero never "−0")
+  : ((t: string) => /[1-9]/.test(t) ? t.replace(/^-/, "−") : t.replace(/^-/, ""))(tickText(r.ratio, typeof num === "string" && num.trim() ? num : "0.0%"));
 /** the gap's number format: the chart's own, else the value cell's, else #,##0 (B54's General) */
 export const gapFmt = (r: ProgressRow, num?: string) => typeof num === "string" && num.trim() ? num : !isGeneral(r.fmt) ? r.fmt : "#,##0";
 /** the gap in words: value − target, in a format, with the words of the side it is on. Sign "over" (the owner's
@@ -182,6 +195,13 @@ export interface ProgressLayout {
   axis: { show: boolean; grid: LineSem | null; num: string; ticks: { v: number; text: string }[]; nodes: Node[] };
   /** the chart card's parts (subtitle, tag, separator) */ card: Node[];
   issue: string | null; frame: Box;
+  /** (B56) the parts the stage drags (on screen only) */ labelHits?: Node[];
+}
+/** the % label's default: the design's accent – its first palette colour that reads as a colour, not as ink (a
+    consulting design's palette opens with its navy, the bars' own colour): else the picture's blue */
+export function accentOf(colors: string[]): string {
+  const c = colors.find(x => HEX.test(x) && lum(x) > .25 && lum(x) < .8);
+  return (c || "#2F55F4").toUpperCase();
 }
 /** the design's colours of the bars: its dark (the KPI card's header – the B54 slide's), a light grey of it, its positive colour */
 export function progressColors(it: ChartItem, ctx: RenderCtx, ink: string) {
@@ -191,37 +211,41 @@ export function progressColors(it: ChartItem, ctx: RenderCtx, ink: string) {
 }
 /** where everything goes inside the frame (the box less the card's padding); the bars at Excel's slots, so the native
     chart's columns stand where the slide draws them */
-export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle): ProgressLayout | { why: "missing" | "empty"; source: string } {
+export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metrics, sty: SeriesStyle, id = "", unit: { w: number; h: number } = frame): ProgressLayout | { why: "missing" | "empty"; source: string } {
   const data = progressData(it, ctx);
   if (!data.ok) return { why: data.why, source: data.source };
   const P = progressOf(it), issues = [...data.issues], { x: X0, y: Y0, w: W0, h: H0 } = frame;
   // (the card's parts this chart takes: subtitle, tag, separator – never a stats or momentum row, which read series)
-  const cardIt: ChartItem = { ...it, stats: undefined, moms: undefined };
+  const cardIt: ChartItem = { ...it, stats: undefined, moms: undefined }, labelHits: Node[] = [];
   let area: Box = { ...frame };
   // the title (the item's; "" or unset: none), the tag beside it
   let title = (typeof it.title === "string" ? it.title : "").trim();
   const titleSt = withFmt(sty.ttl, it.titleFmt), tagT = tagText(it, ctx).text;
-  if (title && tagT) {
-    const tw0 = Math.min(W0 * .45, m.run(tagT, font(cardStyles(sty.lab, "#000000", "#000000").tag)).w), room0 = Math.max(10, W0 - tw0 - 16);
+  // (B56: a tag under the title leaves the title its whole line; the tag's own text format)
+  if (title && tagT && !tagBelow(it)) {
+    const tw0 = Math.min(W0 * .45, m.run(tagT, font(cardStyles(sty.lab, "#000000", "#000000", it).tag)).w), room0 = Math.max(10, W0 - tw0 - 16);
     if (m.run(title, font(titleSt)).w > room0) title = ellipsis(m, title, titleSt, room0);
   }
   let titleBox: Box | null = null;
   if (title) {
     const lh = lineH(titleSt), w = Math.min(W0, m.run(title, font(titleSt)).w), al = it.titleFmt?.align;
     titleBox = { x: al === "left" ? X0 : al === "right" ? X0 + W0 - w : X0 + (W0 - w) / 2, y: Y0, w, h: lh };
-    area = { ...area, y: area.y + lh + 8, h: Math.max(10, area.h - lh - 8) };
+    const gh = cardGaps(it).head;
+    area = { ...area, y: area.y + lh + gh, h: Math.max(10, area.h - lh - gh) };
   }
-  const room = cardRoom(cardIt, sty.lab, !!title, ctx), titleH = title ? lineH(titleSt) : 0;
+  const room = cardRoom(cardIt, sty.lab, !!title, ctx), titleH = title ? lineH(titleSt) : 0, tagY = area.y;
   if (room.tagLine) area = { ...area, y: area.y + room.tagLine, h: Math.max(10, area.h - room.tagLine) };
   const skip = room.top > area.h - 60 ? { stats: true, sep: true } : {};
   const cardTop = area.y;
   if (!skip.stats) area = { ...area, y: area.y + room.top, h: Math.max(10, area.h - room.top) };
-  else if (room.top) issues.push("the chart is too small for its subtitle and separator: not drawn");
-  const card = cardParts(cardIt, { frame, titleH, top: cardTop, bottom: Y0 + H0, skip, series: [], cats: [], num: "General", lab: sty.lab, ink: sty.ink, sepColor: axisLook(ctx).card.line }, ctx, m);
+  else if (room.top && cardIt.sep) issues.push("the chart is too small for its separator: not drawn");
+  const card = cardParts(cardIt, { frame, titleH, top: cardTop, bottom: Y0 + H0, skip, series: [], cats: [], num: "General", lab: sty.lab, ink: sty.ink, sepColor: axisLook(ctx).card.line,
+    // (B56) the tag's own line, the stage's drag hits (on screen), offsets as fractions of the chart's box
+    unit, ...(room.tagLine ? { tagY } : {}), ...(!ctx.forExport && id ? { hit: (key: string, b: Box) => labelHits.push({ t: "hit", kind: "label", id: `${id}|${key}`, x: r2(b.x), y: r2(b.y), w: r2(Math.max(1, b.w)), h: r2(Math.max(1, b.h)), label: key }) } : {}) }, ctx, m);
   issues.push(...card.issues);
   // the texts' styles: the % large, bold, in the design's accent; the name bold in capitals; the gap small and grey
   const T = targetLook(ctx, sty.ink), s = sty.lab.size;
-  const pctSt = withFmt({ ...sty.lab, size: Math.round(s * 1.9), weight: 700, italic: false, color: (sty.colors[0] || sty.ink).toUpperCase() }, P.pct?.fmt);
+  const pctSt = withFmt({ ...sty.lab, size: Math.round(s * 1.9), weight: 700, italic: false, color: accentOf(sty.colors) }, P.pct?.fmt);
   const catSt = withFmt({ ...sty.lab, size: Math.max(6, Math.round(s * .9)), weight: 700, italic: false, color: sty.ink }, P.cat?.fmt);
   const capSt = withFmt({ ...sty.lab, size: Math.max(6, Math.round(s * .86)), weight: 400, italic: false, color: T.muted }, P.gap?.fmt);
   const axisSt: St = { ...sty.lab, size: Math.max(6, Math.round(s * .8)), weight: 400, italic: false, color: axisLook(ctx).tick };
@@ -246,10 +270,13 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   });
   // the texts: the % centred above each track (shrunk to its slot), the name and the gap under it
   const pct: Node[] = [], under: Node[] = [], pctTexts: string[] = [], cut: string[] = [];
+  // (the % shrunk to its slot – one size for every bar, the widest's – and the PowerPoint labels at that size too)
+  const wmax = Math.max(8, slot - 4), texts = data.rows.map(r => pctText(r, P.pct?.num));
+  const pctFit = pctOn ? Math.min(pctSt.size, ...texts.map(t => fitText(m, t, pctSt, wmax, Math.min(pctSt.size, 9)).st.size)) : pctSt.size, pctUse = { ...pctSt, size: pctFit };
   data.rows.forEach((r, i) => {
-    const cx = plot.x + (i + .5) * slot, wmax = Math.max(8, slot - 4), t = pctText(r, P.pct?.num);
+    const cx = plot.x + (i + .5) * slot, t = texts[i];
     pctTexts.push(t);
-    if (pctOn) { const f = fitText(m, t, pctSt, wmax, Math.min(pctSt.size, 9)); if (f.cut) cut.push("a %"); pct.push(textNode(m, f.text, cx, plot.y - 6 - lineH(f.st), f.st, "center")); }
+    if (pctOn) { const f = fitText(m, t, pctUse, wmax, pctFit); if (f.cut) cut.push("a %"); pct.push(textNode(m, f.text, cx, plot.y - 6 - lineH(f.st), f.st, "center")); }
     let y = plot.y + plot.h + 8;
     if (catOn) { const name = P.cat?.caps === false ? r.cat : r.cat.toUpperCase(); under.push(textNode(m, ellipsis(m, name, catSt, wmax), cx, y, catSt, "center")); y += lineH(catSt) + 2; }
     if (capOn && r.v !== null && r.t !== null) under.push(textNode(m, ellipsis(m, gapText(r.v - r.t, gapFmt(r, P.gap?.num), P.gap), capSt, wmax), cx, catOn ? y : plot.y + plot.h + 8, capSt, "center"));
@@ -258,8 +285,8 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   // the value axis (off unless asked): its labels at the left, gridlines across
   const grid: LineSem | null = gridOn ? axisLook(ctx).grid || { color: "#D9D9D9", w: 1 } : null, axNodes: Node[] = [];
   if (axShow) for (const t of ticks) axNodes.push(textNode(m, t.text, plot.x - 6, plot.y + plot.h - t.v * plot.h - lineH(axisSt) / 2, axisSt, "right"));
-  return { title, titleSt, titleBox, plot, slot, barW, gap, rows: data.rows, bars, name: data.name, colors, st: { pct: pctSt, cat: catSt, cap: capSt, axis: axisSt },
-    pct, under, pctTexts, axis: { show: axShow, grid, num: axNum, ticks, nodes: axNodes }, card: card.nodes, issue: issues.length ? [...new Set(issues)].join("; ") : null, frame };
+  return { title, titleSt, titleBox, plot, slot, barW, gap, rows: data.rows, bars, name: data.name, colors, st: { pct: pctUse, cat: catSt, cap: capSt, axis: axisSt },
+    pct, under, pctTexts, axis: { show: axShow, grid, num: axNum, ticks, nodes: axNodes }, card: card.nodes, issue: issues.length ? [...new Set(issues)].join("; ") : null, frame, labelHits };
 }
 const gridStroke = (l: LineSem) => ({ w: l.w, paint: solid(l.color), ...(l.dash === "sysDot" ? { dash: [2, 3] } : l.dash === "dash" ? { dash: [6, 4] } : {}) });
 /** the over bands (a shape over the native chart in PowerPoint) */
@@ -274,7 +301,7 @@ export function progressNodes(L: ProgressLayout, m: Metrics): Node[] {
     out.push({ t: "rect", x: r2(b.track.x), y: r2(b.track.y), w: r2(b.track.w), h: r2(b.track.h), fill: solid(L.colors.track) });
     if (b.fill) out.push({ t: "rect", x: r2(b.fill.x), y: r2(b.fill.y), w: r2(b.fill.w), h: r2(b.fill.h), fill: solid(b.fillColor) });
   }
-  out.push(...markNodes(L), ...L.axis.nodes, ...L.pct, ...L.under);
+  out.push(...markNodes(L), ...L.axis.nodes, ...L.pct, ...L.under, ...(L.labelHits || []));
   return out;
 }
 /** what stands over the native chart in PowerPoint: the card's parts, the over bands, the names and the gaps (text boxes) */
