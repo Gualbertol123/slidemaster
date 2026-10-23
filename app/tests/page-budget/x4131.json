@@ -1,0 +1,4 @@
+{
+  "bytes": 1500,
+  "why": "4.13.1 (the owner's B54 slide: a line's value label past the plot's bottom): by measurement on v4/label-floor – the page built from its base (9452ce3, the 4.13.0 page, 5,026,291 bytes) is 5,027,307 bytes (+1,016): core render/chart-series.ts – an \"auto\" label flipped at the plot's floor and ceiling and held inside, a user's place held above the category labels, the held shift in PowerPoint's dLbl manualLayout, labelRoomAbove repeated – in the app's and the workers' bundles; rounded up to the next 500."
+}

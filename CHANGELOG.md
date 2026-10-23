@@ -3,6 +3,20 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.1 - 2026-10-23
+
+What users notice
+* **A line's value labels stay inside the chart** (the owner's B54 slide): with the axis's minimum close to a dip (the
+  Deposits card on 6,900–9,100, W39 at 7,000), the *Auto* label under the point ran past the plot's bottom over the
+  category label "W39". *Auto* now puts such a label on the other side of its point; likewise a peak's label that would
+  run into the title, the stats or the card's header goes below it. Where neither side has room the label goes on the
+  side with more and is kept inside the plot. A place you chose for a series or a point (above, below, …) is kept, only
+  lifted clear of the category labels; a label you dragged stays where you dragged it. PowerPoint shows the same.
+* Charts where no label reached past the plot draw exactly as in 4.13.0.
+
+Details
+- 4.13.1 · chart-series.ts: in "auto", a line point's label above / below takes the other side when its own crosses the plot's bottom (the category labels) or the room above the plot (the area's top: title, stats, legend, card header) and the other fits, else the side with more room; every place is then held inside (half a px tolerance); the collision order after it (other side, then right / left) is unchanged. A place the user set (series or point) is kept and held above the plot's bottom only (tested against its own line where its place would put it). A nudge is added after, never held. PowerPoint: the flipped side is the dLbl's dLblPos; a held label's shift goes into its manualLayout (with a nudge, as B53's). labelRoomAbove repeats (up to 4 passes) while a label above a peak under a typed or cell max lacks more than half a px. No format change. Tests: core/tests/label-floor.test.ts.
+
 ## 4.13.0 - 2026-10-23
 
 What users notice
