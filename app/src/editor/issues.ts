@@ -7,6 +7,7 @@ import { computeLayout, sizingOf } from "@slide-builder/core/render/layout";
 import { origMatches } from "@slide-builder/core/render/edits";
 import type { RenderCtx } from "@slide-builder/core/render/context";
 import { kindText, knownKind, laterKindsIssue } from "./item-text";
+import { emptySlide } from "../stage/empty-hint";
 
 export interface Issue { cls: "" | "ok" | "warn" | "err"; html: string }
 /** (4.10.1) what of an .xlsb sheet could not be read and was skipped, one line each */
@@ -30,7 +31,8 @@ export function slideIssues(R: RuntimeSlide, ctx: RenderCtx, items?: Record<stri
   if (R.type === "index") return [{ cls: "", html: `Index slide · lists ${ctx.slides.filter(s => s.type === "content").length} content slide(s) with their page numbers.` }, ...out];
   if (R.missing) out.push({ cls: "err", html: `${R.missing} table${R.missing > 1 ? "s" : ""} of this slide could not be found (sheet renamed or deleted?). Open the wizard to fix.` });
   if (R.dropWhole) out.push({ cls: "warn", html: `${R.dropWhole > 1 ? R.dropWhole + " tables" : "A table"} of this slide shown${R.dropWhole > 1 ? "" : " with"} every row and column in this version: its deleted ones would leave none, so this version is not exported. Restore some (Cells › For this version ▾).` });
-  if (!R.tables.length) out.push({ cls: "warn", html: "No tables on this slide." });
+  // (4.13.2) a slide of KPI cards, charts or text boxes is not empty: no warning (stage/empty-hint.ts, as the stage's hint)
+  if (emptySlide(R)) out.push({ cls: "warn", html: "No tables on this slide." });
   const { boxes } = computeLayout(R, ctx);
   const sheets = new Set<Sheet>();
   R.tables.forEach((T, i) => {

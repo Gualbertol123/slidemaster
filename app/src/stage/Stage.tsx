@@ -8,6 +8,7 @@
    - the selection, the drop mark, the snapping guides, the size guides;
    - the editor open on the slide (editors.tsx).
    Element ids, classes and data-* are v3's, so tests and the toolbars find the same things. */
+import { emptySlide } from "./empty-hint";
 import { isLookText } from "../editor/look";
 import { slideCtx } from "@slide-builder/core/render/look";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -142,7 +143,7 @@ const Wrap = memo(function Wrap({ s, left, top }: { s: number; left: number; top
           <Selection m={m} s={s} drag={drag} />
           <Guides drag={drag} s={s} />
           <HiddenMarks m={m} R={R} c={c} />
-          {R.type === "content" && !R.tables.length && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
+          {emptySlide(R) && <div className="emptyslide">No tables on this slide – Add table (Insert) puts one here.</div>}
         </div>
       </div>
       {/* a slide hidden in this design (S13.6): still drawn and edited here, marked (DOM, never exported) */}

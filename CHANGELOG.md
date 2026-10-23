@@ -3,6 +3,23 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.2 - 2026-10-23
+
+What users notice
+* **The "No tables on this slide" hint no longer sits over your charts.** The hint across the middle of the slide (and
+  the Issues line "No tables on this slide.") now shows only on a slide with nothing on it. A slide of KPI cards,
+  charts, shapes, lines or text boxes without a table shows neither. The hint was never exported and still is not.
+* **A filtered chart card shows its periods, not the product, as categories.** When a chart's names were the same
+  column as its filter (for example Product, picked as "their names" in Insert chart ▾ › Choose the cells…, or the first
+  column of From the selected cells), every category read "Loans" and the momentum captions read "vs Loans". Such a chart
+  now takes its names from the nearest other text column left of the numbers (Period), so the axis reads Q3, W37, W38, W39
+  and the captions "vs Q3" and "vs W38". Your deck is fixed as it is; there is nothing to redo.
+* A chart whose categories all carry the same name gets an Issues line saying so, with the hint to choose the names in
+  Change the cells….
+
+Details
+- 4.13.2 · app stage/empty-hint.ts `emptySlide`: a content slide with no table, no item (any kind, a newer page's too) and no text box (`notes`). Stage.tsx draws the hint (DOM, `.emptyslide`) and editor/issues.ts writes "No tables on this slide." only then. core render/chart-data.ts resolveSeries: with a filter, a labels range that is the filter's column (same sheet, same single column) is not used, and the automatic names (labelsFor, nearest text column left of the numbers) skip the filter's column; the momentum's automatic captions follow (they read the categories). New Issues line when there are 2 or more categories and all have the same non-empty name. How the owner's deck got there: Insert chart stores the names it is given (step 2 of Choose the cells…, or the selection's first column in From the selected cells). The filter's Cells… and value, the type switch and + Stats and momentum never touch them, so the names stayed the Product column, which is also the filter's. No format change. Tests: core/tests/x4132-labels.test.ts, app/tests/x4132.test.ts, e2e B54-01 (the hint on the empty slide and not over the KPI cards, the Loans card stored with the Product names drawing the periods, no "No tables" in the stage, the Issues panel or the PowerPoint slide). Page rebuilt (5,028,140 bytes), app/tests/page-budget/x4132.json 1,000 by measurement.
+
 ## 4.13.1 - 2026-10-23
 
 What users notice

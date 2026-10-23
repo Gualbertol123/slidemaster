@@ -96,6 +96,8 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await pollFile(() => slides0().some(s => s.id === "b54s"), { timeout: 20_000 }).toBe(true);
     const k = slides0().findIndex(s => s.id === "b54s"), S = slides0()[k];
     await page.locator(`.thumb[data-i="${k}"]`).click(); await page.locator(`.thumb.on[data-i="${k}"]`).waitFor();
+    // (4.13.2) nothing on the slide yet: the empty slide's hint
+    await expect(page.locator("#stage .emptyslide")).toBeVisible({ timeout: 20_000 });
 
     // KPI cards from table: the sheet view, KPI!A1:H5, one step – four cards, one per product
     let u = await undoSteps(page);
@@ -111,6 +113,8 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await expect.poll(() => undoSteps(page)).toBe(u + 1);
     const items = () => (slides0().find(s => s.id === S.id).items || {}) as Record<string, any>;
     await pollFile(() => Object.values(items()).filter(i => i.kind === "kpi").length, { timeout: 20_000 }).toBe(4);
+    // (4.13.2, image 20) KPI cards and no table: not an empty slide – no hint over the cards
+    await expect(page.locator("#stage .emptyslide")).toHaveCount(0);
     const kpis = Object.entries(items()).filter(([, i]) => i.kind === "kpi").sort(([, a], [, b]) => a.box.x - b.box.x || a.box.y - b.box.y);
     expect(kpis.map(([, i]) => i.head)).toEqual(["A2", "A3", "A4", "A5"].map(range => ({ sheet: "KPI", range })));
     // the row as the owner's picture: four cards across, the two chart cards under them
@@ -118,7 +122,8 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     await change(page, "KPI row", kpis.map(([id], j) => ({ op: "item.patch", slide: S.id, id, patch: { box: { x: x0 + j * (w + gap), y: 180, w, h: 130 } } })));
     u = await undoSteps(page);
     await change(page, "Insert chart cards", [
-      { op: "item.patch", slide: S.id, id: "cl", patch: volumeCard("Loans", "D2", { x: x0, y: 340, w: 725, h: 520 }, { text: "Actual loans" }) },
+      // (4.13.2, image 20) the Loans card as the owner's deck holds it: its names the Product column, the filter's column too
+      { op: "item.patch", slide: S.id, id: "cl", patch: { ...volumeCard("Loans", "D2", { x: x0, y: 340, w: 725, h: 520 }, { text: "Actual loans" }), labels: { sheet: "Volumes", range: "A2:A9" } } },
       { op: "item.patch", slide: S.id, id: "cd", patch: volumeCard("Deposits", "D6", { x: x0 + 725 + gap, y: 340, w: 725, h: 520 }, { text: "Illustrative", color: "#D93025" }) }]);
     await expect.poll(() => undoSteps(page)).toBe(u + 1);
     await pollFile(() => items().cd?.filter?.eq, { timeout: 20_000 }).toBe("Deposits");
@@ -132,6 +137,10 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
       "LATEST VOLUME", "7.000", "8.700", NEG + "1.700", "210", "MOMENTUM", NEG + "1.420 (" + NEG + "16,9%)", "+0 (+0,0%)", "since trough", NEG + "2.000 (" + NEG + "22,2%)", "WoW", "+589 (+5,2%)"];
     await expect.poll(async () => { const T = await stageTexts(page); return want.filter(s => !T.includes(s)); }, { timeout: 30_000 }).toEqual([]);
     await expect(page.locator("#issues")).not.toContainText("KPI");
+    // (4.13.2) both cards' categories are the periods (the Loans card's names were its filter column), never "vs Loans"
+    const T0 = await stageTexts(page);
+    expect([T0.filter(t => t === "W39").length >= 2, T0.includes("vs Loans"), T0.some(t => t.includes("No tables"))]).toEqual([true, false, false]);
+    await expect(page.locator("#issues")).not.toContainText("No tables");
     // the slide in Glass, Navy and Excel (the review's pictures)
     const shots = process.env.B54_SHOTS;
     const design = async (d: string) => { await change(page, "Design", [{ op: "style.patch", patch: { design: d } }]); await saved(page); await page.waitForTimeout(1500); };
@@ -150,6 +159,7 @@ test.describe.serial("KPI cards and chart cards (B54)", () => {
     expect(sx).toBeTruthy();
     for (const s of ["DEPOSITS", "vs prev. Week", "MOMENTUM", "GAP TO BUDGET", 'name="KPI card ']) expect(sx, s).toContain(s);
     expect(sx).not.toContain("<p:cxnSp");
+    expect(sx).not.toContain("No tables");                                   // (4.13.2: the stage's hint is never exported)
     expect(Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n)).length).toBeGreaterThanOrEqual(2);
     // PDF: the numbers as text
     const pdf = read((await exported(page, () => page.click("#exportBtn")))[0]).toString("latin1");
