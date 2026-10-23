@@ -55,7 +55,7 @@ describe("KPI cards from table (editor/kpi.ts)", () => {
     }
     expect(moveRow(k, 0, 1).rows.map(r => r.label)).toEqual(["vs prev. Week", "vs Bdg", "vs EoM"]);
     expect(sourcePatch(k, 1, "cell")!.rows[1].src).toEqual({ cell: { sheet: "KPI", range: "D2" } });
-    expect(kpiRefPatch(k, "row:2", { sheet: "KPI", range: "H2:H3" })!.rows![2].src).toEqual({ ref: { sheet: "KPI", range: "H2" }, mode: "pct" });
+    expect((kpiRefPatch(k, "row:2", { sheet: "KPI", range: "H2:H3" }) as { rows: KpiItem["rows"] }).rows![2].src).toEqual({ ref: { sheet: "KPI", range: "H2" }, mode: "pct" });
   });
 });
 
