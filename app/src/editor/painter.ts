@@ -65,15 +65,17 @@ function fmtOf(T: TableLayout, raw: Item, e: Item): Fmt {
 
 /* ---- objects (4.9): the style keys copied per kind – never the data, the text, the place or the attachment ---- */
 const OBJ_KEYS: Record<string, string[]> = {
-  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle", "sers", "axes"],
+  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle", "sers", "axes",
+    /* B56: the card's texts and layout (never the dragged offsets: they belong to that chart's data) */ "texts", "lay",
+    /* (review of PR #44) a budget chart's bars: their look only (progressPatch) */ "progress"],
   shape: ["fill", "border", "radius", "fmt"],
   icon: ["fill", "stroke", "border"],
   line: ["style", "fmt"],
   /* B54: a KPI card's look – its value's good direction (its rows, cells and formats are its data) */
-  kpi: ["good"],
+  kpi: ["good", /* B56: its texts and layout */ "texts", "lay"],
 };
 /** item.patch merges these per entry (core model/ops.ts ITEM_MAPS): a paste sends the source's entries and nulls the rest */
-const MAPS = new Set(["colors", "fmt", "titleFmt"]);
+const MAPS = new Set(["colors", "fmt", "titleFmt", /* B56 */ "texts", "lay"]);
 const objKind = (it: SlideItem) => it.kind === "shape" ? (it.shape === "icon" ? "icon" : "shape") : it.kind;
 const KIND_NAME: Record<string, string> = { chart: "charts", shape: "callouts and shapes", icon: "icons", line: "lines", kpi: "KPI cards" };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -87,6 +89,7 @@ function objPatch(o: ObjLook, it: SlideItem): Record<string, unknown> | null {
   if (objKind(it) !== o.kind) return null;
   const cur = it as unknown as Record<string, unknown>, p: Record<string, unknown> = {};
   for (const k of OBJ_KEYS[o.kind] || []) {
+    if (k === "progress") { const m = progressPatch(o.look[k], cur[k]); if (m) p[k] = m; continue; }
     if (k === "sers" || k === "axes") { const m = (k === "sers" ? sersPatch : axesPatch)(o.look[k] as Entries, cur[k] as Entries); if (m) p[k] = m; continue; }
     const want = o.look[k], now = cur[k];
     if (same(want, now)) continue;
@@ -98,6 +101,23 @@ function objPatch(o: ObjLook, it: SlideItem): Record<string, unknown> | null {
     } else p[k] = want;
   }
   return Object.keys(p).length ? p : null;
+}
+/* a budget chart's bars (B55; review of PR #44): their colours, the over-target rule and the %, name and gap texts' look
+   travel from a budget chart to another – never its values, targets, names or long table (its data), nor the gap's
+   words (its text). `progress` is a plain key: the target's own, with the look keys the source's */
+const PROGRESS_LOOK = ["fill", "track", "overFill", "over", "pct", "cat", "gap"];
+function progressPatch(src: unknown, dst: unknown): Record<string, unknown> | null {
+  if (!src || typeof src !== "object" || !dst || typeof dst !== "object") return null;
+  const S = src as Record<string, unknown>, D = dst as Record<string, unknown>, out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(D)) if (!PROGRESS_LOOK.includes(k)) out[k] = v;
+  for (const k of PROGRESS_LOOK) {
+    if (S[k] === undefined) { if (k === "gap" && D.gap && typeof D.gap === "object") { const { over, under } = D.gap as Record<string, unknown>; const w = { ...(over !== undefined ? { over } : {}), ...(under !== undefined ? { under } : {}) }; if (Object.keys(w).length) out.gap = w; } continue; }
+    let v = JSON.parse(JSON.stringify(S[k]));
+    // (the gap's words stay the target's)
+    if (k === "gap" && v && typeof v === "object") { delete v.over; delete v.under; const g = D.gap as Record<string, unknown> | undefined; if (g?.over !== undefined) v.over = g.over; if (g?.under !== undefined) v.under = g.under; }
+    out[k] = v;
+  }
+  return same(out, D) ? null : out;
 }
 /* a chart's series and axes (09 §2.7, PT-03; S16.3 review, 3): only their look travels. item.patch replaces a map entry
    whole (ops.ts mapMerge), so each changed entry is sent complete: the target's own, with the look keys the source's */

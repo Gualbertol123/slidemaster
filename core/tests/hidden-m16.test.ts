@@ -24,6 +24,7 @@ import { tableKey, type RenderCtx } from "../src/render/context";
 import { gridOf } from "../src/render/comment";
 import { effItems } from "../src/render/edits";
 import { chartData, chartKey } from "../src/render/chart-dl";
+import { progressTexts } from "../src/render/chart-progress";
 import { E } from "../src/pptx/drawingml";
 import { Port, pair, transfer } from "../src/rpc/port";
 import { serve } from "../src/worker/host";
@@ -292,6 +293,22 @@ describe("what reads the layout follows it (HR-02)", () => {
     // a version's drop: every chart reading the sheet skips it
     const c5 = ctxOf(wb, p, "excel", { version: { id: "v", name: "V", hide: {}, drop: { SLIDE_1: ["6"] } } as never });
     expect((chartData(c3, c5) as { slices: { label: string }[] }).slices.map(s => s.label)).toEqual(["Beta", "Gamma", "Epsilon", "Zeta"]);
+  });
+});
+
+describe("(B55) a budget-achievement chart follows its slide's hidden rows", () => {
+  it("hiding a row of the table it reads drops that bar; hiding another row brings it back (the cache key follows)", async () => {
+    const wb = await book(), p = preset();
+    const ach: ChartItem = { kind: "chart", type: "progress", values: { table: T, range: "D6:D11" }, box: { x: 980, y: 250, w: 300, h: 420 },
+      progress: { vals: [{ table: T, range: "D6:D11" }], targets: [{ table: T, range: "D6" }], cats: { table: T, range: "C6:C11" } } };
+    p.slides[0].items = { a: ach };
+    p.slides[0].hidden = { [T + ":r7"]: true };
+    const cats = (c: RenderCtx) => progressTexts(ach, c).map(x => x.cat);
+    expect(cats(ctxOf(wb, p))).toEqual(["Alpha", "Gamma", "Epsilon", "Zeta"]);
+    p.slides[0].hidden = { [T + ":r8"]: true };
+    expect(cats(ctxOf(wb, p))).toEqual(["Alpha", "Beta", "Epsilon", "Zeta"]);
+    p.slides[0].hidden = undefined;
+    expect(cats(ctxOf(wb, p))).toEqual(["Alpha", "Beta", "Gamma", "Epsilon", "Zeta"]);
   });
 });
 

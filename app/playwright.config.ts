@@ -14,8 +14,8 @@ const tmp = process.env.SB_E2E_TMP || fs.mkdtempSync(path.join(os.tmpdir(), "sb-
 const root = path.join(tmp, "root"), data = path.join(tmp, "data");
 if (fresh) {
   fs.mkdirSync(root, { recursive: true }); fs.mkdirSync(data, { recursive: true });
-  // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc); Targets.xlsx: B52-01's own deck; Labels.xlsx (a copy of it): B53-01's; Zoom.xlsx (another copy): the responsive spec; Icons.xlsx (another copy): icons-412.spec.ts's; B54.xlsx: B54-01's (the owner's KPI and Volumes sheets)
-  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx", "Targets.xlsx", "Panel.xlsx", "Labels.xlsx", "Zoom.xlsx", "Icons.xlsx", "B54.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
+  // Banks.xlsx and Peers.xlsx link to each other (S7.3, tests/corpus/workbooks/recalc); Targets.xlsx: B52-01's own deck; Labels.xlsx (a copy of it): B53-01's; Zoom.xlsx (another copy): the responsive spec; Icons.xlsx (another copy): icons-412.spec.ts's; B54.xlsx: B54-01's (the owner's KPI and Volumes sheets); B56.xlsx (a copy of it): B56-01's
+  for (const f of ["report.xlsx", "plain.xlsx", "big.xlsx", "weekly.xlsx", "Banks.xlsx", "Peers.xlsx", "Gate.xlsx", "Targets.xlsx", "Panel.xlsx", "Labels.xlsx", "Zoom.xlsx", "Icons.xlsx", "B54.xlsx", "B56.xlsx"]) fs.copyFileSync(path.join(__dirname, "tests/fixtures", f), path.join(root, f));
 }
 process.env.SB_E2E_TMP = tmp; process.env.SB_E2E_ROOT = root; process.env.SB_E2E_DATA = data;
 // the browser: CHROME, else Playwright's own Chromium (npx playwright install chromium), the same on every OS

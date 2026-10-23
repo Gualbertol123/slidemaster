@@ -13,10 +13,12 @@ import { addRangeTable } from "../editor/slides";
 import { REF_HINT, REF_TITLE, oneCell } from "../editor/chart-panel";
 import { applyRef } from "../editor/chart-send";
 import { insertKpiCards, kpiRefPatch } from "../editor/kpi";
+import { insertAchievement } from "../editor/chart-progress-insert";
 import type { KpiItem } from "@slide-builder/core/model/types";
+import { applySrcPick, srcInit } from "../editor/datasources";
 
 const close = () => setDialogs({ pick: null });
-const TITLE: Record<PickReq["kind"], string> = { chart: "Insert chart", "chart-cells": "Chart: change the cells", cell: "Quote a cell", table: "New table from cells", "chart-ref": "Chart", kpi: "KPI cards from table", "kpi-ref": "KPI card: choose the cell" };
+const TITLE: Record<PickReq["kind"], string> = { src: "Data sources: change the cells", chart: "Insert chart", "chart-cells": "Chart: change the cells", cell: "Quote a cell", table: "New table from cells", "chart-ref": "Chart", kpi: "KPI cards from table", progress: "Budget achievement", "kpi-ref": "KPI card: choose the cell" };
 
 export function PickCellsDialog() {
   const req = useStore(s => s.ui.dialogs.pick)!, wb = useStore(s => s.deck.wb);
@@ -24,9 +26,11 @@ export function PickCellsDialog() {
   // a callout's cell, a new table's range (S13.4): one step; a chart: the numbers, then their names
   // (the chart panel's cells, S14.5: one step – a series' name is one cell)
   const ref = req.kind === "chart-ref" ? req.ref : null;
-  const one = req.kind === "cell" || req.kind === "kpi-ref" || oneCell(ref), table = req.kind === "table" || req.kind === "kpi", kpi = req.kind === "kpi";
+  const src = req.kind === "src" ? req : null;
+  const one = (!!src && src.one) || req.kind === "cell" || req.kind === "kpi-ref" || oneCell(ref), table = req.kind === "table" || req.kind === "kpi" || req.kind === "progress", kpi = req.kind === "kpi", prog = req.kind === "progress";
   // the sheet shown first: the chart's own (changing its cells), else the first of the list
   const start = () => {
+    if (src) return sheets.includes(src.sheet) ? src.sheet : sheets[0] || "";
     const it = req.kind === "chart-cells" || req.kind === "chart-ref" || req.kind === "kpi-ref" ? itemOf(req.id) : null;
     // (a KPI card: the sheet of its value's cell)
     const v = it?.kind === "chart" ? it.values : it?.kind === "kpi" ? (it as KpiItem).cur ?? null : null;
@@ -39,7 +43,7 @@ export function PickCellsDialog() {
   const [values, setValues] = useState<DataRef | null>(null);
   useEffect(() => {
     if (!wb || !sheet) return;
-    let live = true; setInfo(null); setErr(""); setRange(null);
+    let live = true; setInfo(null); setErr(""); setRange(src && sheet === src.sheet ? src.range : null);
     void core().call("getSheetMeta", { book: wb.book, names: [sheet], load: true })
       .then(m => { if (!live) return; const S = m.sheets[0]; if (S && !S.error) setInfo(S); else setErr(S?.error || "the sheet is not loaded"); })
       .catch(e => { if (live) setErr(String((e as Error)?.message || e)); });
@@ -67,19 +71,21 @@ export function PickCellsDialog() {
   };
   const use = (r: string | null) => {
     if (!r) return;
+    if (src) { applySrcPick(src, sheet, one ? r.split(":")[0] : r); close(); return; }
     if (req.kind === "chart-ref") { applyRef(req.id, req.ref, { sheet, range: one ? r.split(":")[0] : r }); close(); return; }
     if (req.kind === "kpi-ref") { const k = itemOf(req.id); const p = k?.kind === "kpi" ? kpiRefPatch(k as KpiItem, req.what, { sheet, range: r }, req.src) : null; if (p) itemPatch("KPI card cell", req.id, p); close(); return; }
     if (kpi) { void insertKpiCards(sheet, r); close(); return; }
+    if (prog) { void insertAchievement(sheet, r); close(); return; }
     if (one) { if (req.kind === "cell") quoteCell(req.id, sheet, r.split(":")[0]); close(); return; }
     if (table) { addRangeTable(sheet, r); close(); return; }
     if (!values) { setValues({ sheet, range: r }); setRange(null); return; }       // step 1 done: now the names
     finish({ sheet, range: r });
   };
-  const hint = ref ? (ref.what === "name" ? "Click the cell" : "Drag across the cells") : req.kind === "kpi-ref" ? "Click the cell" : one ? "Click the cell to quote" : kpi ? "Drag across the table: its header row and one row per card" : table ? "Drag across the cells of the table" : !values ? "Drag across the numbers of the chart" : "Drag across their names (or go on without)";
+  const hint = src ? (one ? "Click the cell" : "Drag across the cells") : ref ? (ref.what === "name" ? "Click the cell" : "Drag across the cells") : req.kind === "kpi-ref" ? "Click the cell" : one ? "Click the cell to quote" : kpi ? "Drag across the table: its header row and one row per card" : prog ? "Drag across the long table: its header row and every row" : table ? "Drag across the cells of the table" : !values ? "Drag across the numbers of the chart" : "Drag across their names (or go on without)";
   return (
     <div className="modal">
       <div className="dlg pkdlg" id="pickCells" style={{ width: "min(940px,94vw)" }}>
-        <div className="dlghd"><b>{ref ? REF_TITLE[ref.what] : TITLE[req.kind]}</b><span>{ref ? REF_HINT[ref.what] : req.kind === "kpi-ref" ? "The card reads this cell and follows the workbook when it changes." : one ? "The callout shows what the cell shows, and follows the workbook when it changes." : kpi ? "One card per row under the header row (Product, Current, Budget_reference, Previous_week, EoM_reference, Delta_…); the columns are found by their names, else by their order." : table ? "The table joins the deck and this slide; it follows the workbook when it changes." : !values ? "Step 1 of 2: the numbers. A pie gets one slice per number; blank cells and text are left out." : `Step 2 of 2: the names of the ${values.range} numbers – one name per number, in the same order.`}</span></div>
+        <div className="dlghd"><b>{ref ? REF_TITLE[ref.what] : src ? "Data sources: " + src.label : TITLE[req.kind]}</b><span>{src ? `Now ${src.sheet}!${src.range}. ${one ? "Click the cell" : "Drag across the cells"} it should read: only this reference changes (one undo step).` : ref ? REF_HINT[ref.what] : req.kind === "kpi-ref" ? "The card reads this cell and follows the workbook when it changes." : one ? "The callout shows what the cell shows, and follows the workbook when it changes." : prog ? "One bar per product: its latest row's value against its budget. The columns are found by their names (Product, Volume, Budget…), else the first, the second to last and the last." : kpi ? "One card per row under the header row (Product, Current, Budget_reference, Previous_week, EoM_reference, Delta_…); the columns are found by their names, else by their order." : table ? "The table joins the deck and this slide; it follows the workbook when it changes." : !values ? "Step 1 of 2: the numbers. A pie gets one slice per number; blank cells and text are left out." : `Step 2 of 2: the names of the ${values.range} numbers – one name per number, in the same order.`}</span></div>
         <div className="dlgbody">
           <div className="scrange" id="pkRange">
             <div className="row">
@@ -88,7 +94,7 @@ export function PickCellsDialog() {
               <span className="scnote">{range ? <>Selected <b id="pkSel">{range}</b></> : hint}</span>
             </div>
             {err && <div className="scbad">{err}</div>}
-            <div className="wgridwrap scgrid">{info ? <RangePicker key={sheet + (one ? "|cell" : "") + (values ? "|names" : "")} book={wb.book} S={info} single={one} onSel={setRange} onEnter={r => use(r)} /> : !err && <div className="scnote" style={{ padding: "12px" }}>Reading “{sheet}”…</div>}</div>
+            <div className="wgridwrap scgrid">{info ? <RangePicker key={sheet + (one ? "|cell" : "") + (values ? "|names" : "")} book={wb.book} S={info} single={one} init={src && sheet === src.sheet ? srcInit(src) : null} onSel={setRange} onEnter={r => use(r)} /> : !err && <div className="scnote" style={{ padding: "12px" }}>Reading “{sheet}”…</div>}</div>
           </div>
         </div>
         <div className="dlgft">
@@ -96,7 +102,7 @@ export function PickCellsDialog() {
           <span style={{ flex: "1" }} />
           <button className="btn" data-a="cancel" onClick={close}>Cancel</button>
           {!one && !table && !ref && values && <button className="btn" id="pkNoNames" onClick={() => finish(null)} title="The names beside the numbers (the column on their left, the row above), or 1, 2, 3…">Without names</button>}
-          <button className="btn primary" id="pkUse" disabled={!range} onClick={() => use(range)}>{ref ? "Use these cells" : req.kind === "kpi-ref" ? "Use this cell" : one ? "Quote this cell" : kpi ? "Insert KPI cards" : table ? "Add table" : !values ? "Next: their names" : req.kind === "chart" ? "Insert chart" : "Use these cells"}</button>
+          <button className="btn primary" id="pkUse" disabled={!range} onClick={() => use(range)}>{src ? "Use these cells" : ref ? "Use these cells" : req.kind === "kpi-ref" ? "Use this cell" : one ? "Quote this cell" : kpi ? "Insert KPI cards" : prog ? "Insert chart" : table ? "Add table" : !values ? "Next: their names" : req.kind === "chart" ? "Insert chart" : "Use these cells"}</button>
         </div>
       </div>
     </div>

@@ -1,0 +1,4 @@
+{
+  "bytes": 49000,
+  "why": "B55 (the budget-achievement chart and chart subtitles, format 10 with its deep gating; product owner 2026-10-23, image 19): by measurement on v4/B55-achievement after the review of 175a2ff – the page built from its base (main 87f0951, the 4.13.1 page, 5,027,365 bytes) is 5,076,328 bytes (+48,963): core render/chart-progress.ts, the subtitle in chart-card.ts and the format-10 guard (4.13.1's frozen item contents, V4131_INSIDE) in the app's and the workers' bundles; the chart panel's budget-achievement section, Insert chart ▾ › Budget achievement…; rounded up to the next 500."
+}

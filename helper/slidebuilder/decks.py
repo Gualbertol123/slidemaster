@@ -1,7 +1,7 @@
 """Decks of Slide Builder 4 on the shared folder: a snapshot plus append-only journals (docs/next/04 §2, ADR-006).
 
     data/v4/decks/<key>/
-      snapshot.json          {"format": 4, 5, 6, 7, 8 or 9, "gen", "workbook", "lamport", "rev", "frontier": {journal: offset}, "by", "at", "doc"}
+      snapshot.json          {"format": 4, 5, 6, 7, 8, 9 or 10, "gen", "workbook", "lamport", "rev", "frontier": {journal: offset}, "by", "at", "doc"}
       j/<journal>.log        framed records, append-only, ONE writer per file (no lock on the edit path)
       presence/<who>         empty files; their mtime (file-server clock) is the heartbeat
       lock                   compaction / migration lock (locks.Lock: O_EXCL, token, stale 15 s on the server clock)
@@ -16,6 +16,8 @@
                              4.11 and later; every 4.0-4.10 helper takes it for one (4.10 excepts MARKER5-MARKER7 only)
       incident-format-9.json the deck holds Slide Builder 4.13 objects (ADR-019 amendment for B54): NOT an incident for
                              4.13 and later; every 4.0-4.12 helper takes it for one (4.11 and 4.12 except MARKER5-MARKER8 only)
+      incident-format-10.json the deck holds Slide Builder 4.14 objects (ADR-019 amendment for B55): NOT an incident for
+                             4.14 and later; every 4.0-4.13 helper takes it for one (4.13 excepts MARKER5-MARKER9 only)
       moved-from-v3.json     written once by the migration (migrate_v3.py)
     data/backups/v4/<key>/<gen>.json   each compaction's snapshot (the last 30)
 
@@ -80,6 +82,12 @@ B54 keys as nothing - the stats row, corner tag, separator, momentum row and a l
 same raise with MARKER9 (an incident to every 4.0-4.12 helper: 4.11's and 4.12's _is_incident except MARKER5-MARKER8
 only, their READ_FORMATS is (4, 5, 6, 7, 8)); this helper refuses a format-9 deck to a page that does not send 9 and a
 compaction that would lower 9 (400).
+
+Format 10 (ADR-019 amendment for B55, 4.14): 4.13 applies a chart's B55 keys as nothing - a chart card's subtitle and the
+budget-achievement chart's `progress` - and draws a chart of type "progress" as a pie (core needsV10). The same raise
+with MARKER10 (an incident to every 4.0-4.13 helper: 4.13's _is_incident excepts MARKER5-MARKER9 only, its READ_FORMATS
+is (4, 5, 6, 7, 8, 9)); this helper refuses a format-10 deck to a page that does not send 10 and a compaction that would
+lower 10 (400).
 """
 import base64
 import concurrent.futures
@@ -99,14 +107,15 @@ from .locks import Lock
 from .util import current_host, current_user, doc_key, log, remove_quietly, safe_component, write_atomic
 
 CREATE_FORMAT = 4                 # new and migrated decks: 4.0-4.5 read them until they hold a 4.6 object (ADR-019)
-READ_FORMATS = (4, 5, 6, 7, 8, 9)  # 5: the deck holds what 4.0.0 does not know, 6: what 4.8.0 does not, 7: what 4.9.0 does not, 8: what 4.10.1 does not, 9: what 4.12.0 does not (raised by the page, never lowered)
+READ_FORMATS = (4, 5, 6, 7, 8, 9, 10)  # 5: the deck holds what 4.0.0 does not know, 6: what 4.8.0 does not, 7: what 4.9.0 does not, 8: what 4.10.1 does not, 9: what 4.12.0 does not, 10: what 4.13.1 does not (raised by the page, never lowered)
 MARKER5 = "incident-format-5.json"                 # (an "incident-" name: what every 4.0-4.5 helper honours)
 MARKER6 = "incident-format-6.json"                 # (the same for every 4.0-4.8 helper: 4.6-4.8 except MARKER5 only)
 MARKER7 = "incident-format-7.json"                 # (the same for every 4.0-4.9 helper: 4.9 excepts MARKER5 and MARKER6 only)
 MARKER8 = "incident-format-8.json"                 # (the same for every 4.0-4.10 helper: 4.10 excepts MARKER5-MARKER7 only)
 MARKER9 = "incident-format-9.json"                 # (the same for every 4.0-4.12 helper: 4.11 and 4.12 except MARKER5-MARKER8 only)
-MARKERS = {5: MARKER5, 6: MARKER6, 7: MARKER7, 8: MARKER8, 9: MARKER9}
-SINCE = {5: "4.6", 6: "4.9", 7: "4.10", 8: "4.11", 9: "4.13"}                       # the first version that reads the format (messages)
+MARKER10 = "incident-format-10.json"               # (the same for every 4.0-4.13 helper: 4.13 excepts MARKER5-MARKER9 only)
+MARKERS = {5: MARKER5, 6: MARKER6, 7: MARKER7, 8: MARKER8, 9: MARKER9, 10: MARKER10}
+SINCE = {5: "4.6", 6: "4.9", 7: "4.10", 8: "4.11", 9: "4.13", 10: "4.14"}                       # the first version that reads the format (messages)
 OUTDATED5 = "Slide Builder was updated - reload the page (F5) to continue; your last change was not saved"
 # s: how long after the marker a 4.0-4.5 page may still append (= core BUMP_WAIT_MS; ADR-019 amendment): journal mode,
 # REFRESH_S 4 + the SMB directory cache 10 + 1; lean-lock (no refresher: only the page's tail looks again), CHECK_TTL
@@ -455,7 +464,7 @@ _snapsig = {}                             # key -> ((mtime_ns, size), gen)
 _readonly = {}                            # key -> reason (an incident this helper saw)
 _checked = {}                             # key -> monotonic time this helper last looked at the deck's folder
 _rolled = {}                              # key -> True: the deck was rolled back to Slide Builder 3
-_v5 = {}                                  # key -> 9 / 8 / 7 / 6 / 5: the deck's folder holds MARKER9 / MARKER8 / MARKER7 / MARKER6 / MARKER5 (as of the last look), else 0
+_v5 = {}                                  # key -> 10 / 9 / 8 / 7 / 6 / 5: the deck's folder holds MARKER10 / MARKER9 / MARKER8 / MARKER7 / MARKER6 / MARKER5 (as of the last look), else 0
 ROLLED = "this deck was moved back to Slide Builder 3 - reload the page (F5) to continue"
 _guard = threading.Lock()
 _pool = None
@@ -592,7 +601,7 @@ def _look(key, ttl=None):
     else:
         _rolled.pop(key, None)
     inc = sorted(n for n in names if _is_incident(n))
-    _v5[key] = 9 if MARKER9 in names else 8 if MARKER8 in names else 7 if MARKER7 in names else 6 if MARKER6 in names else 5 if MARKER5 in names else 0
+    _v5[key] = 10 if MARKER10 in names else 9 if MARKER9 in names else 8 if MARKER8 in names else 7 if MARKER7 in names else 6 if MARKER6 in names else 5 if MARKER5 in names else 0
     if inc:
         _readonly[key] = "a journal of this deck is damaged (%s) - the deck is read-only; tell the maintainer" % inc[0]
     else:
@@ -602,7 +611,7 @@ def _look(key, ttl=None):
 
 # --------------------------------------------------------------------------- the format guard (ADR-019)
 def mark_format5(key, by=None, fmt=5):
-    """the deck's marker MARKER5 (`fmt` 6: MARKER6, every 4.0-4.8 helper; 7: MARKER7, every 4.0-4.9 helper; 8: MARKER8, every 4.0-4.10 helper; 9: MARKER9, every 4.0-4.12 helper), written once (O_EXCL; an existing one is kept): from their next look at the deck's
+    """the deck's marker MARKER5 (`fmt` 6: MARKER6, every 4.0-4.8 helper; 7: MARKER7, every 4.0-4.9 helper; 8: MARKER8, every 4.0-4.10 helper; 9: MARKER9, every 4.0-4.12 helper; 10: MARKER10, every 4.0-4.13 helper), written once (O_EXCL; an existing one is kept): from their next look at the deck's
     folder every 4.0-4.5 helper takes the deck for read-only. Returns {created, at, now, wait} (the file server's ms; `at`:
     when the marker was written - the page waits BUMP_WAIT_S from then before it raises the snapshot). The page asks
     again after its wait: this helper's journal listing of the deck is dropped each time, so the page's next tail
@@ -684,7 +693,7 @@ def check_page(key, formats, snap=None):
     after its PC's helper was restarted on 4.6) on a deck that holds 4.6 objects, or format 6 (no 6 in it: a 4.6-4.8
     page, its helper restarted on 4.9) on a deck that holds 4.9 objects: its marker (looked at again after REFRESH_S
     at most: the bump's wait covers that), or the snapshot `snap` read for it. Pages that read 6 pay nothing."""
-    if 9 in formats:
+    if 10 in formats:
         return
     f = snap.get("format") if snap is not None else None
     if f in MARKERS and f not in formats:
@@ -719,6 +728,11 @@ def is_format8(key):
 def is_format9(key):
     """the deck is marked for 4.13 (its folder holds MARKER9)"""
     return os.path.exists(deck_dir(key, MARKER9))
+
+
+def is_format10(key):
+    """the deck is marked for 4.14 (its folder holds MARKER10)"""
+    return os.path.exists(deck_dir(key, MARKER10))
 
 
 def _new_number(names, prefix, floor=0):
@@ -1083,7 +1097,7 @@ def create_if_missing(workbook):
 # --------------------------------------------------------------------------- compact
 def _validate_snapshot(snap, base):
     if not isinstance(snap, dict) or snap.get("format") not in READ_FORMATS:
-        raise DeckError(400, "a snapshot of format 4, 5, 6, 7, 8 or 9 is expected")
+        raise DeckError(400, "a snapshot of format 4, 5, 6, 7, 8, 9 or 10 is expected")
     if snap.get("gen") != base + 1:
         raise DeckError(400, "the new snapshot's gen must be baseGen + 1")
     fr = snap.get("frontier")

@@ -84,7 +84,7 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
     : ch.bars.series.map(s => ({ name: s.name, values: s.values, ...(s.f ? { f: s.f } : {}), fmt: (i: number) => s.fmts?.[i] || s.fmt }))) : [{ name: ch.series || "Series 1", values: ch.values, fmt: () => ch.fmt }];
   // (S14.4 review 3: columns no series reads – a waterfall's running total – after the series')
   const book = !xy && ch.bars?.book ? ch.bars.book : null, nSer = cols.length;
-  if (book) cols.push(...book.extra.map(c => ({ ...c, fmt: cols[book.values]?.fmt })));
+  if (book) cols.push(...book.extra.map(({ fmt, ...c }) => ({ ...c, fmt: fmt ? () => fmt : cols[book.values]?.fmt })));
   // the number formats as cell styles: 0 = General, then one per other code (custom ids from 164)
   const codes: string[] = [], styleOf = (code: string | undefined) => {
     const c = (code || "").trim();
@@ -94,7 +94,8 @@ export function chartWorkbook(ch: ChartSem): Uint8Array {
   };
   const cats = ch.bars ? ch.bars.cats : ch.labels, lv = ch.bars?.levels || null, f = xy ? 1 : lv ? 3 : 2, last = numToCol(cols.length + f - 1);
   // a formula's cell names: {V} the values column, {R} the running total (the first extra column), {Rp} the row before's
-  const fx = (t: string, row: number) => !book ? t : t.replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
+  // ((B55) {E1}, {E2} …: the extra columns' cells of the row)
+  const fx = (t: string, row: number) => !book ? t : t.replace(/\{E(\d)\}/g, (_, k: string) => numToCol(nSer + f + +k - 1) + row).replace(/\{V\}/g, numToCol(book.values + f) + row).replace(/\{R\}/g, numToCol(nSer + f) + row).replace(/\{Rp\}/g, row > 2 ? numToCol(nSer + f) + (row - 1) : "0");
   const cell = (c: { values: (number | null)[]; f?: (string | null)[]; fmt?: (i: number) => string }, k: number, i: number) => {
     // (S14.6 review 8: the cell's attributes built whole – its reference, then its style when not General)
     const v = c.values[i], st = styleOf(c.fmt?.(i)), at = `r="${numToCol(k + f)}${i + 2}"${st ? ` s="${st}"` : ""}`, fo = c.f?.[i]?.replace(/\{TOP\}/g, `$${numToCol(k + f)}$2`);
@@ -249,7 +250,7 @@ function barXml(ch: ChartSem, B: BarsSem, rid: string, face: (css: string) => st
   const Lg = B.legend;
   const legend = Lg ? `<c:legend><c:legendPos val="${Lg.pos}"/>${Lg.hide.map(i => `<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`).join("")}`
     + `${manual({ x: Lg.box.x - 4, y: Lg.box.y - 2, w: Lg.box.w + 8, h: Lg.box.h + 4 }, frame, false)}<c:overlay val="${Lg.overlay ? 1 : 0}"/>`
-    + `${Lg.overlay ? `<c:spPr><a:solidFill>${clr([255, 255, 255], .85)}</a:solidFill>${lnOf({ color: "#D9D9D9", w: 1 })}</c:spPr>` : ""}${txPr(ch.labelFont, face)}</c:legend>` : "";
+    + `${Lg.overlay ? `<c:spPr><a:solidFill>${clr([255, 255, 255], .85)}</a:solidFill>${lnOf({ color: "#D9D9D9", w: 1 })}</c:spPr>` : ""}${txPr(ch.legendFont ?? ch.labelFont, face)}</c:legend>` : "";
   return XML_HEAD + `<c:chartSpace xmlns:c="${NS.c}" xmlns:a="${NS.a}" xmlns:r="${NS.r}"><c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>`
     + `<c:chart>${title}<c:plotArea>${manual(B.plot, frame, true)}${chartPart}${X ? "" : catAx}${valAx}${second}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
     + `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${txPr(ch.labelFont, face)}<c:externalData r:id="${rid}"><c:autoUpdate val="0"/></c:externalData></c:chartSpace>`;

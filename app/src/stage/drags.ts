@@ -16,6 +16,7 @@ import { resizeMarks, snapEdge, snapMove, snapTargets as coreTargets, snapTol, t
 import { routeOf } from "@slide-builder/core/render/line-dl";
 import { lineNow } from "../editor/lines";
 import { nudgePatch } from "../editor/chart-panel";
+import { isOffKey, offPatch } from "../editor/textparts";
 import { curSlide } from "../editor/edit";
 import { selCols, selRows, setColWidth, setRowHeight, stretchTable } from "../editor/tables";
 import { requestsIssued, setStage, stage } from "./data";
@@ -462,7 +463,10 @@ export function labelDrag(R: RuntimeSlide, id: string, key: string, box: Rect, i
     ghost.remove();
     if (Math.hypot(dx, dy) < 3) { click?.(); return; }
     const it = R.cfg.items?.[id];
-    if (!it || it.kind !== "chart") return;
+    if (!it || (it.kind !== "chart" && it.kind !== "kpi")) return;
+    // (B56: a KPI card's value and rows, a chart card's chips, tag and momentum label – their `offs`; else B53's `nudge`)
+    if (isOffKey(key)) { change(it.kind === "kpi" ? "Move KPI part" : "Move chart card part", [{ op: "item.patch", slide: R.id, id, patch: offPatch(it.offs?.[key], key, dx, dy, itemBox) } as Op]); return; }
+    if (it.kind !== "chart") return;
     change("Move chart label", [{ op: "item.patch", slide: R.id, id, patch: nudgePatch(it, key, dx, dy, itemBox) } as Op]);
   }, () => ghost.remove());
 }

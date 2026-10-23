@@ -2,6 +2,7 @@
 import { buildLayout } from "../xlsx/layout";
 import { hideFor, hideKey, hideSize, hiddenEntries, type DropMap, type HideSet } from "./hidden";
 import { A1, parseRange, uid } from "../xlsx/util";
+import { refsOf } from "./datarefs";
 import type { Range } from "../xlsx/util";
 import type { Sheet, TableLayout, Workbook } from "../xlsx/types";
 import type { ChartItem, Design, KpiItem, LineItem, Preset, RuntimeSlide, ShapeItem, SlideDef, TableDef, TableSizes } from "./types";
@@ -33,6 +34,10 @@ const textSheets = (text: unknown): string[] => typeof text === "string" ? [...t
 /** a chart (M14): its values and labels; a series chart's (4.7) every series' values, targets and name cell, and its
     groups' categories – each may be on another sheet or in a linked workbook */
 function chartSheets(it: ChartItem): string[] {
+  // (B57) every reference model/datarefs.ts refsOf lists – the chart card's cells (axis bounds, filter, stats, momentum
+  // chips, tag, subtitle) and the budget-achievement chart's too, which the lists below never named: a sheet only they
+  // read is loaded as well
+  const all = refsOf(it).flatMap(s => refSheet(s.ref));
   const refs: unknown[] = [it.values, it.labels];
   for (const s of Object.values(it.sers && typeof it.sers === "object" ? it.sers : {})) if (s && typeof s === "object") refs.push(...(Array.isArray(s.vals) ? s.vals : []), ...(Array.isArray(s.target) ? s.target : []), s.name,
     // (S14.4) a scatter series' x values
@@ -41,7 +46,7 @@ function chartSheets(it: ChartItem): string[] {
   // (S14.3) the cells a text mark quotes, as a callout's
   // (B52) and the cells a reference line reads: its value and its name
   const marks = Object.values(it.marks && typeof it.marks === "object" ? it.marks : {}).flatMap(k => k && typeof k === "object" ? [...textSheets(k.text), ...refSheet(k.value), ...refSheet(k.name)] : []);
-  return [...new Set([...refs.flatMap(refSheet), ...marks])];
+  return [...new Set([...refs.flatMap(refSheet), ...marks, ...all])];
 }
 /* ---- M14 above this line, M15 below it ---- */
 /** a callout or an icon (M15): the cells its text quotes */
@@ -56,7 +61,7 @@ function lineSheets(it: LineItem): string[] {
 export function kpiSheets(it: KpiItem): string[] {
   const rows = Array.isArray(it.rows) ? it.rows : [];
   const refs = [it.head, it.cur, ...rows.flatMap(r => r && typeof r === "object" && r.src && typeof r.src === "object" ? [(r.src as { cell?: unknown }).cell, (r.src as { ref?: unknown }).ref] : [])];
-  return [...new Set(refs.flatMap(refSheet))];
+  return [...new Set([...refs.flatMap(refSheet), ...refsOf(it).flatMap(s => refSheet(s.ref))])];
 }
 const ITEM_SHEETS: Record<string, (it: never) => string[]> = { chart: chartSheets, shape: shapeSheets, line: lineSheets, kpi: kpiSheets };
 /** a cell quoted in a callout's text: {Sheet!C7}, {'Sheet name'!C7}, {[Peers.xlsx]Peer!F7} (07 §3) */

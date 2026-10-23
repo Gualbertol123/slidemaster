@@ -40,7 +40,8 @@ import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
-import { cardParts, cardRoom, cardStyles, tagText } from "./chart-card";
+import { cardGaps, cardParts, cardRoom, cardStyles, partStyle, tagBelow, tagText } from "./chart-card";
+import { layNum, partFmt } from "../model/textparts";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
 import { fontStack } from "../model/fonts";
@@ -50,8 +51,8 @@ const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const frac4 = (v: number) => Math.round(v * 10000) / 10000 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** what the design gives a series chart besides chart-dl.ts's ChartLook */
-interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
-function axisLook(ctx: RenderCtx): AxisLook {
+export interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
+export function axisLook(ctx: RenderCtx): AxisLook {
   const d = ctx.style.design;
   if (isConsult(d)) {
     const S = specOf(ctx);
@@ -129,6 +130,7 @@ export interface SeriesLayout {
   /* 4.13 (B54) */
   /** the chart card's parts (chart-card.ts: the tag, stats, separator, momentum row), drawn over the chart – text boxes
       and a line over the native chart in PowerPoint */ card: Node[];
+  /** (B56) the legend's own text style (unset: the labels') – the PowerPoint legend's c:txPr */ legendSt?: St;
 }
 export interface SeriesStyle { lab: St; ttl: St; family: string; colors: string[]; legend: "capsule" | "square" | "line"; ink: string; gradient: boolean; radius: number;
   /** the Excel designs' template (ChartLook.trend): the lines' default width, areas as lines */ trend?: { w: number; areaAsLine: boolean } }
@@ -180,8 +182,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const titleSt = withFmt(sty.ttl, it.titleFmt);
   // (B54) a corner tag shares the title's line: the title keeps clear of it (cut with "…" – on the slide and in PowerPoint)
   const tagT = tagText(it, ctx).text;
-  if (title && tagT) {
-    const tw0 = Math.min(W0 * .45, m.run(tagT, font(cardStyles(sty.lab, "#000000", "#000000").tag)).w), room0 = Math.max(10, W0 - tw0 - 16);
+  if (title && tagT && !tagBelow(it)) {
+    const tw0 = Math.min(W0 * .45, m.run(tagT, font(cardStyles(sty.lab, "#000000", "#000000", it).tag)).w), room0 = Math.max(10, W0 - tw0 - 16);
     if (m.run(title, font(titleSt)).w > room0) title = ellipsis(m, title, titleSt, room0);
   }
   let titleBox: Box | null = null, rule: SeriesLayout["rule"] = null;
@@ -190,13 +192,15 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     const lh = lineH(titleSt), w = Math.min(W0, m.run(title, font(titleSt)).w), al = it.titleFmt?.align;
     titleBox = { x: (al === "left" ? X0 : al === "right" ? X0 + W0 - w : X0 + (W0 - w) / 2) + titleNudge.x, y: Y0 + titleNudge.y, w, h: lh };
     hitOf("title", titleBox);
-    area = { ...area, y: area.y + lh + 8, h: Math.max(10, area.h - lh - 8) };
+    // (B56: the space under the title, 8 px unless the card's layout says)
+    const gh = cardGaps(it).head;
+    area = { ...area, y: area.y + lh + gh, h: Math.max(10, area.h - lh - gh) };
     const rl = lineOrNone(it.titleRule, null);
     if (rl) { rule = { x1: X0, x2: X0 + W0, y: r2(Y0 + lh + 4 + rl.w / 2), line: rl }; area = { ...area, y: area.y + 8 + rl.w, h: Math.max(10, area.h - 8 - rl.w) }; }
   }
   // (B54) the chart card: a tag's own line (no title), the stats row and its separator above the plot, the momentum row
   // below it – the plot shrinks to make room (a chart without them: no room, as before)
-  const room = cardRoom(it, sty.lab, !!title, ctx), titleH = title ? lineH(titleSt) : 0;
+  const room = cardRoom(it, sty.lab, !!title, ctx), titleH = title ? lineH(titleSt) : 0, tagY = area.y;
   if (room.tagLine) area = { ...area, y: area.y + room.tagLine, h: Math.max(10, area.h - room.tagLine) };
   // (a box too small for its rows: the momentum row goes first, then the stats row and its separator – the plot keeps
   // 60 px at least, no row over another; named in the Issues panel)
@@ -215,8 +219,15 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // / "total")
   const entries = shownEntries(it, W && Wc ? (["up", "down", "total"] as const).filter(kd => W.steps.some(st => st?.kind === kd)).map((kd): LegendEntry => ({ key: kd, label: STEP_NAMES[kd], color: Wc[kd] }))
     : ser.map((s, k): LegendEntry => ({ key: s.id, label: s.name, color: colors[k], ...(strokes[k] ? { line: strokes[k]!, marker: markers[k] } : markers[k] ? { marker: markers[k] } : {}) })));
-  const legend = legendNodes(up ? entries.slice().reverse() : entries, at, area, sty.legend, sty.lab, m, look.card);
+  // (B56) the legend's own text format, over the labels'
+  const legF = partFmt(it, "legend"), legSt = legF ? partStyle(sty.lab, legF) : sty.lab;
+  const legend = legendNodes(up ? entries.slice().reverse() : entries, at, area, sty.legend, legSt, m, look.card);
   area = legend.area;
+  // (B56) the plot's margins inside the chart (the card's layout; unset: none, as before)
+  {
+    const ml = layNum(it, "padL", 0, 400) ?? 0, mr = layNum(it, "padR", 0, 400) ?? 0, mt = layNum(it, "padT", 0, 400) ?? 0, mb = layNum(it, "padB", 0, 400) ?? 0;
+    if (ml || mr || mt || mb) area = { x: area.x + ml, y: area.y + mt, w: Math.max(10, area.w - ml - mr), h: Math.max(10, area.h - mt - mb) };
+  }
   // the axes' text
   const valSt = withFmt({ ...sty.lab, color: look.tick }, A.y?.fmt), catSt = withFmt({ ...sty.lab, color: look.tick }, A.x?.fmt);
   const val2St = withFmt({ ...sty.lab, color: look.tick }, A.y2?.fmt);
@@ -650,7 +661,8 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // (B53 review) an axis's own max not above its min (typed, or a max below the automatic minimum): autoScale dropped it
   for (const [nm, ax, S] of [["value", A.y, scale], ["right", A.y2, y2?.scale]] as const)
     if (ax && S && typeof ax.max === "number" && Number.isFinite(ax.max) && ax.max !== S.max) axIssues.push(`the ${nm} axis's max (${ax.max}) is not above its min (${S.min}): automatic instead`);
-  const card = cardParts(it, { frame, titleH, top: cardTop, bottom: cardBottom, skip: cardSkip, series: ser, cats: data.cats, num, lab: sty.lab, ink: sty.ink, sepColor: look.card.line }, ctx, m);
+  const card = cardParts(it, { frame, titleH, top: cardTop, bottom: cardBottom, skip: cardSkip, series: ser, cats: data.cats, num, lab: sty.lab, ink: sty.ink, sepColor: look.card.line,
+    unit, ...(room.tagLine ? { tagY } : {}), ...(screen && id ? { hit: hitOf } : {}) }, ctx, m);
   const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues, ...card.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
@@ -659,7 +671,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     kinds, axes, stackLines: [...stackL], y2, barGroups, traces, groupLabels, dividers, rule, gradient: sty.gradient, marks: { nodes: mk.nodes, under: mk.under, hits: mk.hits, arrows: mk.arrows, native: mk.native }, refs, refSpan,
     xAxis, connectors: W ? connectors(bars, W.steps, vps.y, connectorLine(ser[0].src, look.line?.color)) : [],
     fall: W && Wc ? { steps: W.steps, colors: Wc, legend: entries.filter(e => !legend.cut?.includes(e.key)).map(e => e.key as StepKind) } : null,
-    frame, titleNudge, labelHits, card: card.nodes };
+    frame, titleNudge, labelHits, card: card.nodes, ...(legF ? { legendSt: legSt } : {}) };
 }
 
 /** PowerPoint draws a chart's groups on the secondary axis over those on the primary one; the slide draws areas, then

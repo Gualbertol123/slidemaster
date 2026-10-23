@@ -7,14 +7,16 @@
    their own, app/tests/chart-panel.test.tsx; no page state here, so the core's export runs them in node too); chart-send.ts
    sends them. */
 import { cardRefPatch } from "./chart-card";
-import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
+import { progressRefPatch, toProgressPatch, type ProgressRef } from "./chart-progress";
+import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType, TextFmt } from "@slide-builder/core/model/types";
 
 /** a point's settings as the panel writes them (colour, marker, label, a waterfall's `total`; core/src/model/types.ts) */
 export type PointSet = NonNullable<ChartSeries["points"]>[string];
 /** the chart types of the panel's switch, in its order */
 export const CHART_TYPES: { t: ChartType; label: string }[] = [
   { t: "pie", label: "Pie" }, { t: "donut", label: "Donut" }, { t: "column", label: "Column" }, { t: "bar", label: "Bar" }, { t: "line", label: "Line" },
-  { t: "area", label: "Area" }, { t: "combo", label: "Combo" }, { t: "scatter", label: "Scatter" }, { t: "waterfall", label: "Waterfall" }];
+  { t: "area", label: "Area" }, { t: "combo", label: "Combo" }, { t: "scatter", label: "Scatter" }, { t: "waterfall", label: "Waterfall" },
+  /* (B55) the budget-achievement chart */ { t: "progress", label: "Budget" }];
 /** what a series may be in a combo: Excel's own combo set (09 §2.2: bar and scatter need axes of their own) */
 export const COMBO_TYPES: SeriesType[] = ["column", "line", "area"];
 export const isSeriesType = (t: ChartType) => t !== "pie" && t !== "donut";
@@ -53,6 +55,8 @@ function withKeys<T extends object>(cur: T, p: Record<string, unknown>): T {
     no column / line counterpart, so it is not carried). Back to pie or donut: the series are kept (switching again finds
     them). The first series' id is "s1" (freeId): two writers switching at once write one equal series */
 export function typePatch(it: ChartItem, t: ChartType): ItemPatch {
+  // (B55) the budget-achievement chart: its own `progress` (kept when switched away and back), else one from the first series
+  if (t === "progress") return toProgressPatch(it);
   if (!isSeriesType(t) || allSeries(it).length) return { type: t };
   const points: Record<string, PointSet> = {};
   for (const [k, v] of Object.entries(it.colors && typeof it.colors === "object" ? it.colors : {}))
@@ -106,7 +110,7 @@ export function pointPatch(it: ChartItem, id: string, i: number, p: Partial<Reco
   return seriesPatch(it, id, { points: Object.keys(pts).length ? pts : null });
 }
 /** a series' labels: what they show and where (none shown and no position: the key goes) */
-export function labelsPatch(it: ChartItem, id: string, p: { show?: string[]; pos?: string | null; num?: string | null }): ItemPatch | null {
+export function labelsPatch(it: ChartItem, id: string, p: { show?: string[]; pos?: string | null; num?: string | null; fmt?: TextFmt | null }): ItemPatch | null {
   const cur = it.sers?.[id]; if (!cur) return null;
   const L = withKeys({ show: [], ...(cur.labels || {}) } as Record<string, unknown>, p) as NonNullable<ChartSeries["labels"]>;
   return seriesPatch(it, id, { labels: (L.show || []).length || L.pos || L.num || L.fmt ? L : null });
@@ -239,10 +243,12 @@ export type ChartRefWhat = { what: "add" } | { what: "vals" | "xs" | "target" | 
   /* (B53) an axis's min, max or step from a cell */
   | { what: "axis"; ax: "x" | "y" | "y2"; key: "min" | "max" | "step" }
   /* (B54) the chart card: a stat's or a momentum chip's cell, the tag's cell, the filter's column and value */
-  | { what: "stat-cell"; stat: string } | { what: "mom-cell"; mom: string } | { what: "tag-cell" } | { what: "filter-by" } | { what: "filter-eq" };
+  | { what: "stat-cell"; stat: string } | { what: "mom-cell"; mom: string } | { what: "tag-cell" } | { what: "filter-by" } | { what: "filter-eq" }
+  /* (B55) the budget-achievement chart's long table and cells, a chart's subtitle from a cell */
+  | { what: ProgressRef };
 /** the kinds of cells that are one cell (a name, a reference line's value or name) */
 export const oneCell = (w: ChartRefWhat | null | undefined) => w?.what === "name" || w?.what === "ref-add" || w?.what === "ref-value" || w?.what === "ref-name" || w?.what === "axis"
-  || w?.what === "stat-cell" || w?.what === "mom-cell" || w?.what === "tag-cell" || w?.what === "filter-eq";
+  || w?.what === "stat-cell" || w?.what === "mom-cell" || w?.what === "tag-cell" || w?.what === "filter-eq" || w?.what === "subtitle-cell";
 /** the change the chosen cells make (null: the series or group is gone meanwhile) */
 export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatch | null {
   switch (w.what) {
@@ -258,13 +264,16 @@ export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatc
     case "ref-name": return markPatch(it, w.mark, { name: { ...ref, range: ref.range.split(":")[0] } });
     case "axis": return axisCellPatch(it, w.ax, w.key, { ...ref, range: ref.range.split(":")[0] });
     case "stat-cell": case "mom-cell": case "tag-cell": case "filter-by": case "filter-eq": return cardRefPatch(it, w, ref);
+    case "prog-by": case "prog-val": case "prog-target": case "prog-vals": case "prog-targets": case "prog-cats": case "subtitle-cell": return progressRefPatch(it, w.what, ref);
   }
 }
 export const REF_TITLE: Record<ChartRefWhat["what"], string> = { add: "Chart: add a series", vals: "Chart: the series' numbers", xs: "Chart: the series' x values",
   target: "Chart: the series' targets", name: "Chart: the series' name", "group-add": "Chart: add a category group", cats: "Chart: the group's categories",
   "ref-add": "Chart: add a reference line", "ref-value": "Chart: the reference line's value", "ref-name": "Chart: the reference line's name",
   axis: "Chart: the axis's bound from a cell", "stat-cell": "Chart: the stat's cell", "mom-cell": "Chart: the cell to compare with", "tag-cell": "Chart: the tag's cell",
-  "filter-by": "Chart: the column to filter by", "filter-eq": "Chart: the filter's value from a cell" };
+  "filter-by": "Chart: the column to filter by", "filter-eq": "Chart: the filter's value from a cell",
+  "prog-by": "Chart: the product column", "prog-val": "Chart: the value column", "prog-target": "Chart: the budget column", "prog-vals": "Chart: the values",
+  "prog-targets": "Chart: the budgets", "prog-cats": "Chart: the names", "subtitle-cell": "Chart: the subtitle's cell" };
 export const REF_HINT: Record<ChartRefWhat["what"], string> = { add: "Drag across the numbers of the new series – any sheet, a linked workbook's too.",
   vals: "Drag across the series' numbers.", xs: "Drag across the x values, one per number of the series.", target: "Drag across the targets, one per number of the series.",
   name: "Click the cell with the series' name: the legend follows it.", "group-add": "Drag across the names of the new group's categories.", cats: "Drag across the group's category names.",
@@ -273,4 +282,8 @@ export const REF_HINT: Record<ChartRefWhat["what"], string> = { add: "Drag acros
   axis: "Click the cell with the number: the axis follows the workbook, a reload and a scenario.",
   "stat-cell": "Click the cell with the number: the stat follows the workbook.", "mom-cell": "Click the cell with the number to compare the last value with.",
   "tag-cell": "Click the cell with the tag's text.", "filter-by": "Drag across the column to filter by (e.g. Product) – as many rows as the chart's numbers.",
-  "filter-eq": "Click the cell holding the value to keep (e.g. a product name): a scenario or Run for each value can change it." };
+  "filter-eq": "Click the cell holding the value to keep (e.g. a product name): a scenario or Run for each value can change it.",
+  "prog-by": "Drag across the column naming each row's product (e.g. Product): one bar per product, its latest row.",
+  "prog-val": "Drag across the value column (e.g. Volume), as tall as the product column.", "prog-target": "Drag across the budget column, as tall as the product column.",
+  "prog-vals": "Drag across the values, one per bar (or click one cell).", "prog-targets": "Drag across the budgets, one per bar – or click one cell for every bar.",
+  "prog-cats": "Drag across the bars' names, one per value.", "subtitle-cell": "Click the cell with the subtitle's text: it follows the workbook." };

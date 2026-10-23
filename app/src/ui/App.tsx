@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { Ribbon, FxBar } from "./Ribbon";
 import { Busy, Canvas, DeckHealth, Issues, Status, Thumbs, Toast } from "./Chrome";
 import { ItemPanel } from "./ItemPanel";
+import { SrcIssues } from "./DataSources";
 import { NavGrip, navColumns, useNavRail, useNavWidth } from "./NavResize";
 import { NavRail, RailToggle } from "./NavRail";
 import { PickCellsDialog } from "./PickCells";
@@ -55,6 +56,7 @@ export function App() {
             <Thumbs />
             <ItemPanel />
             <Issues />
+            <SrcIssues />{/* B57 */}
             <DeckHealth />
           </aside>
           <Canvas />

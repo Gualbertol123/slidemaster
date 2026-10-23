@@ -1,0 +1,508 @@
+[
+ {
+  "name": "B56 item.patch on a KPI card: texts, lay and offs set per entry (the value centred and bigger, the header's font, the divider at 40 % and off, the rows' block, the value dragged)",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg"
+         }
+        ],
+        "box": {
+         "x": 61,
+         "y": 180,
+         "w": 350,
+         "h": 130
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "texts": {
+      "value": {
+       "align": "center",
+       "size": 48
+      },
+      "head": {
+       "font": "Georgia",
+       "caps": false
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "lay": {
+      "split": 40,
+      "div": false,
+      "rows": "middle",
+      "rowGap": 6,
+      "valign": "top"
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "offs": {
+      "kv": {
+       "dx": 0.05,
+       "dy": -0.02
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg"
+         }
+        ],
+        "box": {
+         "x": 61,
+         "y": 180,
+         "w": 350,
+         "h": 130
+        },
+        "texts": {
+         "value": {
+          "align": "center",
+          "size": 48
+         },
+         "head": {
+          "font": "Georgia",
+          "caps": false
+         }
+        },
+        "lay": {
+         "split": 40,
+         "div": false,
+         "rows": "middle",
+         "rowGap": 6,
+         "valign": "top"
+        },
+        "offs": {
+         "kv": {
+          "dx": 0.05,
+          "dy": -0.02
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": []
+  }
+ },
+ {
+  "name": "B56 item.patch: texts / lay / offs merge per entry – an entry replaced whole, an entry deleted by null, a map deleted by null, an emptied map removed",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg"
+         }
+        ],
+        "box": {
+         "x": 61,
+         "y": 180,
+         "w": 350,
+         "h": 130
+        },
+        "texts": {
+         "value": {
+          "align": "center",
+          "size": 48
+         },
+         "head": {
+          "b": false
+         }
+        },
+        "lay": {
+         "split": 40,
+         "bar": false
+        },
+        "offs": {
+         "kv": {
+          "dx": 0.1,
+          "dy": 0
+         },
+         "kr": {
+          "dx": 0,
+          "dy": 0.1
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "texts": {
+      "value": {
+       "align": "right"
+      },
+      "head": null
+     },
+     "lay": {
+      "split": null
+     },
+     "offs": null
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "lay": {
+      "bar": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg"
+         }
+        ],
+        "box": {
+         "x": 61,
+         "y": 180,
+         "w": 350,
+         "h": 130
+        },
+        "texts": {
+         "value": {
+          "align": "right"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 2,
+   "skipped": []
+  }
+ },
+ {
+  "name": "B56 item.patch on a chart card: the legend's and a stat label's text, the stats row centred, the tag under the title, the plot's margins, a stat chip and a momentum chip dragged",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 61,
+         "y": 340,
+         "w": 725,
+         "h": 520
+        },
+        "stats": {
+         "s1": {
+          "n": 1,
+          "src": "last"
+         }
+        },
+        "moms": {
+         "m1": {
+          "n": 1,
+          "vs": "first"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "texts": {
+      "legend": {
+       "size": 12,
+       "color": "#333333"
+      },
+      "statLabel": {
+       "font": "Arial",
+       "i": true
+      },
+      "momHead": {
+       "caps": false
+      }
+     },
+     "lay": {
+      "stats": "center",
+      "statW": 20,
+      "moms": "spread",
+      "tag": "below",
+      "gapH": 12,
+      "gapP": 6,
+      "gapF": 20,
+      "padL": 10,
+      "padB": 8
+     },
+     "offs": {
+      "st:s1": {
+       "dx": 0.02,
+       "dy": 0
+      },
+      "mo:m1": {
+       "dx": 0,
+       "dy": -0.01
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 61,
+         "y": 340,
+         "w": 725,
+         "h": 520
+        },
+        "stats": {
+         "s1": {
+          "n": 1,
+          "src": "last"
+         }
+        },
+        "moms": {
+         "m1": {
+          "n": 1,
+          "vs": "first"
+         }
+        },
+        "texts": {
+         "legend": {
+          "size": 12,
+          "color": "#333333"
+         },
+         "statLabel": {
+          "font": "Arial",
+          "i": true
+         },
+         "momHead": {
+          "caps": false
+         }
+        },
+        "lay": {
+         "stats": "center",
+         "statW": 20,
+         "moms": "spread",
+         "tag": "below",
+         "gapH": 12,
+         "gapP": 6,
+         "gapF": 20,
+         "padL": 10,
+         "padB": 8
+        },
+        "offs": {
+         "st:s1": {
+          "dx": 0.02,
+          "dy": 0
+         },
+         "mo:m1": {
+          "dx": 0,
+          "dy": -0.01
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": []
+  }
+ }
+]

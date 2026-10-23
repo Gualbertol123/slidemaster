@@ -91,7 +91,7 @@ type Prim =
 interface Bullet { level: 1 | 2; box: Box; c: RGB; a: number }
 
 const ID: Matrix = [1, 0, 0, 1, 0, 0];
-const OWNERS = new Set(["f", "t", "tbox", "item"]);
+const OWNERS = new Set(["f", "t", "tbox", "item", /* B56: an aligned text of a KPI card – its section's box */ "kbox"]);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const near = (a: number, b: number, e: number) => Math.abs(a - b) <= e;
 const boxNear = (a: Box, b: Box, e: number) => near(a.x, b.x, e) && near(a.y, b.y, e) && near(a.x + a.w, b.x + b.w, e) && near(a.y + a.h, b.y + b.h, e);
@@ -202,7 +202,8 @@ class Walker {
     const prims = this.sub(() => this.walk(nodes, c));
     // a KPI card (B54): each text its own text box where it is drawn (title, value, each change and label), never one
     // box reflowing them all under the card's hit
-    if (it.kind === "kpi") for (const p of prims) if (p.p === "text") p.owner = null;
+    // (B56: a text whose alignment was set keeps its section's box – "kbox" – and is aligned in it, as on the slide)
+    if (it.kind === "kpi") for (const p of prims) if (p.p === "text" && p.owner?.kind !== "kbox") p.owner = null;
     // (a line's member without its geometry – S14.P's – : its nodes' shapes, grouped)
     const els = it.kind === "line" ? group(assemble(prims), "Line") : it.kind === "kpi" ? group(assemble(prims), "KPI card") : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
@@ -401,7 +402,7 @@ const squash = (t: string) => t.replace(/\s+/g, "");
 
 /** a text body for runs in a frame: paragraphs (the label's lines tell hard breaks from wrapping), alignment and the
     insets that put the first baseline where the display list has it */
-export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap: boolean; /** a one-line paragraph's pitch */ one?: number; /** the paragraphs' bullets */ bullets?: Bullet[] } = { wrap: true }): { body: TextBody; frame: Box } {
+export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap: boolean; /** a one-line paragraph's pitch */ one?: number; /** the paragraphs' bullets */ bullets?: Bullet[]; /** (B56) the paragraphs' alignment, as set (else read from the runs' place) */ align?: "l" | "ctr" | "r" } = { wrap: true }): { body: TextBody; frame: Box } {
   // a title's decorative copy (its text shadow): the shadow of the run it copies
   const deco = runs0.filter(r => r.decorative), runs = runs0.filter(r => !r.decorative);
   const lines = linesOf(runs);
@@ -468,7 +469,7 @@ export function textBody(runs0: TRun[], frame: Box, label: string, opts: { wrap:
     });
     const before = prevLast ? Math.max(0, g[0].y - prevLast.y - pitch) : 0;
     const bu = buOf.get(g), hang = hangOf(g);
-    paras.push({ align: alignOf(g), runs: runsOut, pitch: r2(pitch), before: r2(before), ...(bu ? { bu: { level: bu.level, c: bu.c, a: bu.a }, indent: -r2(hang) } : {}) });
+    paras.push({ align: opts.align ?? alignOf(g), runs: runsOut, pitch: r2(pitch), before: r2(before), ...(bu ? { bu: { level: bu.level, c: bu.c, a: bu.a }, indent: -r2(hang) } : {}) });
     prevLast = g[g.length - 1];
   }
   // left / right insets for text that sits away from the frame's edge
@@ -604,7 +605,9 @@ function textBox(runs: TRun[], owner: Owner | null, bullets: Bullet[] = []): Sha
   const minX = Math.min(...runs.map(r => r.x)), maxX = Math.max(...runs.map(r => r.x + r.w));
   const minY = Math.min(...runs.map(r => r.y - r.size)), maxY = Math.max(...runs.map(r => r.y + r.size * .3));
   const frame = owner ? owner.box : { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  const { body, frame: F } = textBody(runs, frame, owner?.label ?? runs.map(r => r.text).join(""), { wrap: !!owner, bullets });
+  const { body, frame: F } = textBody(runs, frame, owner?.label ?? runs.map(r => r.text).join(""), { wrap: !!owner && owner.kind !== "kbox", bullets,
+    // (B56: a KPI card's aligned text – "kbox", its id "<part>:<l|ctr|r>" – aligned as set in its section's box)
+    ...(owner?.kind === "kbox" ? { align: (/:(l|ctr|r)$/.exec(owner.id)?.[1] || "l") as "l" | "ctr" | "r" } : {}) });
   const ph = placeholderOf(owner);
   return { k: "sp", box: F, geom: { prst: "rect" }, fill: null, line: null, text: body, name: owner ? NAMES[owner.id] || (ph ? ph === "sldNum" ? "Slide Number" : "Footer" : "Text") : "Text", ...(ph ? { ph } : {}) };
 }

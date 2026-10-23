@@ -241,6 +241,48 @@ numbers measured twice). Measured numbers go into the step's line.
   `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
   `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions 4.10.0 (CHANGELOG dated 2026-10-22).
 
+- [x] B56 · Text, sizing and positioning (product owner 2026-10-23, image 20: "make fonts on all of this slide, including
+  tables and graphs, editable, as well as sizing and positioning. for instance, i may want to centre the 10 in its
+  section of the tab."; branch `v4/B56-text-layout` on main 87f0951 = 4.13.1, B55 merged) — (commit: see the branch;
+  runs: by the orchestrator). One text shape (TextFmt + `caps`) per part: three new item maps (model/textparts.ts) –
+  `texts` (KPI head / value / delta / label; chart legend, stat label / value, tag, momentum value / caption / label,
+  subtitle), `lay` (KPI: value valign, split %, divider, header bar and height, rows block and gap, padding; chart card:
+  stats / momentum rows left / centre / spread and chip widths, tag place, spacing, plot margins), `offs` (dragged
+  parts: kv, kr, st:<id>, mo:<id>, tag, mh); the existing titleFmt / fmt / axes.fmt / labels.fmt / marks.fmt reused.
+  PowerPoint: the legend's c:txPr, a KPI card's aligned text as a box of its section (kbox owners). Panels: the Text
+  control (TextFmtBox) in the KPI panel, the chart panel's sections and Table text ▾ (cell formats of the whole table,
+  header, body or totals); KPI and card Layout; drags and Reset; the painter. Format 10 by B55's guard (needsV10 per
+  key). Vectors `m19-text.json`. Tests: core `text-layout.test.ts`, app `b56-text-panels.test.tsx`, e2e B56-01
+  (B56.xlsx), pptxcheck PASS. Page budget `page-budget/b56.json` (+27,834 measured).
+
+- [x] B55 · Budget achievement (product owner 2026-10-23, image 19: "how do i make these ones?" – BUDGET ACHIEVEMENT, Latest
+  volume / EoM budget, one tall bar per product; branch `v4/B55-achievement` on main 87f0951 = 4.13.1) — (commit: see the
+  branch; runs: by the orchestrator). A chart type `progress` with its spec in one key (ADR-015 amendment: not a column
+  option – its data is no series, its layout none of seriesLayout's): values and targets from ranges or cells, or straight
+  from a long table (per product its last sheet row with a value, the target in that row; a blank target: the latest row
+  with both, named); track 100 %, fill capped, over fill / band; % above, name, gap ("+210 over", "1.700 to go":
+  deltas.ts); the B54 card parts and a new `subtitle` on any chart card. PowerPoint: a native overlapped column chart
+  (% as data labels, the fill a formula of the embedded Value / Target). Panel: Insert chart ▾ › Budget achievement…, the
+  type switch, ChartProgressPanel (280 px). Format 10 (ADR-019 amendment, with deep gating against 4.13.1's frozen item
+  contents), helper MARKER10 / `/format10`, update.py, capture-v3, compat-old 4.13 + m55 / m55-before (4.12, 4.13: 4 / 4
+  PASS). Vectors `b55.json`. Tests: core `chart-progress.test.ts`, `docsync` format 10, `hidden-m16` (B55), helper
+  `Format10Tests` / HTTP / `test_update`, app `chart-progress-panel.test.tsx`, e2e B55-01, pptxcheck 6 / 6. Page budget
+  `page-budget/b55.json` (+48,963 measured). Version 4.14.0 (CHANGELOG unreleased).
+
+- [x] B57 · Repoint references when cells move in Excel (product owner 2026-10-23: "if i move cells around in excel the
+  graphs and tabs will break, i want to be easily able to repoint them without having to rebuild the entire graph"; branch
+  `v4/B57-repoint` on v4/B55-achievement 143c4db) — (commit: see the branch; runs: by the orchestrator). Core: every
+  reference of an item in one place (model/datarefs.ts refsOf with labels and paths, rewritePatch = one item.patch, the
+  shift maths with Excel's insert / delete, fingerprint with a repeated header's occurrence, checks with the label advisory, find the block refusing an ambiguous header), bulk plans
+  (model/repoint.ts: an item, a slide, a sheet; a table with its cell-keyed settings, slide hidden keys, cell edits,
+  versions' entries inside it and the items reading it), follow the header where the cells are read (render/follow.ts,
+  the resolved address in every cache key; LRU per view), the item's "moved?" issue; presetSheets now lists every
+  reference (the B53–B55 cells too). Format 10: an item's `bind` map (top level: gated by 4.13.1's frozen ITEM list),
+  table.patch `sheet` / `range` / `bind` (frozen V4131_TABLE); V4131_INSIDE's top-level values / labels added. App: the
+  Data sources panel (DataSources.tsx; 280 px), its Issues lines with Repoint…, the sheet view preselected, the table
+  ribbon's Data sources…. Vectors `m20-repoint.json`. Tests: core `repoint.test.ts` (refsOf by a type-level walk), app
+  `data-sources.test.tsx`, e2e B57-01. Page budget `page-budget/b57.json`. Version 4.14.0 (CHANGELOG unreleased).
+
 - [x] B53 · Chart labels: room for the plot, places for every label, labels dragged on the slide, an axis's bounds from
   cells, the "12000" fix (product owner 2026-10-22, three pictures: "the line is smoother, there are circles at every
   datapoint, we have a clear space management problem … give me more options to place the labels … the scale values for

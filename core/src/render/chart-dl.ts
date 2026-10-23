@@ -32,6 +32,7 @@ import { cellsOf, chartData, hasSeries, refTarget, seriesData, type ChartData } 
 import { ellipsis, font, lum, textNode, type St } from "./chart-font";
 import { arrowPlaces, cardNodes, fontSem, lineOrNone, overlayNodes, seriesLayout, seriesNodes, seriesSem, type SeriesStyle } from "./chart-series";
 import { lineStroke } from "./chart-lines";
+import { progressData, progressLayout, progressNodes, progressOverlay, progressSem } from "./chart-progress";
 
 /* ---- data (chart-data.ts since S14.2: every cell rule in one place) ---- */
 export { chartData, refTarget, type ChartData, type Slice } from "./chart-data";
@@ -39,7 +40,7 @@ export { chartData, refTarget, type ChartData, type Slice } from "./chart-data";
     every sheet's generation, so a reload or a scenario's overlay is another key), the design's look, the scenario's
     overlay hash, the export flag */
 export function chartKey(it: ChartItem, ctx: RenderCtx): string {
-  return JSON.stringify([it, hasSeries(it) ? seriesData(it, ctx) : chartData(it, ctx), ctx.style.design, ctx.style.theme, ctx.style.colors, ctx.style.contrast ?? null, ctx.style.color ?? null,
+  return JSON.stringify([it, it.type === "progress" ? progressData(it, ctx) : hasSeries(it) ? seriesData(it, ctx) : chartData(it, ctx), ctx.style.design, ctx.style.theme, ctx.style.colors, ctx.style.contrast ?? null, ctx.style.color ?? null,
     ctx.style.text?.note || null, ctx.style.radius, ctx.scenario || "", !!ctx.forExport]);
 }
 /** the chart's nodes, built once per key (S14.2; 09 §3.2): the chart key plus where it stands, its id, the text-box
@@ -181,13 +182,21 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
   const { base, lab, ttl } = stylesOf(it, ctx, look);
   // a series chart (4.7, S14.2: columns and bars) is laid out by chart-series.ts; a chart without series is a pie
   const frame = { x: x + look.pad, y: y + look.pad, w: Math.max(10, w - 2 * look.pad), h: Math.max(10, h - 2 * look.pad) };
-  const sty = seriesStyle(look, lab, ttl, rk), SL = hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id, { w, h }) : null;
-  const data: ChartData = SL ? ("why" in SL ? { ok: false, source: SL.source, why: SL.why } : { ok: true, source: "", series: SL.title, slices: [] }) : chartData(it, ctx);
-  const label = SL && !("why" in SL) ? SL.title : data.ok ? titleOf(it, data) : "";
+  // (B55) a budget-achievement chart: laid out by chart-progress.ts in the same card
+  const sty = seriesStyle(look, lab, ttl, rk), PL = it.type === "progress" ? progressLayout(it, frame, ctx, m, sty, id, { w, h }) : null;
+  const SL = !PL && hasSeries(it) ? seriesLayout(it, frame, ctx, m, sty, id, { w, h }) : null, LL = PL || SL;
+  const data: ChartData = LL ? ("why" in LL ? { ok: false, source: LL.source, why: LL.why } : { ok: true, source: "", series: LL.title, slices: [] }) : chartData(it, ctx);
+  const label = LL && !("why" in LL) ? LL.title || "Budget achievement" : data.ok ? titleOf(it, data) : "";
   const hitNode: Node = { t: "hit", kind: "item", id, x: r2(x), y: r2(y), w: r2(w), h: r2(h), ...(data.ok ? { label } : {}) };
   const inner: Node[] = [];
   let issue: string | null = null, geom: PieGeom | null = null, overlay: Node[] | undefined;
-  if (SL && !("why" in SL)) {
+  if (PL && !("why" in PL)) {
+    issue = PL.issue;
+    const fr = lineOrNone(it.frame, null);
+    if (fr) inner.push({ t: "rect", x: r2(x + fr.w / 2), y: r2(y + fr.w / 2), w: r2(Math.max(1, w - fr.w)), h: r2(Math.max(1, h - fr.w)), stroke: lineStroke(fr, "butt") });
+    // (the PowerPoint card: nothing under the native chart; the card's parts, the names and gaps over it)
+    if (!env.noContent) inner.push(...progressNodes(PL, m)); else overlay = progressOverlay(PL);
+  } else if (SL && !("why" in SL)) {
     issue = SL.issue;
     // the frame round the chart (09 §2.2 `frame`: unset = the design's, which is none; "none" = none)
     const fr = lineOrNone(it.frame, null);
@@ -316,6 +325,7 @@ export function chartNodes(it: ChartItem, id: string, box: Box, ctx: RenderCtx, 
     fonts – the same choices as chartNodes – and the frame inside the card; null when the source holds no numbers */
 export function chartSem(it: ChartItem, box: Box, ctx: RenderCtx, family: string, m?: Metrics): ChartSem | null {
   const look = chartLook(ctx, family);
+  if (it.type === "progress") return m ? progressChartSem(it, box, ctx, look, m) : null;
   if (hasSeries(it)) return m ? seriesChartSem(it, box, ctx, look, m) : null;
   const data = chartData(it, ctx);
   if (!data.ok) return null;
@@ -348,11 +358,21 @@ function seriesChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook
   // (review 6: each with its place among the overlay's nodes, so that it stacks as on the slide)
   const at = arrowPlaces(L), arrows = L.marks.arrows.map(({ drop: _d, ...a }, k) => ({ ...a, at: at[k] }));
   return {
-    ...(arrows.length ? { arrows } : {}),
+    ...(arrows.length ? { arrows } : {}), ...(L.legendSt ? { legendFont: fontSem(L.legendSt) } : {}),
     type: it.type === "bar" ? "bar" : it.type === "line" || it.type === "area" || it.type === "combo" || it.type === "scatter" || it.type === "waterfall" ? it.type : "column", title: L.title, series: first?.name || "", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab),
     labels: bars.cats, values: (first?.values || []).map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [],
     legend: bars.legend ? (bars.legend.pos === "b" ? "bottom" : "right") : "none", startAngle: 0, box: frame, sep: null, fmt: first?.fmt || "General", hole: 0, bars,
   };
+}
+/** (B55) a budget-achievement chart for PowerPoint: the same layout as its display list, its native column chart */
+function progressChartSem(it: ChartItem, box: Box, ctx: RenderCtx, look: ChartLook, m: Metrics): ChartSem | null {
+  const { lab, ttl } = stylesOf(it, ctx, look), rk = ctx.style.radius / 100, pad = look.pad;
+  const frame = { x: box.x + pad, y: box.y + pad, w: Math.max(10, box.w - 2 * pad), h: Math.max(10, box.h - 2 * pad) };
+  const L = progressLayout(it, frame, ctx, m, seriesStyle(look, lab, ttl, rk));
+  if ("why" in L) return null;
+  const bars = progressSem(L);
+  return { type: "column", title: L.title, series: "Achievement", titleFont: fontSem(L.titleSt), labelFont: fontSem(lab), labels: bars.cats,
+    values: bars.series[1].values.map(v => v ?? 0), colors: bars.series.map(s => s.color), show: [], legend: "none", startAngle: 0, box: frame, sep: null, fmt: "0.0%", hole: 0, bars };
 }
 /** the title a chart shows: its own ("" = none), else the series name */
 export const titleOf = (it: ChartItem, data: ChartData) => (typeof it.title === "string" ? it.title : data.ok ? data.series : "").trim();

@@ -3,6 +3,83 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.14.0 - 2026-10-23
+
+What users notice
+* **Budget achievement** (the owner's picture of 2026-10-23, "how do I make these ones?"): a new chart – *Insert chart ▾ ›
+  Budget achievement…*, or *Budget* in the chart panel's type switch – with one tall bar per product: a light track for
+  100 % of the budget and a dark fill up to the latest value, capped at the track; the achievement % above each bar in
+  large blue ("101.8%"), the product's name under it in capitals, and the gap under that in grey – "+210 over" when
+  over the budget, "1,700 to go" when under (the words, the sign and the number format editable).
+  * Straight from a long table like Volumes (Product, Period, Volume, Budget): choose the table and each product's
+    **latest row** is taken – no helper cells. Or the values and budgets from ranges or single cells (one budget cell
+    can serve every bar).
+  * The colours of the track, the fill and an optional over-budget fill (or a small band at the bar's top) follow the
+    design and can be changed; the bars' width, the value axis and gridlines (off by default) too. 1 to 8 bars.
+  * It sits in the same card as the KPI cards and chart cards beside it, in every design; a zero or missing budget is
+    named in the Issues panel.
+* **Subtitles on chart cards**: any chart can carry a small grey line under its title ("Latest volume / EoM budget") –
+  typed or from a cell (chart panel › Card).
+* PowerPoint: the budget-achievement chart is a native column chart (the track and the fill overlapped, the % as data
+  labels; Edit Data holds the values and budgets, the fill a formula of them); the names and gaps are text boxes.
+* **Every text of a KPI card, a chart and a table editable** (the owner's request of 2026-10-23, "make fonts on all of
+  this slide, including tables and graphs, editable, as well as sizing and positioning"): one *Text* control (Aa) beside
+  each part – font from the font list, size in points, colour, bold, italic, alignment, capitals – saved in the deck and
+  the same in the PDF and in PowerPoint.
+  * KPI card panel › Text: the header's title, the value, the changes (%) and their labels.
+  * Chart panel: the title, all labels, each axis's tick labels and the category labels, each series' data labels, the
+    legend, the reference lines', gap arrows' and change pills' labels, and on chart cards the stats' labels and values,
+    the tag, the subtitle, the momentum label, changes and captions.
+  * Table text ▾ (ribbon, beside Borders): the font, size, colour, bold, italic and alignment of the whole table, its
+    header, its body or its totals in one step.
+  * A budget-achievement chart's bar texts – the %, the names and the gaps – keep their own format in its panel's
+    *Labels* section (the Text control styles its title, subtitle and tag); the format painter copies the bars' colours
+    and those texts' look from one budget chart to another.
+* **Sizing and positioning inside the cards**: KPI card panel › Layout – the value left, centred or right in its section
+  ("centre the 10") and at the top, middle or bottom; the divider's place (%) and on/off; the header bar's height and
+  on/off; the rows spread or as a block at the top, middle or bottom with their spacing; the padding. Chart panel ›
+  Card › Layout – the stats and momentum rows from the left, centred or spread, each chip's width; the tag in the title's
+  corner or under the title; the space under the title, after the stats row and above the momentum row; the plot's
+  margins.
+* **Drag the parts on the slide** with the card selected: a KPI card's value and its rows, a chart card's stat and
+  momentum chips, its tag and the MOMENTUM label – one undo step each; *Reset* in the panel puts them back.
+* The format painter copies a KPI card's or a chart's texts and layout to another of its kind.
+* PowerPoint: a native chart's title, axes, data labels and legend carry their fonts (c:txPr); a KPI card's aligned text
+  is a text box as wide as its section, aligned there.
+* Decks that use a budget-achievement chart, a chart subtitle, or a text format, layout or drag of a card part (B56) open only in Slide Builder 4.14 or later (older versions
+  show them read-only); `Update Slide Builder` names those decks before going back to an older version.
+* **Data sources: repoint a chart, a KPI card or a table when its cells moved in Excel** (the owner, 2026-10-23: "if i
+  move cells around in excel the graphs and tabs will break, i want to be easily able to repoint them without having to
+  rebuild the entire graph"). The side panel of a chart, KPI card or budget chart – and of a table, from the table
+  ribbon's *Data sources…* – lists every cell reference it reads ("Series 1 values", "“Budget” line value", "Filter
+  column", "KPI value", "Table cells"…) with its address and a status: OK, empty, missing sheet, text where numbers
+  were expected, or **moved?** (the header it was bound to is no longer above it). Under the Issues panel each object
+  with a reference that looks wrong has a line with **Repoint…**.
+  * **Change…** opens the sheet view on that reference's own sheet and cells: choose new cells and only that reference
+    changes – the chart's styles, labels, card parts and dragged labels stay. One undo step.
+  * **Move all by…** rows and / or columns ("I inserted 2 rows above my table"): this object's references, this slide's
+    or the whole deck's on one sheet – optionally Excel-style at a row or column (only cells at or after it move). The
+    whole deck also moves that sheet's tables, cell edits and versions' entries.
+  * **Change sheet…**: every reference from one sheet to another (a renamed or copied sheet).
+  * **Find the block**: the headers the references were bound to are looked for on the sheet and the new addresses
+    proposed – the Volume column moved from C to E is found by its header "Volume_EUR_m". The same header twice
+    ("Actual" over 2025 and over 2026) is told apart by which one it was; when that is not clear it is not guessed:
+    you choose with Change….
+  * Each bulk action shows every old → new address first and is applied as one undo step; if the deck changed
+    meanwhile, the preview is shown again for a second click instead.
+  * A line or bar chart's list leaves out the range it would draw only as a pie (its "pie fallback"); the bulk actions
+    still move it with everything else, named "Values (pie fallback)" in their preview.
+  * **Follow header** (per reference): the cells are found by their header text whenever they are read – a moved column
+    or rows inserted above need no repoint at all, on the screen, in every export, after a reload and in *Run for each
+    value*. The address is kept as the fallback.
+  * A table keeps what is tied to its cells when it moves: column widths and row heights, merges, colour scales,
+    gridlines, borders, its hidden rows and columns, the cell edits inside it, the versions' emptied cells and deleted
+    rows / columns inside it, and the charts reading it. Entries of a version that reach beyond the table (a whole row
+    crossing other tables) stay, and the preview says so.
+  * What a reference was bound to is remembered when Data sources changes it (or with *Remember headers*); within a
+    session, a reload is compared with the workbook as it was before it, so a moved block is seen even without that.
+    Decks where Data sources remembered headers or a table's cells were changed open only in Slide Builder 4.14 or later.
+
 ## 4.13.2 - 2026-10-23
 
 What users notice
