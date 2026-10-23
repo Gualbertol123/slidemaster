@@ -97,6 +97,8 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
         if ("kind" in p && !ITEM_KINDS.includes(p.kind as string)) return false;      // an unknown kind (a later page's) is skipped
         if ("box" in p && !isBox(p.box)) return false;                                // every item has a box; a bad one is skipped
         if (!isObj(cur) && !("kind" in p && "box" in p)) return false;                // creating needs a kind and a box
+        // (B57) a quoted cell of a text ("text~0") never follows a header: a bind saying so is refused (datarefs.ts)
+        if (isObj(p.bind) && Object.entries(p.bind).some(([k, b]) => k.includes("~") && isObj(b) && b.f === true)) return false;
         const it = isObj(cur) ? cur : {};
         for (const k of ITEM_KEYS) if (k in p) { const v = p[k]; if (v === null) delete it[k]; else it[k] = clone(v); }
         for (const k of ITEM_MAPS) if (k in p) mapMerge(it, k, p[k]);

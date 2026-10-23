@@ -25,7 +25,8 @@ export function moveSheetXml(xml: string, dr: number, cols: Record<string, strin
 /** the workbook's bytes after the move: KPI 2 rows down; Volumes 2 rows down, C → E and D → C */
 export function movedB54(buf: Uint8Array, opts: { rows?: number; swap?: boolean } = {}): Uint8Array {
   const z = unzipSync(buf), dr = opts.rows ?? 2;
-  const edit = (part: string, f: (x: string) => string) => { z[part] = strToU8(f(strFromU8(z[part]))); };
+  // (a copy in this realm: under jsdom TextEncoder's bytes are another realm's Uint8Array, which zipSync takes for a folder)
+  const edit = (part: string, f: (x: string) => string) => { z[part] = Uint8Array.from(strToU8(f(strFromU8(z[part])))); };
   edit("xl/worksheets/sheet1.xml", x => moveSheetXml(x, dr));
   edit("xl/worksheets/sheet2.xml", x => moveSheetXml(x, dr, opts.swap === false ? {} : { C: "E", D: "C" }));
   return zipSync(z);

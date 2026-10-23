@@ -24,6 +24,33 @@ What users notice
   labels; Edit Data holds the values and budgets, the fill a formula of them); the names and gaps are text boxes.
 * Decks that use a budget-achievement chart or a chart subtitle open only in Slide Builder 4.14 or later (older versions
   show them read-only); `Update Slide Builder` names those decks before going back to an older version.
+* **Data sources: repoint a chart, a KPI card or a table when its cells moved in Excel** (the owner, 2026-10-23: "if i
+  move cells around in excel the graphs and tabs will break, i want to be easily able to repoint them without having to
+  rebuild the entire graph"). The side panel of a chart, KPI card or budget chart – and of a table, from the table
+  ribbon's *Data sources…* – lists every cell reference it reads ("Series 1 values", "“Budget” line value", "Filter
+  column", "KPI value", "Table cells"…) with its address and a status: OK, empty, missing sheet, text where numbers
+  were expected, or **moved?** (the header it was bound to is no longer above it). Under the Issues panel each object
+  with a reference that looks wrong has a line with **Repoint…**.
+  * **Change…** opens the sheet view on that reference's own sheet and cells: choose new cells and only that reference
+    changes – the chart's styles, labels, card parts and dragged labels stay. One undo step.
+  * **Move all by…** rows and / or columns ("I inserted 2 rows above my table"): this object's references, this slide's
+    or the whole deck's on one sheet – optionally Excel-style at a row or column (only cells at or after it move). The
+    whole deck also moves that sheet's tables, cell edits and versions' entries.
+  * **Change sheet…**: every reference from one sheet to another (a renamed or copied sheet).
+  * **Find the block**: the headers the references were bound to are looked for on the sheet and the new addresses
+    proposed – the Volume column moved from C to E is found by its header "Volume_EUR_m". A header found in several
+    places is not guessed: you choose with Change….
+  * Each bulk action shows every old → new address first and is applied as one undo step.
+  * **Follow header** (per reference): the cells are found by their header text whenever they are read – a moved column
+    or rows inserted above need no repoint at all, on the screen, in every export, after a reload and in *Run for each
+    value*. The address is kept as the fallback.
+  * A table keeps what is tied to its cells when it moves: column widths and row heights, merges, colour scales,
+    gridlines, borders, its hidden rows and columns, the cell edits inside it, the versions' emptied cells and deleted
+    rows / columns inside it, and the charts reading it. Entries of a version that reach beyond the table (a whole row
+    crossing other tables) stay, and the preview says so.
+  * What a reference was bound to is remembered when Data sources changes it (or with *Remember headers*); within a
+    session, a reload is compared with the workbook as it was before it, so a moved block is seen even without that.
+    Decks where Data sources remembered headers or a table's cells were changed open only in Slide Builder 4.14 or later.
 
 ## 4.13.1 - 2026-10-23
 

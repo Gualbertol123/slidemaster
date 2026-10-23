@@ -22,7 +22,8 @@ export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?:
 /** what a reference was bound to (all optional; a reference without one skips the checks): `at` its address then
     ("Sheet!C2:C9"; the entry counts only while the reference still reads there), `h` the header text beside it – at `hr`
     rows above (0 = its own first cell) and `hc` columns left of its first cell –, `l` a label (its first category) at
-    `lr` / `lc`, `f` follow the header: the address is found again by the header text where the cells are read (the
+    `lr` / `lc` (advisory: a data value – a mismatch alone is a note, never "moved?"), `f` follow the header (never on a
+    text's quoted cell, "text~0": ops.ts refuses it): the address is found again by the header text where the cells are read (the
     stored A1 stays the fallback) */
 export interface RefBind { at?: string; h?: string; hr?: number; hc?: number; l?: string; lr?: number; lc?: number; f?: boolean }
 /** an item's binds by reference path */

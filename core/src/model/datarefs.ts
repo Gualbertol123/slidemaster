@@ -54,7 +54,8 @@ export function refsOf(it: Item | null | undefined): RefSlot[] {
   const x = it as unknown as Record<string, unknown>;
   if (it.kind === "chart") {
     const sers = ordered<Record<string, unknown>>(x.sers);
-    add("values", sers.length ? "Pie values" : "Values", x.values, "num");
+    // (a chart with series still keeps its first range: what it draws as a pie or a donut – 09 §2.2)
+    add("values", sers.length ? "Values as a pie" : "Values", x.values, "num");
     add("labels", "Category names", x.labels, "text");
     sers.forEach(([id, s], i) => {
       const S = `Series ${i + 1}` + quote(s.name);
@@ -244,7 +245,8 @@ export interface CheckCtx {
   /** the sheet exists in the workbook (loaded or not); unset: loaded = exists */ exists?: (name: string) => boolean;
   tables?: readonly TableDef[] | null;
 }
-export interface RefCheck { status: RefStatus; why: string; at: string; sheet: string; g: Range | null; S: Sheet | null }
+export interface RefCheck { status: RefStatus; why: string; at: string; sheet: string; g: Range | null; S: Sheet | null;
+  /** advisory (status OK): the label bound beside it reads otherwise now – a sort or new rows, or a move */ note?: string }
 const MAX_CELLS = 2000;
 /** a reference against the workbook: its sheet (or deck table), its cells (empty; text where numbers are expected) and
     its bind (the header and the label at their places: else the block moved) */
@@ -260,39 +262,53 @@ export function checkRef(slot: Pick<RefSlot, "ref" | "want">, ctx: CheckCtx, bin
     const x = S.get(r, c); if (!x || x.t === "blank" || String(x.v ?? "").trim() === "") continue;
     any = true; if (x.t === "n") num = true;
   }
-  if (!any) return { ...base, status: "empty", why: `${at} is empty`, S };
+  // (its header gone from above it says more than "empty": the block moved – checked first)
   const b = bindFor(bind, at);
+  let note = "";
   if (b) {
-    const hr = g.r1 - (b.hr || 0), hc = g.c1 - (b.hc || 0), lr = g.r1 - (b.lr || 0), lc = g.c1 - (b.lc || 0);
+    const hr = g.r1 - (b.hr || 0), hc = g.c1 - (b.hc || 0);
     if (b.h && norm(textAt(S, hr, hc) || (b.hr || b.hc ? "" : shownAt(S, hr, hc))) !== norm(b.h))
       return { ...base, status: "moved", why: `${at}: “${b.h}” is no longer at ${A1(hr, hc)}${textAt(S, hr, hc) ? ` (it shows “${textAt(S, hr, hc)}”)` : ""}`, S };
-    if (b.l && norm(shownAt(S, lr, lc)) !== norm(b.l))
-      return { ...base, status: "moved", why: `${at}: “${b.l}” is no longer at ${A1(lr, lc)}${shownAt(S, lr, lc) ? ` (it shows “${shownAt(S, lr, lc)}”)` : ""}`, S };
+  }
+  if (!any) return { ...base, status: "empty", why: `${at} is empty`, S };
+  if (b) {
+    // (the label is a data value – the first category –: rows sorted or added change it. Advisory: a note, never moved?)
+    if (b.l && norm(labelNear(S, g.r1, g.c1, b)) !== norm(b.l)) note = `the first label is “${labelNear(S, g.r1, g.c1, b) || "(none)"}” now (it was “${b.l}”): new rows or another order?`;
   }
   if (slot.want === "num" && !num) return { ...base, status: "text", why: `${at} holds text where numbers were expected`, S };
-  return { ...base, status: "ok", why: "", S };
+  return { ...base, status: "ok", why: "", S, ...(note ? { note } : {}) };
 }
-/** where the bound header (else the label) is now: the shift that brings the reference back under it – the candidate
-    whose label matches too first, then on the header's own row, then the nearest; null when the text is nowhere (or the
-    bind has none). {0, 0}: still in place */
-export function findBlock(S: Sheet, g: Range, b: RefBind): { dr: number; dc: number } | null {
+/** where Find the block / Follow header found a reference's header: the shift back under it, or `ambiguous` – the
+    header text in more than one place and the label singling out none (the stored address is kept: "moved?") */
+export type Found = { dr: number; dc: number; ambiguous?: undefined } | { ambiguous: number; dr?: undefined; dc?: undefined };
+/** the label beside a rectangle starting at (r, c), as the fingerprint took it but scanning along the row (the column)
+    for the first text – a column inserted between the labels and the data does not hide it */
+function labelNear(S: Sheet, r: number, c: number, b: RefBind): string {
+  if (b.lc) { for (let k = 1; k <= 30 + 5 && c - k >= 1; k++) { const t = textAt(S, r, c - k); if (t) return t; } return ""; }
+  if (b.lr) { for (let k = 1; k <= 5 + 5 && r - k >= 1; k++) { const t = textAt(S, r - k, c); if (t) return t; } return ""; }
+  return shownAt(S, r, c);
+}
+/** where the bound header (else the label) is now: the shift that brings the reference back under it. One cell with the
+    header text: there. Several: the one whose label (scanned along its row) agrees, when exactly one does – else
+    ambiguous. null: the text is nowhere (or the bind has none). {0, 0}: still in place */
+export function findBlock(S: Sheet, g: Range, b: RefBind): Found | null {
   const useH = !!b.h, text = norm(useH ? b.h! : b.l || ""); if (!text) return null;
   const or = g.r1 - ((useH ? b.hr : b.lr) || 0), oc = g.c1 - ((useH ? b.hc : b.lc) || 0);
   const own = useH ? !(b.hr || b.hc) : !(b.lr || b.lc);      // the text is the range's own first cell (number cells too)
   const at = (r: number, c: number) => norm(own ? shownAt(S, r, c) : textAt(S, r, c));
-  if (at(or, oc) === text && (!useH || !b.l || norm(shownAt(S, g.r1 - (b.lr || 0), g.c1 - (b.lc || 0))) === norm(b.l))) return { dr: 0, dc: 0 };
-  let best: { dr: number; dc: number; score: number } | null = null;
+  if (at(or, oc) === text) return { dr: 0, dc: 0 };
+  const hits: { dr: number; dc: number }[] = [];
   for (const x of S.cells.values()) {
     if (x.t !== "s" && !own) continue;
     if (norm(own ? shownAt(S, x.r, x.c) : String(x.v)) !== text) continue;
     const dr = x.r - or, dc = x.c - oc;
-    if (g.r1 + dr < 1 || g.c1 + dc < 1) continue;
-    const lab = useH && b.l ? norm(shownAt(S, g.r1 + dr - (b.lr || 0), g.c1 + dc - (b.lc || 0))) === norm(b.l) : false;
-    // (the label agreeing first, then the same row – a column moved –, then the same column, then the nearest)
-    const score = (lab ? 0 : 1e9) + (dr === 0 ? 0 : 1e6) + (dc === 0 ? 0 : 1e3) + Math.abs(dr) + Math.abs(dc);
-    if (!best || score < best.score) best = { dr, dc, score };
+    if (g.r1 + dr >= 1 && g.c1 + dc >= 1) hits.push({ dr, dc });
   }
-  return best ? { dr: best.dr, dc: best.dc } : null;
+  if (hits.length <= 1) return hits[0] ?? null;
+  // (several: the label – advisory, a data value – may single one out; a header found by its label is not)
+  if (!useH || !b.l) return { ambiguous: hits.length };
+  const agree = hits.filter(h => norm(labelNear(S, g.r1 + h.dr, g.c1 + h.dc, b)) === norm(b.l!));
+  return agree.length === 1 ? agree[0] : { ambiguous: hits.length };
 }
 /** a reference moved by (dr, dc) – its form ("C7", "C2:C9") kept */
 export function movedRef(ref: DataRef, d: { dr: number; dc: number }): DataRef | null {
@@ -324,4 +340,4 @@ export function findHeaderRow(S: Sheet, g: Range, h: string[]): { dr: number; dc
   return best ? { dr: best.dr, dc: best.dc } : null;
 }
 /** the binds of an item that follow their header */
-export const following = (it: Item): [string, RefBind][] => Object.entries(isObj((it as { bind?: Binds }).bind) ? (it as { bind: Binds }).bind : {}).filter(([, b]) => isObj(b) && b.f === true);
+export const following = (it: Item): [string, RefBind][] => Object.entries(isObj((it as { bind?: Binds }).bind) ? (it as { bind: Binds }).bind : {}).filter(([p, b]) => isObj(b) && b.f === true && !p.includes("~"));

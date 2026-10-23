@@ -42,7 +42,8 @@ export interface Dialogs {
 }
 export type PickReq = { kind: "chart" } | { kind: "chart-cells"; id: string } | { kind: "cell"; id: string } | { kind: "table" }
   /** the chart panel's cells (S14.5): a series' values, x values, targets or name, a group's categories */ | { kind: "chart-ref"; id: string; ref: import("../editor/chart-panel").ChartRefWhat }
-  /** (B54) KPI cards from a table; a KPI card's title / value / row cell */ | { kind: "kpi" } | /** (B55) Budget achievement… from a long table */ { kind: "progress" } | { kind: "kpi-ref"; id: string; what: import("../editor/kpi").KpiPick; /** a row's source when asked (JSON) */ src?: string };
+  /** (B54) KPI cards from a table; a KPI card's title / value / row cell */ | { kind: "kpi" } | /** (B55) Budget achievement… from a long table */ { kind: "progress" } | { kind: "kpi-ref"; id: string; what: import("../editor/kpi").KpiPick; /** a row's source when asked (JSON) */ src?: string }
+  /** (B57) Data sources › Change…: one reference of an item (its path) or a table's cells, opened on its own cells */ | import("../editor/datasources").SrcPick;
 /** the "Run for each value…" dialog's fields (M8, B15): UI state of this page, never the document; kept while the page
     is open so the dialog opens again as it was left */
 export interface ScenarioForm {

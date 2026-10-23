@@ -161,7 +161,10 @@ export function planTable(doc: Doc, tid: string, mv: Move, opts: { rect?: Range 
     }
     if (n) plan.notes.push(`${n} hidden row${n > 1 ? "s" : ""} / column${n > 1 ? "s" : ""} of it on its slides move with it`);
   }
-  cellsPlan(doc, plan, def.sheet, rect, mv);
+  // (a table whose cells are not known – a markers table without its layout's rectangle: none of the sheet's cell
+  // edits or versions' entries is its own to move)
+  if (rect) cellsPlan(doc, plan, def.sheet, rect, mv);
+  else plan.notes.push("The table's cells are not known here: its cell edits and the versions' entries stay where they are");
   // the items reading it
   (doc.preset?.slides || []).forEach((s, k) => {
     for (const [id, it] of Object.entries(s.items || {})) {
@@ -202,8 +205,10 @@ function cellsPlan(doc: Doc, plan: Plan, sheet: string, rect: Range | null, mv: 
     const gone = moves.filter(m => m[1] === null).length;
     plan.notes.push(`${moves.length - gone} cell edit${moves.length - gone === 1 ? "" : "s"} move${moves.length - gone === 1 ? "s" : ""} with the cells` + (gone ? ` (${gone} on deleted cells removed)` : ""));
   }
-  // the versions' emptied cells ("C5:D9") and deleted rows ("5:7") / columns ("C:D") that touch the cells
-  let nv = 0;
+  // the versions' emptied cells ("C5:D9") and deleted rows ("5:7") / columns ("C:D") inside the cells. One that reaches
+  // beyond them (a whole row "5:7" crosses every other table of the sheet; a range half in the table) is not the table's
+  // alone: it stays as it is, and the preview says so
+  let nv = 0, beyond = 0;
   for (const v of doc.preset?.versions || []) {
     const patch: Record<string, unknown> = {};
     for (const key of ["hide", "drop"] as const) {
@@ -212,6 +217,7 @@ function cellsPlan(doc: Doc, plan: Plan, sheet: string, rect: Range | null, mv: 
       for (const a of list) {
         const span = spanOf(a);
         if (!span || !touches(span, rect)) { stay.push(a); continue; }
+        if (!inRect(span, rect)) { stay.push(a); beyond++; continue; }
         if (mv.kind === "sheet") go.push(a);
         else { const n = shiftA1(a, mv.s); if (n !== null) stay.push(n); }
       }
@@ -221,6 +227,7 @@ function cellsPlan(doc: Doc, plan: Plan, sheet: string, rect: Range | null, mv: 
     if (Object.keys(patch).length) { plan.ops.push({ op: "version.patch", id: v.id, patch } as Op); nv++; }
   }
   if (nv) plan.notes.push(`The emptied cells and deleted rows / columns of ${nv} version${nv > 1 ? "s" : ""} move with them`);
+  if (beyond) plan.notes.push(`${beyond} version entr${beyond > 1 ? "ies" : "y"} (emptied cells, deleted rows or columns) reach${beyond > 1 ? "" : "es"} beyond the table: left as ${beyond > 1 ? "they are" : "it is"} – check the version (Cells › For this version ▾)`);
 }
 /** a version entry's rectangle: a range, whole rows "5:7", whole columns "C:D" */
 function spanOf(a: string): Range | null {

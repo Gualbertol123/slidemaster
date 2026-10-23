@@ -11,7 +11,7 @@ import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOp, applyOps, docNeedsV10, emptyDoc, inverseOf, knownOp, needsV10, needsV9 } from "../src/model/ops";
 import { presetSheets, runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
-import { checkRef, findBlock, findHeaderRow, fingerprint, fmtA1, getAt, parseA1, refAt, refsOf, retoken, rewritePatch, shiftA1, shiftSpan, tableHeader, type RefSlot } from "../src/model/datarefs";
+import { checkRef, following, findBlock, findHeaderRow, fingerprint, fmtA1, getAt, parseA1, refAt, refsOf, retoken, rewritePatch, shiftA1, shiftSpan, tableHeader, type RefSlot } from "../src/model/datarefs";
 import { planItem, planItems, planSheet, planTable } from "../src/model/repoint";
 import { bindIssue, boundItem } from "../src/render/follow";
 import { seriesData, chartData } from "../src/render/chart-data";
@@ -20,7 +20,7 @@ import { kpiData } from "../src/render/kpi-dl";
 import { progressData } from "../src/render/chart-progress";
 import type { RenderCtx } from "../src/render/context";
 import type { ChartItem, DataRef, Item, ItemPatch, KpiItem, Op, Preset, RefBind, WorkbookDoc } from "../src/model/types";
-import type { Workbook } from "../src/xlsx/types";
+import type { Cell, Sheet, Workbook } from "../src/xlsx/types";
 import { b54Ops, kpiCard, volumeCard } from "./b54-deck";
 import { achievementCard } from "./b55-deck";
 import { movedB54 } from "./b57-book";
@@ -89,7 +89,7 @@ describe("B57 · refsOf", () => {
   });
   it("the owner's card: the budget line by its name, the stat cells; quoted cells of a callout and of a text mark", () => {
     const labels = refsOf(volumeCard("Loans", "D2", BOX, { text: "Actual loans" })).map(s => s.label);
-    expect(labels).toEqual(["Pie values", "Category names", "Series 1 “Loans” values", "“Budget” line value", "Filter column"]);
+    expect(labels).toEqual(["Values as a pie", "Category names", "Series 1 “Loans” values", "“Budget” line value", "Filter column"]);
     const shape: Item = { kind: "shape", shape: "rect", box: BOX, text: "Loans {Volumes!C5} vs {'KPI'!$B$2}" };
     expect(refsOf(shape).map(s => [s.path, refAt(s.ref)])).toEqual([["text~0", "Volumes!C5"], ["text~1", "KPI!B2"]]);
     expect(retoken("Loans {Volumes!C5} vs {'KPI'!$B$2}", 1, { sheet: "KPI new", range: "B4" })).toBe("Loans {Volumes!C5} vs {'KPI new'!B4}");
@@ -201,6 +201,52 @@ describe("B57 · fingerprint, the checks and find the block (the B54 workbook, t
   });
 });
 
+/** a sheet of these cells (text or numbers), "A1" → value */
+function fakeSheet(name: string, cells: Record<string, string | number>): Sheet {
+  const m = new Map<string, Cell>();
+  for (const [a, v] of Object.entries(cells)) { const g = parseA1(a)!; m.set(a, { r: g.r1, c: g.c1, v, t: typeof v === "number" ? "n" : "s", fmt: "General" } as Cell); }
+  const by = new Map([...m.values()].map(x => [x.r + ":" + x.c, x]));
+  return { name, cells: m, get: (r: number, c: number) => by.get(r + ":" + c) || null } as unknown as Sheet;
+}
+describe("B57 · the same header twice (review of 35757c1, 1)", () => {
+  // 2025 and 2026 under the same header "Actual"; series 2 bound to the 2026 column E, following; a column inserted at B
+  const before = fakeSheet("S", { A1: "Product", C1: "Actual", E1: "Actual", A2: "Loans", C2: 10, E2: 20, A3: "Deposits", C3: 11, E3: 21 });
+  const after = fakeSheet("S", { A1: "Product", D1: "Actual", F1: "Actual", A2: "Loans", D2: 10, F2: 20, A3: "Deposits", D3: 11, F3: 21 });
+  const b = fingerprint(before, parseA1("E2:E3")!, "num", "S!E2:E3");
+  const ctxS = (S: Sheet): RenderCtx => ({ ...ctxOf({ sheets: [S] } as unknown as Workbook), sheet: n => n === "S" ? S : null });
+  const item = (): ChartItem => ({ kind: "chart", type: "column", box: BOX, values: { sheet: "S", range: "C2:C3" },
+    sers: { s1: { n: 1, vals: [{ sheet: "S", range: "C2:C3" }] }, s2: { n: 2, vals: [{ sheet: "S", range: "E2:E3" }] } }, bind: { "sers.s2.vals.0": { ...b, f: true } } });
+  it("the label is found by scanning left along the row (a column inserted between labels and data); both candidates agree: ambiguous", () => {
+    expect(b).toEqual({ at: "S!E2:E3", h: "Actual", hr: 1, l: "Loans", lc: 4 });
+    expect(findBlock(after, parseA1("E2:E3")!, b)).toEqual({ ambiguous: 2 });
+    expect(findBlock(before, parseA1("E2:E3")!, b)).toEqual({ dr: 0, dc: 0 });
+  });
+  it("following: the stored A1 kept (never the 2025 column), and the item's issue says moved?", () => {
+    const x = ctxS(after), r = boundItem(item(), x);
+    expect(r.sers!.s2.vals).toEqual([{ sheet: "S", range: "E2:E3" }]);
+    expect(bindIssue(item(), x)).toMatch(/Series 2 values: the cells moved\? .*“Actual” is in 2 places: not followed/);
+    expect(checkRef({ ref: { sheet: "S", range: "E2:E3" }, want: "num" }, { sheet: () => after }, b).status).toBe("moved");
+  });
+  it("one header with that text: found wherever the column went; a label that differs alone is a note, not moved?", () => {
+    const one = fakeSheet("S", { A1: "Product", D1: "Actual", A2: "Loans", D2: 10, A3: "Deposits", D3: 11 });
+    const b1 = fingerprint(fakeSheet("S", { A1: "Product", C1: "Actual", A2: "Loans", C2: 10, A3: "Deposits", C3: 11 }), parseA1("C2:C3")!, "num", "S!C2:C3");
+    expect(findBlock(one, parseA1("C2:C3")!, b1)).toEqual({ dr: 0, dc: 1 });
+    // the same headers, the labels re-sorted: one with that header, the label advisory
+    const sorted = fakeSheet("S", { A1: "Product", C1: "Actual", A2: "Deposits", C2: 11, A3: "Loans", C3: 10 });
+    const c = checkRef({ ref: { sheet: "S", range: "C2:C3" }, want: "num" }, { sheet: () => sorted }, b1);
+    expect(c.status).toBe("ok"); expect(c.note).toContain("“Deposits” now (it was “Loans”)");
+    // two headers, the label singles one out: that one
+    const two = fakeSheet("S", { A1: "Product", D1: "Actual", A2: "Loans", D2: 10, H1: "Actual", G2: "Other", H2: 5 });
+    expect(findBlock(two, parseA1("C2:C3")!, b1)).toEqual({ dr: 0, dc: 1 });
+  });
+  it("a quoted cell of a text never follows: item.patch with such a bind is refused", () => {
+    const doc = applyOps(emptyDoc("W"), [{ op: "preset.set", preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [] }] } }, { op: "item.patch", slide: "s", id: "t", patch: { kind: "shape", shape: "rect", box: BOX, text: "{S!A1}" } }] as Op[]).doc;
+    const r = applyOps(doc, [{ op: "item.patch", slide: "s", id: "t", patch: { bind: { "text~0": { at: "S!A1", h: "x", f: true } } } } as Op, { op: "item.patch", slide: "s", id: "t", patch: { bind: { "text~0": { at: "S!A1", h: "x" } } } } as Op]);
+    expect(r.skipped).toEqual([0]);
+    expect(following({ kind: "shape", shape: "rect", box: BOX, bind: { "text~0": { f: true } } } as Item)).toEqual([]);
+  });
+});
+
 describe("B57 · follow the header (render/follow.ts): read where the header is now", async () => {
   const wb = await readWorkbook(ab(bytes())), moved = await readWorkbook(ab(movedB54(bytes())));
   const card = (): ChartItem => {
@@ -243,6 +289,7 @@ describe("B57 · follow the header (render/follow.ts): read where the header is 
     const xs: RenderCtx = { ...x1, sheet: n => n === "Volumes" ? view : x1.sheet!(n) };
     const a = boundItem(c, x1), b = boundItem(c, xs);
     expect(b).not.toBe(a); expect(b.sers!.vol.vals).toEqual(a.sers!.vol.vals);
+    expect(boundItem(c, x1)).toBe(a); expect(boundItem(c, xs)).toBe(b);              // (a few views at once: Run for each value)
     const reloaded = await readWorkbook(ab(movedB54(bytes())));
     expect(boundItem(c, ctxOf(reloaded))).not.toBe(a);
     const k: KpiItem = { ...kpiCard(3, BOX), bind: { cur: { ...fingerprint(wb.sheets[0], parseA1("B3")!, "num", "KPI!B3"), f: true } } };
@@ -301,7 +348,7 @@ describe("B57 · bulk plans and their undo", async () => {
     const it = doc.preset!.slides[0].items!.cl as ChartItem;
     const fp = (ref: DataRef, want: RefSlot["want"]): RefBind => ({ at: refAt(ref), h: want + "!" });
     const r = planItem(doc, "b54", "cl", it, { kind: "shift", s: { dr: 2, dc: 0 }, sheet: null }, { fp, where: "Slide 1" });
-    expect(r.rows.map(x => [x.what, x.from, x.to])).toEqual([["Pie values", "Volumes!C2:C9", "Volumes!C4:C11"], ["Category names", "Volumes!B2:B9", "Volumes!B4:B11"],
+    expect(r.rows.map(x => [x.what, x.from, x.to])).toEqual([["Values as a pie", "Volumes!C2:C9", "Volumes!C4:C11"], ["Category names", "Volumes!B2:B9", "Volumes!B4:B11"],
       ["Series 1 “Loans” values", "Volumes!C2:C9", "Volumes!C4:C11"], ["“Budget” line value", "Volumes!D2", "Volumes!D4"], ["Filter column", "Volumes!A2:A9", "Volumes!A4:A11"]]);
     const { after, inv } = undoOf(doc, [r.op!]);
     const moved = after.preset!.slides[0].items!.cl as ChartItem;
@@ -339,11 +386,12 @@ describe("B57 · bulk plans and their undo", async () => {
     expect(after.preset!.tables[1]).toEqual(preset.tables[1]);                          // (the other table stays)
     expect(after.preset!.slides[0].hidden).toEqual({ "t1:r6": true, "t1:cB": true, "t2:r2": true });
     expect(after.edits).toEqual({ Volumes: { C5: { bg: "#FFFF00" }, B9: { text: "x", orig: "W37" }, F2: { b: true } }, KPI: { A1: { b: true } } });
-    expect(after.preset!.versions![0]).toEqual({ id: "v1", name: "Chief", hide: { Volumes: ["C7:D8", "G2"] }, drop: { Volumes: ["5:6", "B", "F:G"] } });
+    // (an entry inside the table moves with it; whole rows / columns reach beyond it – other tables of the sheet: left, said)
+    expect(after.preset!.versions![0]).toEqual({ id: "v1", name: "Chief", hide: { Volumes: ["C7:D8", "G2"] }, drop: { Volumes: ["3:4", "B", "F:G"] } });
     const items = after.preset!.slides[0].items!;
     expect([(items.c1 as ChartItem).values, (items.c2 as ChartItem).values, (items.c3 as ChartItem).values]).toEqual([{ table: "t1", range: "C4:C7" }, V("C8:C11"), V("F2:F3")]);
     expect(plan.rows.map(r => [r.what, r.from, r.to])).toEqual([["Table cells", "Volumes!A1:D9", "Volumes!A3:D11"], ["Values", "Volumes!C2:C5", "Volumes!C4:C7"], ["Values", "Volumes!C6:C9", "Volumes!C8:C11"]]);
-    expect(plan.notes.join(" | ")).toMatch(/move with it.*2 cell edits move.*1 version/);
+    expect(plan.notes.join(" | ")).toMatch(/move with it.*2 cell edits move.*1 version.*2 version entries .*reach beyond the table: left as they are/);
     expect(applyOps(after, inv).doc).toEqual(applyOps(doc, []).doc);                  // one undo: everything back
     // a range the move would push off the sheet: nothing moves
     expect(planTable(doc, "t1", { kind: "shift", s: { dr: -1, dc: 0 }, sheet: null }).ops).toEqual([]);
@@ -353,6 +401,7 @@ describe("B57 · bulk plans and their undo", async () => {
     expect(a2.after.preset!.tables[0]).toMatchObject({ sheet: "Vol2", range: "A1:D9", merges: { "A2:A5": "merge" } });
     expect(a2.after.edits).toEqual({ Volumes: { F2: { b: true } }, Vol2: { C3: { bg: "#FFFF00" }, B7: { text: "x", orig: "W37" } }, KPI: { A1: { b: true } } });
     expect(a2.after.preset!.versions![0].hide).toEqual({ Volumes: ["G2"], Vol2: ["C5:D6"] });
+    expect(a2.after.preset!.versions![0].drop).toEqual({ Volumes: ["3:4", "B", "F:G"] });            // (beyond the table: stay)
     expect((a2.after.preset!.slides[0].items!.c2 as ChartItem).values).toEqual({ sheet: "Vol2", range: "C6:C9" });
     expect((a2.after.preset!.slides[0].items!.c1 as ChartItem).values).toEqual({ table: "t1", range: "C2:C5" });
     expect(applyOps(a2.after, a2.inv).doc).toEqual(applyOps(doc, []).doc);
@@ -380,6 +429,13 @@ describe("B57 · bulk plans and their undo", async () => {
     expect(a.preset!.tables[0]).toEqual({ ...preset.tables[0], cols: { 2: 50 } });
     expect(a.preset!.slides[0].hidden).toEqual({ "m:r4": true });
     expect(p.rows[0].what).toBe("Table settings (found by its x markers)");
+    // its rectangle not known: no cell edit nor version entry of the sheet is its own (review of 35757c1, 3)
+    const d2 = { preset: { ...preset, versions: [{ id: "v", name: "V", hide: { Volumes: ["Z50:Z60"] } }] }, style: {}, edits: { Volumes: { Z100: { b: true }, A1: { b: true } } } } as unknown as WorkbookDoc;
+    const p2 = planTable(d2, "m", { kind: "shift", s: { dr: 1, dc: 0 }, sheet: null });
+    expect(p2.ops.filter(o => o.op === "cell.patch" || o.op === "version.patch")).toEqual([]);
+    expect(p2.notes.join(" ")).toContain("cells are not known");
+    const a2 = applyOps(d2, p2.ops).doc;
+    expect([a2.edits, a2.preset!.versions]).toEqual([d2.edits, d2.preset!.versions]);
   });
   it("a table's range: table.patch applies a sheet and a range, never a bad one or a removal; inverse back", () => {
     const doc = { preset: { sheets: [], tables: [{ id: "t", sheet: "S", kind: "range", range: "A1:B2" }, { id: "m", sheet: "S", kind: "markers", anchor: "A1", index: 0 }], slides: [] }, style: {}, edits: {} } as unknown as WorkbookDoc;
