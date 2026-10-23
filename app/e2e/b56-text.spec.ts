@@ -112,10 +112,10 @@ test.describe.serial("Text, sizing and positioning (B56)", () => {
 
     // the KPI panel: centre the value on each card (Layout › Value ↔) – one step each
     for (const id of ["k1", "k2", "k3", "k4"]) {
-      await page.locator(`.itembox[data-item="${id}"]`).click({ position: { x: 300, y: 110 } });
+      await page.locator(`.itembox[data-item="${id}"]`).click();
       await expect(page.locator("#kpiPanel")).toHaveAttribute("data-item", id);
       const lay = page.locator("#kpiLayout");
-      if (!await lay.getAttribute("open")) await lay.locator("> summary").click();
+      if (!await lay.evaluate(e => (e as HTMLDetailsElement).open)) await lay.locator("> summary").click();
       await oneStep(page, () => page.click('#kpiValueAlign [data-v="center"]'));
     }
     await pollFile(() => ["k1", "k2", "k3", "k4"].map(id => slides0().find(s => s.id === S).items[id].texts?.value?.align), { timeout: 20_000 }).toEqual(["center", "center", "center", "center"]);
@@ -124,7 +124,7 @@ test.describe.serial("Text, sizing and positioning (B56)", () => {
     expect(await valueX("k1")).toBeGreaterThan(before + 10);
 
     // the chart panel: the title and the axis labels in another font and size; the stats row centred
-    await page.locator('.itembox[data-item="cd"]').click({ position: { x: 600, y: 470 } });
+    await page.locator('.itembox[data-item="cd"]').click();
     await expect(page.locator("#chartPanel")).toHaveAttribute("data-item", "cd");
     const tfBox = async (sel: string, font: string, pt: string) => {
       const box = page.locator(`[data-tf="${sel}"]`);
@@ -134,7 +134,7 @@ test.describe.serial("Text, sizing and positioning (B56)", () => {
     };
     await tfBox("chart-title", "Georgia", "16");
     const axes = page.locator("#chartAxes");
-    if (!await axes.getAttribute("open")) await axes.locator("> summary").click();
+    if (!await axes.evaluate(e => (e as HTMLDetailsElement).open)) await axes.locator("> summary").click();
     await tfBox("axis-y", "Consolas", "9");
     await tfBox("axis-x", "Consolas", "9");
     await oneStep(page, () => page.click('#chartStatsAlign [data-v="center"]'));
