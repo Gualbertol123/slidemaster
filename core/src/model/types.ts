@@ -314,7 +314,8 @@ export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; color
   nudge?: Record<string, { dx: number; dy: number } | null> | null;
   stats?: Record<string, ChartStat | null> | null; moms?: Record<string, ChartMom | null> | null;
   legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null;
-  /* (B56) */ texts?: Record<string, TextFmt | null> | null; lay?: Record<string, string | number | boolean | null> | null; offs?: Record<string, { dx: number; dy: number } | null> | null };
+  /* (B56) */ texts?: { [K in import("./textparts").TextPart]?: TextFmt | null } | null; lay?: { [K in keyof import("./textparts").ItemLay]?: import("./textparts").ItemLay[K] | null } | null;
+  offs?: Record<string, { dx: number; dy: number } | null> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null; hidden?: Record<string, true | null> | null } }

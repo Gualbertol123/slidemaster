@@ -128,7 +128,10 @@ export function kpiNodes(it: KpiItem, id: string, box: Box, ctx: RenderCtx, env:
   const hh = r2(ownH !== undefined ? Math.min(ownH, h * .6) : Math.max(Math.min(16, h * .4), Math.min(56, h * .26))), head = kpiHeadColor(ctx), rr = r2(Math.min(rad, hh));
   if (bar) inner.push({ t: "rect", x: r2(x), y: r2(y), w: r2(w), h: hh, r: [rr, rr, 0, 0], fill: solid(head) });
   const ownPad = layNum(it, "pad", 0, 80), pad = r2(ownPad !== undefined ? Math.min(ownPad, w / 4) : Math.max(4, Math.min(24, w * .04)));
-  const t0: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(28, hh * .42))), weight: 700, italic: false, color: bar ? lum(head) < .5 ? "#FFFFFF" : "#16181D" : ink }, F.head);
+  // (a title's own size: at most what the header's band holds – never over the card's edge)
+  const t00: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(28, hh * .42))), weight: 700, italic: false, color: bar ? lum(head) < .5 ? "#FFFFFF" : "#16181D" : ink }, F.head);
+  const tMax = Math.max(MIN_TEXT, Math.floor(hh / 1.25 * 2) / 2), t0: St = fmtSize(F.head) && t00.size > tMax ? { ...t00, size: tMax } : t00;
+  if (t0 !== t00) cut.push("the title's size");
   const tf = fitText(env.m, F.head?.caps === false ? D.title : D.title.toUpperCase(), t0, w - 2 * pad, Math.min(t0.size, MIN_TEXT));
   if (tf.text) {
     const al = fmtAlign(F.head) || "left", tx = al === "center" ? x + w / 2 : al === "right" ? x + w - pad : x + pad;
@@ -139,9 +142,11 @@ export function kpiNodes(it: KpiItem, id: string, box: Box, ctx: RenderCtx, env:
   // the body: the value on the left, the divider, the rows on the right
   const by = y + hh, bh = Math.max(0, h - hh), n = D.rows.length, split = layNum(it, "split", 10, 90);
   const vw = n ? w * (split !== undefined ? split / 100 : .36) : w;
-  const v0: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(bh * .45, vw * .3, 120))), weight: 700, italic: false, color: toneC(D.tone) }, F.value);
+  // (a value's own size: at most what the body holds – shrunk to it, and said, rather than not drawn)
+  const v00: St = styled({ family: env.family, size: r2(Math.max(MIN_TEXT, Math.min(bh * .45, vw * .3, 120))), weight: 700, italic: false, color: toneC(D.tone) }, F.value);
+  const vMax = Math.max(MIN_TEXT, Math.floor(bh / 1.25 * 2) / 2), v0: St = fmtSize(F.value) && v00.size > vMax ? { ...v00, size: vMax } : v00;
   const vf = fitText(env.m, D.value, v0, vw - 2 * pad, Math.min(v0.size, MIN_TEXT * 1.5));
-  if (vf.cut) cut.push("the value");
+  if (vf.cut || v0 !== v00) cut.push("the value");
   if (lineH(vf.st) <= bh + .01) {
     const va = layWord(it, "valign", ["top", "middle", "bottom"] as const) || "middle", al = fmtAlign(F.value) || "left", lh = lineH(vf.st), mv = Math.min(bh * .14, (bh - lh) / 2);
     const vy = va === "top" ? by + mv : va === "bottom" ? by + bh - mv - lh : by + (bh - lh) / 2, o = offOf(it, "kv", { w, h });
@@ -157,7 +162,9 @@ export function kpiNodes(it: KpiItem, id: string, box: Box, ctx: RenderCtx, env:
     // rows at a minimum pitch (the text's line and a little air): rows that do not fit the card are not drawn
     const own = fmtSize(F.delta), rs0 = own ?? r2(Math.max(MIN_TEXT, Math.min((bh - 2 * m) / n * .62, w * .045, 40)));
     const place = layWord(it, "rows", ["spread", "top", "middle", "bottom"] as const) || "spread", gap = layNum(it, "rowGap", 0, 80) ?? 4;
-    const pitch = place === "spread" ? Math.max((bh - 2 * m) / n, Math.round(rs0 * 1.25) + 2) : Math.round(rs0 * 1.25) + gap;
+    // (a label's own size larger than the changes': its line sets the pitch, so the rows never overlap)
+    const line0 = Math.max(rs0, fmtSize(F.label) ?? 0);
+    const pitch = place === "spread" ? Math.max((bh - 2 * m) / n, Math.round(line0 * 1.25) + 2) : Math.round(line0 * 1.25) + gap;
     const rx = dx + pad, rw = Math.max(0, x + w - pad - rx), cw = rw * .42, fits = Math.max(0, Math.floor((bh - 2 * m + (place === "spread" ? 0 : gap)) / pitch + .001));
     const ds0: St = styled({ family: env.family, size: rs0, weight: 700, italic: false, color: T.zero }, F.delta && { ...F.delta, size: undefined, color: undefined });
     // the change column: one size for all rows (the widest fits), never cut above the minimum (a size of its own: kept)

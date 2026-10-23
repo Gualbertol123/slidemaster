@@ -3,7 +3,7 @@
    Per part: the style → the display list → the PowerPoint file (text boxes' runs and paragraphs, the native chart's
    c:txPr); the KPI card's value alignment, divider, header bar, rows and padding; the chart card's rows, tag, spacing and
    plot margins; the parts dragged (`offs`) and their inverses; no style = the display list exactly as before; the keys'
-   ops (knownOp, inverse, the format guard of 4.13: needsV9 – format 10 is B55's). B56_PPTX_OUT=<folder> writes the
+   ops (knownOp, inverse, the format guards: needsV9 and B55's needsV10). B56_PPTX_OUT=<folder> writes the
    styled slide's PowerPoint file (pptxcheck). */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -38,7 +38,8 @@ const M: Metrics = {
   lines: (t, font, width) => wrapLines(t, width, s => [...s].length * size(font) * .5),
 };
 const flat = (l: DisplayList): Node[] => l.flatMap(n => n.t === "group" ? [n, ...flat(n.children)] : [n]);
-const texts = (l: DisplayList) => flat(l).filter((n): n is TextNode => n.t === "text");
+type TN = TextNode & { w: number; css: string; weight: number };
+const texts = (l: DisplayList) => flat(l).filter((n): n is TextNode => n.t === "text").map(n => ({ ...n, w: n.w ?? 0, css: n.css ?? n.font, weight: n.weight ?? (n.b ? 700 : 400) }) as TN);
 const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
 const NEG = "−";
 const hex = (n: TextNode) => "#" + ("solid" in n.fill ? n.fill.solid : [0, 0, 0]).map(v => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase();
@@ -216,7 +217,7 @@ describe("B56 · chart card: each text's format, display list → PowerPoint", (
       tag: { font: "Tahoma", size: 11, color: "#00838F" }, momVal: { font: "Calibri", size: 14 }, momCap: { font: "Calibri", size: 10, i: true, color: "#777777" }, momHead: { font: "Calibri", size: 12, color: "#0A2F6B", caps: false } } });
   it("the display list: title, tick and category labels, data labels, the line's label, the legend, the card's texts", async () => {
     const { item } = await deck("excel", [STYLED]), T = texts(item("cd").nodes), by = (s: string) => T.find(t => t.src === s);
-    const f = (n: TextNode | undefined) => n && [n.css.split(",")[0], n.size, hex(n), n.weight >= 600, !!n.i];
+    const f = (n: TN | undefined) => n && [n.css.split(",")[0], n.size, hex(n), n.weight >= 600, !!n.i];
     expect(f(by("DEPOSITS · WEEKLY VOLUME"))).toEqual(["'Georgia'", 26, "#0A2F6B", true, false]);
     const ticks = T.filter(t => t.css.startsWith("'Verdana'") && t.size === 11 && /^\d\.\d00$/.test(t.src));
     expect(ticks.length).toBeGreaterThan(3);
@@ -329,7 +330,7 @@ describe("B56 · the ops", () => {
   const P: Record<string, unknown>[] = [
     { texts: { value: { align: "center" } } }, { lay: { split: 40 } }, { offs: { kv: { dx: .1, dy: 0 } } },
     { texts: { legend: { size: 12 } } }, { lay: { stats: "center" } }, { offs: { "st:s1": { dx: .1, dy: 0 } } }];
-  it("each new key is known whole and applied; its inverse restores the item; it raises the deck's format (needsV9 – format 10 is B55's)", async () => {
+  it("each new key is known whole and applied; its inverse restores the item; it raises the deck's format (needsV9, and B55's needsV10)", async () => {
     const { view } = await deck("excel");
     for (const p of P) {
       const id = "texts" in p && "legend" in (p.texts as object) || "st:s1" in ((p.offs || {}) as object) || "stats" in ((p.lay || {}) as object) ? "cd" : "k1";
