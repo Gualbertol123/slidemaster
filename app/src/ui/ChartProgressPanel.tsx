@@ -54,6 +54,8 @@ export function ChartProgressPanel({ c, id, set }: { c: ChartItem; id: string; s
     </details>
 
     <details className="sec" open><summary>Labels</summary>
+      {/* (B56, review of PR #44) the bars' texts have their own format here: the Text controls (Aa) style the title and the card */}
+      <div className="hint" id="progressTextHint">The %, the names and the gaps under the bars are styled here; the Aa Text controls style the title and the card's parts.</div>
       <div className="row wrap"><label className="chk"><Input type="checkbox" id="progPctOn" checked={!P.pct?.off} onCommit={e => pp((e.target as HTMLInputElement).checked ? "Show the %" : "Hide the %", { off: (e.target as HTMLInputElement).checked ? null : true }, "pct")} />% above</label>
         <Field className="num" id="progPctNum" title="The %'s number format (Enter to apply; empty = 0.0%)" placeholder="0.0%" value={P.pct?.num || ""} onCommit={v => pp("Format of the %", { num: v.trim() || null }, "pct")} />
         <Field className="num" id="progPctSize" title="The %'s size, px (empty = automatic)" placeholder="size" value={P.pct?.fmt?.size ? String(P.pct.fmt.size) : ""} onCommit={v => { const n = numOrNull(v, 6, 72); if (n !== undefined) set("Size of the %", progressFmtPatch(c, "pct", { size: n })); }} />

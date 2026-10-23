@@ -32,6 +32,9 @@ What users notice
     the tag, the subtitle, the momentum label, changes and captions.
   * Table text ▾ (ribbon, beside Borders): the font, size, colour, bold, italic and alignment of the whole table, its
     header, its body or its totals in one step.
+  * A budget-achievement chart's bar texts – the %, the names and the gaps – keep their own format in its panel's
+    *Labels* section (the Text control styles its title, subtitle and tag); the format painter copies the bars' colours
+    and those texts' look from one budget chart to another.
 * **Sizing and positioning inside the cards**: KPI card panel › Layout – the value left, centred or right in its section
   ("centre the 10") and at the top, middle or bottom; the divider's place (%) and on/off; the header bar's height and
   on/off; the rows spread or as a block at the top, middle or bottom with their spacing; the padding. Chart panel ›

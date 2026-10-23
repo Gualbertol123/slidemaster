@@ -7,7 +7,7 @@
    read it. A quoted cell of a text ("text~0") never follows (ops.ts skips such a bind). */
 import type { DataRef, Item, RefBind } from "../model/types";
 import type { RenderCtx } from "./context";
-import { bindFor, checkRef, findBlock, following, movedRef, parseA1, refAt, refSheet, refsOf, rewritePatch } from "../model/datarefs";
+import { bindFor, checkRef, findBlock, following, movedRef, parseA1, refAt, refHidden, refSheet, refsOf, rewritePatch } from "../model/datarefs";
 import { genOf, ORIGIN } from "./chart-data";
 
 /** a small cache per item: a few views at once (the workbook, a scenario's view, each value of "Run for each value") */
@@ -62,6 +62,9 @@ export function bindIssue(it: Item, ctx: RenderCtx): string | null {
     const r = boundItem(it, ctx);                                  // (a following reference: where its header is now)
     const b = (r as { bind?: Record<string, RefBind> }).bind || {}, tables = ctx.preset?.tables || null, out: string[] = [];
     for (const s of refsOf(r)) {
+      // (a reference the item does not draw – a series chart's pie fallback – says nothing: Data sources lists it nowhere
+      // but in its bulk repoints)
+      if (refHidden(it, s)) continue;
       const x = b[s.path]; if (!x || typeof x !== "object") continue;
       const c = checkRef(s, { sheet: n => ctx.sheet?.(n) ?? null, tables }, x);
       if (c.status !== "moved") continue;

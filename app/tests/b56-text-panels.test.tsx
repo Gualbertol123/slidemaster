@@ -224,6 +224,21 @@ describe("on the page", () => {
     expect(c().marks!.r1.fmt).toEqual({ size: 16 });
   });
 
+  it("(review of PR #44) the painter between budget charts: the bars' colours and the %, name and gap look travel – never the values, targets, names or the gap's words", async () => {
+    const R = curSlide()!, box = { x: 100, y: 500, w: 300, h: 300 };
+    const ref = (range: string) => ({ sheet: "SLIDE_1", range });
+    await step(async () => { change("Two budget charts", [
+      { op: "item.patch", slide: R.id, id: "pa", patch: { kind: "chart", type: "progress", values: ref("D6:D8"), box, progress: { vals: [ref("D6:D8")], targets: [ref("E6:E8")],
+        fill: "#112233", track: "#DDDDDD", overFill: "#00AA00", over: "mark", pct: { num: "0%", fmt: { size: 30, color: "#AA0000" } }, cat: { caps: false, fmt: { i: true } }, gap: { sign: "both", over: "above", under: "short", fmt: { b: true } } } } },
+      { op: "item.patch", slide: R.id, id: "pb", patch: { kind: "chart", type: "progress", values: ref("C6:C8"), box: { ...box, x: 500 }, progress: { vals: [ref("C6:C8")], targets: [ref("F6:F8")], cats: ["a", "b", "c"], gap: { under: "left" } } } }] as Op[]); });
+    await act(async () => { selectItem("pa"); startPainter(false); }); await settle();
+    const h = history();
+    await act(async () => { expect(paintItem("pb", false)).toBe(true); }); await confirmed(h + 1);
+    const pb = (itemOf("pb") as ChartItem).progress!;
+    expect(pb).toEqual({ vals: [ref("C6:C8")], targets: [ref("F6:F8")], cats: ["a", "b", "c"], fill: "#112233", track: "#DDDDDD", overFill: "#00AA00", over: "mark",
+      pct: { num: "0%", fmt: { size: 30, color: "#AA0000" } }, cat: { caps: false, fmt: { i: true } }, gap: { sign: "both", fmt: { b: true }, under: "left" } });
+    await act(async () => stopPainter());
+  });
   it("table · Table text: the whole table, its header, body or totals in one step; the ribbon's cells formats", async () => {
     const R = curSlide()!, T = R.tables[0];
     await act(async () => { setSel(0, { r: T.rows[0], c: T.cols[0] }, { r: T.rows[0], c: T.cols[0] }); }); await settle();

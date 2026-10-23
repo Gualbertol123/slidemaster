@@ -307,6 +307,17 @@ describe("B57 · follow the header (render/follow.ts): read where the header is 
     const still = { ...card(), bind: { "sers.vol.vals.0": { ...card().bind!["sers.vol.vals.0"], f: undefined } } } as ChartItem;
     expect(bindIssue(still, ctxOf(moved))).toContain("Series 1 “Loans” values: the cells moved?");
   });
+  it("(review of PR #44) a series chart's pie fallback bound by a bulk repoint says nothing when its header moved – it is no Data sources row; a pie's own values still do", async () => {
+    // (a column chart: its top-level values C, its series on D; the values' bind made by a bulk repoint – the header
+    // "Volume_EUR_m" at C1 – then the column moved to E)
+    const fb = { kind: "chart", type: "column", values: V("C2:C9"), box: { x: 0, y: 0, w: 600, h: 400 },
+      sers: { s1: { n: 1, vals: [V("D2:D9")] } }, bind: { values: { at: "Volumes!C2:C9", h: "Volume_EUR_m", hr: 1 } } } as unknown as ChartItem;
+    expect(refsOf(fb).find(r => r.path === "values")?.label).toBe("Values (pie fallback)");
+    expect(bindIssue(fb, ctxOf(moved))).toBe(null);
+    // (the same values on a pie, which draws them: said)
+    expect(bindIssue({ ...fb, type: "pie" } as ChartItem, ctxOf(moved))).toMatch(/^Values \(pie fallback\): the cells moved\?/);
+    expect(bindIssue({ ...fb, sers: undefined } as unknown as ChartItem, ctxOf(moved))).toMatch(/^Values: the cells moved\?/);
+  });
   it("a scenario's view (another sheet object) and a reload resolve again; a KPI card and a budget chart follow too", async () => {
     const c = card(), x1 = ctxOf(moved), view = Object.create(moved.sheets[1]);
     const xs: RenderCtx = { ...x1, sheet: n => n === "Volumes" ? view : x1.sheet!(n) };
