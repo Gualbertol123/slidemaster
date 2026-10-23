@@ -6,6 +6,7 @@
    newItemId does for items), so two people adding one at once add two (S14.5 review 1). Pure functions of the item (tested on
    their own, app/tests/chart-panel.test.tsx; no page state here, so the core's export runs them in node too); chart-send.ts
    sends them. */
+import { cardRefPatch } from "./chart-card";
 import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
 
 /** a point's settings as the panel writes them (colour, marker, label, a waterfall's `total`; core/src/model/types.ts) */
@@ -236,9 +237,12 @@ export type ChartRefWhat = { what: "add" } | { what: "vals" | "xs" | "target" | 
   /* (B52) a new reference line at a cell; a line's value or name from a cell */
   | { what: "ref-add" } | { what: "ref-value" | "ref-name"; mark: string }
   /* (B53) an axis's min, max or step from a cell */
-  | { what: "axis"; ax: "x" | "y" | "y2"; key: "min" | "max" | "step" };
+  | { what: "axis"; ax: "x" | "y" | "y2"; key: "min" | "max" | "step" }
+  /* (B54) the chart card: a stat's or a momentum chip's cell, the tag's cell, the filter's column and value */
+  | { what: "stat-cell"; stat: string } | { what: "mom-cell"; mom: string } | { what: "tag-cell" } | { what: "filter-by" } | { what: "filter-eq" };
 /** the kinds of cells that are one cell (a name, a reference line's value or name) */
-export const oneCell = (w: ChartRefWhat | null | undefined) => w?.what === "name" || w?.what === "ref-add" || w?.what === "ref-value" || w?.what === "ref-name" || w?.what === "axis";
+export const oneCell = (w: ChartRefWhat | null | undefined) => w?.what === "name" || w?.what === "ref-add" || w?.what === "ref-value" || w?.what === "ref-name" || w?.what === "axis"
+  || w?.what === "stat-cell" || w?.what === "mom-cell" || w?.what === "tag-cell" || w?.what === "filter-eq";
 /** the change the chosen cells make (null: the series or group is gone meanwhile) */
 export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatch | null {
   switch (w.what) {
@@ -253,15 +257,20 @@ export function refPatch(it: ChartItem, w: ChartRefWhat, ref: DataRef): ItemPatc
     case "ref-value": return markPatch(it, w.mark, { value: { ...ref, range: ref.range.split(":")[0] } });
     case "ref-name": return markPatch(it, w.mark, { name: { ...ref, range: ref.range.split(":")[0] } });
     case "axis": return axisCellPatch(it, w.ax, w.key, { ...ref, range: ref.range.split(":")[0] });
+    case "stat-cell": case "mom-cell": case "tag-cell": case "filter-by": case "filter-eq": return cardRefPatch(it, w, ref);
   }
 }
 export const REF_TITLE: Record<ChartRefWhat["what"], string> = { add: "Chart: add a series", vals: "Chart: the series' numbers", xs: "Chart: the series' x values",
   target: "Chart: the series' targets", name: "Chart: the series' name", "group-add": "Chart: add a category group", cats: "Chart: the group's categories",
   "ref-add": "Chart: add a reference line", "ref-value": "Chart: the reference line's value", "ref-name": "Chart: the reference line's name",
-  axis: "Chart: the axis's bound from a cell" };
+  axis: "Chart: the axis's bound from a cell", "stat-cell": "Chart: the stat's cell", "mom-cell": "Chart: the cell to compare with", "tag-cell": "Chart: the tag's cell",
+  "filter-by": "Chart: the column to filter by", "filter-eq": "Chart: the filter's value from a cell" };
 export const REF_HINT: Record<ChartRefWhat["what"], string> = { add: "Drag across the numbers of the new series – any sheet, a linked workbook's too.",
   vals: "Drag across the series' numbers.", xs: "Drag across the x values, one per number of the series.", target: "Drag across the targets, one per number of the series.",
   name: "Click the cell with the series' name: the legend follows it.", "group-add": "Drag across the names of the new group's categories.", cats: "Drag across the group's category names.",
   "ref-add": "Click the cell with the line's value (a budget, an ambition): the line follows the workbook.", "ref-value": "Click the cell with the line's value: the line follows the workbook.",
   "ref-name": "Click the cell with the line's name: its label follows the workbook.",
-  axis: "Click the cell with the number: the axis follows the workbook, a reload and a scenario." };
+  axis: "Click the cell with the number: the axis follows the workbook, a reload and a scenario.",
+  "stat-cell": "Click the cell with the number: the stat follows the workbook.", "mom-cell": "Click the cell with the number to compare the last value with.",
+  "tag-cell": "Click the cell with the tag's text.", "filter-by": "Drag across the column to filter by (e.g. Product) – as many rows as the chart's numbers.",
+  "filter-eq": "Click the cell holding the value to keep (e.g. a product name): a scenario or Run for each value can change it." };
