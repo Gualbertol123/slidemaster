@@ -54,7 +54,7 @@ export interface RefVal { id: string; k: ChartMark; v: number | null; text: stri
   /** why it is not drawn ("" = a gap: nothing to say) */ issue?: string }
 const isRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string";
 /** the first cell of a DataRef: its number (null: text, blank, an error), the cell's format, its text */
-function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string; gone: boolean } | null {
+export function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string; gone: boolean } | null {
   const T = refTarget(ref, ctx);
   if (!T.S || !T.g) return null;
   // (a cell the shown version empties is no number: the line is not drawn, as a series gets a gap there)

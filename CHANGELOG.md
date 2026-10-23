@@ -3,6 +3,10 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.0 - unreleased
+
+- B54 · KPI card item (new item kind "kpi", core/src/model/kpi.ts, render/kpi-dl.ts): a dark header bar with the title in caps (typed or a cell), the big current value coloured by sign and good direction, a thin divider and N delta rows – a % read from a cell, or computed from a reference cell (% = (cur − ref) / |ref|, absolute, or both) – each with its label, good direction (up / down / neutral) and number format (the cell's, or its own). A zero reference shows "n/a" with an Issues line; a missing or non-numeric cell gives an Issues line, never a crash. Drawn in all five designs on the design's card (glass, plain card, outlined box, consulting tint); cells read as a chart's, so a reload, a scenario and "Run for each value" redraw it; PDF through the display list, PowerPoint as native shapes and text boxes (group "KPI card").
+
 ## 4.12.0 - 2026-10-22
 
 What users notice

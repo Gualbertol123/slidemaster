@@ -16,9 +16,10 @@ const STYLE_KEYS = ["design", "glass", "color", "logo", "radius", "contrast", "l
 const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
   "shape", "icon", "text", "fill", "border", "radius", "tail",
   "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
-  "route", "a", "b", "mid", "bend", "ends", "style", "stroke"] as const;
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
+  /* B54 (4.13): a KPI card's keys (model/kpi.ts) */ "head", "cur", "rows", "good", "num"] as const;
 const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge"] as const;
-const ITEM_KINDS = ["chart", "shape", "line"];
+const ITEM_KINDS = ["chart", "shape", "line", "kpi"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
 const MARK_KINDS = ["arrow", "line", "band", "icon", "text", "ref", "gap", "change"];
