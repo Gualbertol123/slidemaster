@@ -1,0 +1,4 @@
+{
+  "bytes": 1000,
+  "why": "4.13.2 (the owner's slide of image 20: the empty slide's hint over the chart cards, a filtered chart named by its filter column): by measurement on v4/fix-4132 – the page built from its base (87f0951, the 4.13.1 page, 5,027,365 bytes) is 5,028,232 bytes (+867): app stage/empty-hint.ts (the hint and the Issues line only on a slide with nothing on it; a removed table's text boxes do not count), core render/chart-data.ts (a filtered chart's names never its filter column, names all alike an Issues line) in the app's and the workers' bundles, the version; rounded up to the next 500."
+}

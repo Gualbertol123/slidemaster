@@ -88,17 +88,19 @@ function numberAt(S: Sheet, r: number, c: number, removed: (r: number, c: number
 }
 /** the label of value k of a rectangle: the labels range's cell k, else the headers beside the values – the nearest
     column on the left with text in those rows (a column of values), or the nearest row above (a row of values) */
-function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide?: HideSet | null): (r: number, c: number, k: number) => string {
+function labelsFor(S: Sheet, g: Range, L: ReturnType<typeof refTarget> | null, ctx: RenderCtx, hide?: HideSet | null, skip = 0): (r: number, c: number, k: number, n?: number) => string {
   const lcells = L?.S && L.g ? cellsOf(L.S, L.g, L.S === S ? hide : null) : null, col = g.c1 === g.c2 && g.r2 > g.r1;
   if (lcells) return (_r, _c, k) => lcells[k] ? shown(L!.S!, lcells[k][0], lcells[k][1], ctx).trim() : "";
   if (col) {
     let lc = 0;
-    for (let c = g.c1 - 1; c >= 1 && c >= g.c1 - 30 && !lc; c--) for (let r = g.r1; r <= g.r2; r++) { const x = S.get(r, c); if (x && x.t === "s" && String(x.v).trim()) { lc = c; break; } }
-    return (r, _c, k) => (lc ? shown(S, r, lc, ctx).trim() : "") || String(k + 1);
+    // (4.13.2: `skip` – a filtered chart's filter column – never names its categories: the next text column does)
+    for (let c = g.c1 - 1; c >= 1 && c >= g.c1 - 30 && !lc; c--) if (c !== skip) for (let r = g.r1; r <= g.r2; r++) { const x = S.get(r, c); if (x && x.t === "s" && String(x.v).trim()) { lc = c; break; } }
+    // (no name: numbered – by `n`, a filtered chart's kept position, else by the cell's position k)
+    return (r, _c, k, n) => (lc ? shown(S, r, lc, ctx).trim() : "") || String((n ?? k) + 1);
   }
   let lr = 0;
   for (let r = g.r1 - 1; r >= 1 && r >= g.r1 - 30 && !lr; r--) for (let c = g.c1; c <= g.c2; c++) { const x = S.get(r, c); if (x && x.t === "s" && String(x.v).trim()) { lr = r; break; } }
-  return (_r, c, k) => (lr ? shown(S, lr, c, ctx).trim() : "") || String(k + 1);
+  return (_r, c, k, n) => (lr ? shown(S, lr, c, ctx).trim() : "") || String((n ?? k) + 1);
 }
 /** the name of the values of a rectangle: the nearest text above a column of values / left of a row of values (5 cells) */
 function nameBeside(S: Sheet, g: Range, ctx: RenderCtx): string {
@@ -297,16 +299,30 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     cats.push(...(names || []));
   } else {
     const len = Math.max(0, ...read.map(x => x.r.vals.length)), f = read.find(x => x.r.first)?.r.first;
-    const L = it.labels && !scatter ? refTarget(it.labels, ctx) : null;
+    let L = it.labels && !scatter ? refTarget(it.labels, ctx) : null, skip = 0;
+    // (4.13.2) a filtered chart's categories are never named by its filter column: every kept row shows the same value
+    // there ("Loans" four times, and the momentum's "vs Loans"). Names that ARE that column (Choose the cells… step 2 or
+    // From the selected cells took the long table's first column) give way to the nearest other text column left of the
+    // numbers (Period), as names left unset do
+    if (keep && it.filter && f && !scatter) {
+      const B = refTarget(it.filter.by, ctx);
+      if (B.S === f.S && B.g && B.g.c1 === B.g.c2) {
+        skip = B.g.c1;
+        if (L && L.S === B.S && L.g && L.g.c1 === skip && L.g.c2 === skip) L = null;
+      }
+    }
     if (scatter) for (let k = 0; k < len; k++) cats.push(String(k + 1));
     else if (f) {
-      const at = labelsFor(f.S, f.g, L, ctx, f.hide), cells = cellsOf(f.S, f.g, f.hide);
+      const at = labelsFor(f.S, f.g, L, ctx, f.hide, skip), cells = cellsOf(f.S, f.g, f.hide);
       // (B54: a filtered chart's k-th value is the table's keep.at[k]-th row)
       const pos = (k: number) => keep ? keep.at[k] ?? cells.length : k;
-      for (let k = 0; k < len; k++) { const q = pos(k); cats.push(q < cells.length ? at(cells[q][0], cells[q][1], q) || numToCol(cells[q][1]) + cells[q][0] : L ? "" : String(k + 1)); }
+      for (let k = 0; k < len; k++) { const q = pos(k); cats.push(q < cells.length ? at(cells[q][0], cells[q][1], q, k) || numToCol(cells[q][1]) + cells[q][0] : L ? "" : String(k + 1)); }
     } else for (let k = 0; k < len; k++) cats.push(String(k + 1));
     groups.push({ id: "", n: 0, start: 0, len, label: "", divider: undefined });
   }
+  // (4.13.2) every category named alike: the names are most likely a column of one value (a product), not the periods
+  // (a chart without groups: grouped ones may well name each group's one category alike, "Total")
+  if (!scatter && !gdefs.length && cats.length > 1 && cats[0] && cats.every(c => c === cats[0])) issues.push(`every category is named “${cats[0]}”: choose the names in Change the cells… (e.g. the Period column)`);
   const series: SerData[] = read.map(({ id, s, k, r, t }) => {
     const g = groups.find(x => x.id === s.group) || groups[0], name = nameOf(s, r.first, k, ctx);
     if (r.missing) issues.push(`'${name}': ${r.source} not found`);
