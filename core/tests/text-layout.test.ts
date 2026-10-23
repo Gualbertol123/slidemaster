@@ -425,3 +425,14 @@ describe("(review) format 10 inside the keys 4.13.1 already had (B55's deep gati
       { marks: { r1: { kind: "ref", value: 1, fmt: { caps: true } } } }]) expect(needsV10(patch("cd", p)), JSON.stringify(p)).toBe(true);
   });
 });
+
+describe("(4.14 integration) one format-10 guard for B55, B56 and B57", () => {
+  it("needsV10 flags B56's texts / lay / offs and B57's item bind and table.patch sheet / range / bind; their removals are not format 10", () => {
+    for (const p of [{ texts: { value: { align: "center" } } }, { lay: { split: 40 } }, { offs: { kv: { dx: .1, dy: 0 } } }, { bind: { "cur": { at: "KPI!B2", h: "Current", f: true } } }])
+      expect(needsV10(patch("k1", p)), JSON.stringify(p)).toBe(true);
+    for (const p of [{ sheet: "Volumes" }, { range: "A3:D11" }, { bind: { h: ["Product"], r: 1 } }])
+      expect(needsV10({ op: "table.patch", id: "t1", patch: p }), JSON.stringify(p)).toBe(true);
+    for (const p of [{ texts: null }, { lay: { split: null } }, { offs: null }, { bind: { cur: null } }]) expect(needsV10(patch("k1", p)), JSON.stringify(p)).toBe(false);
+    expect(needsV10({ op: "table.patch", id: "t1", patch: { name: "x" } })).toBe(false);
+  });
+});

@@ -64,6 +64,8 @@ What users notice
     you choose with Change….
   * Each bulk action shows every old → new address first and is applied as one undo step; if the deck changed
     meanwhile, the preview is shown again for a second click instead.
+  * A line or bar chart's list leaves out the range it would draw only as a pie (its "pie fallback"); the bulk actions
+    still move it with everything else, named "Values (pie fallback)" in their preview.
   * **Follow header** (per reference): the cells are found by their header text whenever they are read – a moved column
     or rows inserted above need no repoint at all, on the screen, in every export, after a reload and in *Run for each
     value*. The address is kept as the fallback.

@@ -89,7 +89,7 @@ describe("B57 · refsOf", () => {
   });
   it("the owner's card: the budget line by its name, the stat cells; quoted cells of a callout and of a text mark", () => {
     const labels = refsOf(volumeCard("Loans", "D2", BOX, { text: "Actual loans" })).map(s => s.label);
-    expect(labels).toEqual(["Values as a pie", "Category names", "Series 1 “Loans” values", "“Budget” line value", "Filter column"]);
+    expect(labels).toEqual(["Values (pie fallback)", "Category names", "Series 1 “Loans” values", "“Budget” line value", "Filter column"]);
     const shape: Item = { kind: "shape", shape: "rect", box: BOX, text: "Loans {Volumes!C5} vs {'KPI'!$B$2}" };
     expect(refsOf(shape).map(s => [s.path, refAt(s.ref)])).toEqual([["text~0", "Volumes!C5"], ["text~1", "KPI!B2"]]);
     expect(retoken("Loans {Volumes!C5} vs {'KPI'!$B$2}", 1, { sheet: "KPI new", range: "B4" })).toBe("Loans {Volumes!C5} vs {'KPI new'!B4}");
@@ -371,7 +371,7 @@ describe("B57 · bulk plans and their undo", async () => {
     const it = doc.preset!.slides[0].items!.cl as ChartItem;
     const fp = (ref: DataRef, want: RefSlot["want"]): RefBind => ({ at: refAt(ref), h: want + "!" });
     const r = planItem(doc, "b54", "cl", it, { kind: "shift", s: { dr: 2, dc: 0 }, sheet: null }, { fp, where: "Slide 1" });
-    expect(r.rows.map(x => [x.what, x.from, x.to])).toEqual([["Values as a pie", "Volumes!C2:C9", "Volumes!C4:C11"], ["Category names", "Volumes!B2:B9", "Volumes!B4:B11"],
+    expect(r.rows.map(x => [x.what, x.from, x.to])).toEqual([["Values (pie fallback)", "Volumes!C2:C9", "Volumes!C4:C11"], ["Category names", "Volumes!B2:B9", "Volumes!B4:B11"],
       ["Series 1 “Loans” values", "Volumes!C2:C9", "Volumes!C4:C11"], ["“Budget” line value", "Volumes!D2", "Volumes!D4"], ["Filter column", "Volumes!A2:A9", "Volumes!A4:A11"]]);
     const { after, inv } = undoOf(doc, [r.op!]);
     const moved = after.preset!.slides[0].items!.cl as ChartItem;

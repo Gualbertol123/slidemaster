@@ -61,10 +61,23 @@ describe("Data sources on the page (B57)", () => {
     expect(panel().querySelector("#srcList")).toBeNull();                              // (folded: nothing to check)
     await act(async () => { fireEvent.click(q("#srcToggle")); });
     const rows = [...panel().querySelectorAll<HTMLElement>(".srcrow")];
-    expect(rows.map(r => r.querySelector("b")!.textContent)).toEqual(["Values as a pie", "Category names", "Series 1 “Deposits” values", "“Budget” line value", "Filter column"]);
-    expect(rows.map(r => r.dataset.status)).toEqual(["ok", "ok", "ok", "ok", "ok"]);
-    expect(rows.map(r => r.querySelector("code")!.textContent)).toEqual(["Volumes!C2:C9", "Volumes!B2:B9", "Volumes!C2:C9", "Volumes!D6", "Volumes!A2:A9"]);
+    // (a line chart with series: its top-level values – drawn only as a pie – are not listed; the bulk repoints move them)
+    expect(rows.map(r => r.querySelector("b")!.textContent)).toEqual(["Category names", "Series 1 “Deposits” values", "“Budget” line value", "Filter column"]);
+    expect(rows.map(r => r.dataset.status)).toEqual(["ok", "ok", "ok", "ok"]);
+    expect(rows.map(r => r.querySelector("code")!.textContent)).toEqual(["Volumes!B2:B9", "Volumes!C2:C9", "Volumes!D6", "Volumes!A2:A9"]);
     expect(document.getElementById("srcIssues")).toBeNull();
+  });
+  it("(4.14 integration) the pie fallback: not in a line chart's own list or Issues lines, listed on a pie; the bulk repoints move it, as \"(pie fallback)\"", async () => {
+    const c = chart();
+    expect(itemRows(c).map(r => r.slot.path)).not.toContain("values");
+    expect(itemRows(c, true).find(r => r.slot.path === "values")?.slot.label).toBe("Values (pie fallback)");
+    expect(itemRows({ ...c, type: "pie" }).map(r => r.slot.path)).toContain("values");
+    expect(itemRows({ ...c, type: "donut" }).map(r => r.slot.path)).toContain("values");
+    const { sers: _s, ...plain } = c;
+    expect(itemRows(plain as ChartItem).find(r => r.slot.path === "values")?.slot.label).toBe("Values");
+    const p = planMove({ item: "cd" }, "item", "Volumes", { dr: 2, dc: 0 });
+    expect(p.rows.map(r => r.what)).toContain("Values (pie fallback)");
+    expect(p.rows.find(r => r.what === "Values (pie fallback)")).toMatchObject({ from: "Volumes!C2:C9", to: "Volumes!C4:C11" });
   });
   it("Remember headers: one step, the binds stored (format 10's `bind`), nothing else changed", async () => {
     const before = JSON.stringify({ ...chart(), bind: undefined });

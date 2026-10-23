@@ -12,7 +12,7 @@ import type { DataRef, Item, Op, RefBind, RuntimeSlide, TableDef, TableBind } fr
 import type { Sheet, Workbook } from "@slide-builder/core/xlsx/types";
 import type { Range } from "@slide-builder/core/xlsx/util";
 import { A1, esc } from "@slide-builder/core/xlsx/util";
-import { bindFor, checkRef, findBlock, findHeaderRow, fingerprint, following, fmtA1, movedRef, parseA1, refAt, refSheet, refsOf, rewritePatch, shiftA1, STATUS_TEXT, tableHeader,
+import { bindFor, checkRef, findBlock, findHeaderRow, fingerprint, following, fmtA1, movedRef, parseA1, refAt, refHidden, refSheet, refsOf, rewritePatch, shiftA1, STATUS_TEXT, tableHeader,
   type CheckCtx, type RefCheck, type RefSlot, type RefStatus, type Shift } from "@slide-builder/core/model/datarefs";
 import { planItem, planItems, planSheet, planTable, type Move, type Plan, type PlanRow } from "@slide-builder/core/model/repoint";
 import { boundItem } from "@slide-builder/core/render/follow";
@@ -63,10 +63,12 @@ export interface SrcRow {
 }
 const binds = (it: Item) => ((it as { bind?: Record<string, RefBind> }).bind || {}) as Record<string, RefBind>;
 /** every reference of an item with its status now */
-export function itemRows(it: Item): SrcRow[] {
+/** `all`: also the references the item does not draw (its pie fallback, core datarefs.ts refHidden) – the bulk repoints'
+    own list; the panel and the Issues lines show the drawn ones */
+export function itemRows(it: Item, all = false): SrcRow[] {
   const cx = checkCtx(), b = binds(it), prev = previousWorkbook(), T = tables();
   const resolved = following(it).length ? boundItem(it, ctx()) : it, res = resolved === it ? null : refsOf(resolved);
-  return refsOf(it).map(slot => {
+  return refsOf(it).filter(slot => all || !refHidden(it, slot)).map(slot => {
     const at = refAt(slot.ref, T), own = bindFor(b[slot.path], at);
     const old = own ? null : prevFp(slot, prev);
     const follow = !!own?.f, moved = res?.find(s => s.path === slot.path);
@@ -191,7 +193,7 @@ export function planFind(target: SrcTarget, scope: Scope): Plan {
   for (const id of ids) {
     const it = itemOf(id); if (!it) continue;
     const refs: Record<string, DataRef> = {}, bs: Record<string, RefBind> = {};
-    for (const r of itemRows(it)) {
+    for (const r of itemRows(it, true)) {
       if (!r.fp || r.now || r.slot.token) continue;
       const S = r.check.S, g = parseA1(r.slot.ref.range); if (!S || !g) continue;
       const d = findBlock(S, g, r.fp);

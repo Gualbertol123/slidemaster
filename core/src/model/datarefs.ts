@@ -37,6 +37,10 @@ const ordered = <T>(m: unknown): [string, T][] => Object.entries(isObj(m) ? m : 
   .sort(([a, p], [b, q]) => (+(p as { n?: number }).n! || 0) - (+(q as { n?: number }).n! || 0) || (a < b ? -1 : a > b ? 1 : 0)) as [string, T][];
 const quote = (s: unknown) => typeof s === "string" && s.trim() ? " “" + s.trim() + "”" : "";
 
+/** a reference the item does not draw (a chart with series that is not a pie or a donut: its top-level `values`, the
+    pie fallback) – left out of the item's own list and its Issues lines, never out of a bulk repoint */
+export const refHidden = (it: Item | null | undefined, slot: Pick<RefSlot, "path">) => !!it && it.kind === "chart" && slot.path === "values"
+  && it.type !== "pie" && it.type !== "donut" && ordered(it.sers).length > 0;
 /** every reference of an item, in the panel's order (a kind this page does not know: none) */
 export function refsOf(it: Item | null | undefined): RefSlot[] {
   if (!isObj(it)) return [];
@@ -55,7 +59,8 @@ export function refsOf(it: Item | null | undefined): RefSlot[] {
   if (it.kind === "chart") {
     const sers = ordered<Record<string, unknown>>(x.sers);
     // (a chart with series still keeps its first range: what it draws as a pie or a donut – 09 §2.2)
-    add("values", sers.length ? "Values as a pie" : "Values", x.values, "num");
+    // (shown in an item's own list only where it is drawn – refHidden; the bulk repoints move it all the same)
+    add("values", sers.length ? "Values (pie fallback)" : "Values", x.values, "num");
     add("labels", "Category names", x.labels, "text");
     sers.forEach(([id, s], i) => {
       const S = `Series ${i + 1}` + quote(s.name);

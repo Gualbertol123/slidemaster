@@ -159,8 +159,10 @@ test.describe.serial("Data sources: repoint when cells move in Excel (B57)", () 
       await saved(page);
       fs.writeFileSync(file, movedB54(new Uint8Array(original), { rows: 3, swap: false }));
       await page.click("#reloadBtn");
-      await expect(page.locator('#srcIssues [data-target="cd"]')).toContainText("Values as a pie – moved?", { timeout: 30_000 });   // (not followed: said)
-      await expect(page.locator('#srcIssues [data-target="cd"]')).not.toContainText("Series 1");
+      // (every reference the line chart draws follows its header: nothing to repoint – its pie fallback, not drawn, is not an
+      // Issues line; 4.14 integration)
+      await expect.poll(async () => (await stageTexts(page)).includes("7.000"), { timeout: 30_000 }).toBe(true);
+      await expect(page.locator('#srcIssues [data-target="cd"]')).toHaveCount(0);
       await select(page, "cd");
       await expect(page.locator('#dataSources [data-path="sers.vol.vals.0"] [data-a="now"]')).toContainText("Volumes!C5:C12", { timeout: 30_000 });
       expect(await status(page, "sers.vol.vals.0")).toBe("ok");
