@@ -20,6 +20,19 @@ What users notice
 Details
 - 4.13.2 · app stage/empty-hint.ts `emptySlide`: a content slide with no table, no item (any kind, a newer page's too) and no notes section (`notes["slide:notes"]`). A table's text boxes (`<table>:<side>`) left behind by table.remove or by a missing table are not drawn, so they do not count. Stage.tsx draws the hint (DOM, `.emptyslide`) and editor/issues.ts writes "No tables on this slide." only then. core render/chart-data.ts resolveSeries: with a filter, a labels range that is the filter's column (same sheet, same single column) is not used, and the automatic names (labelsFor, nearest text column left of the numbers) skip the filter's column; the momentum's automatic captions follow (they read the categories). New Issues line when a chart without groups has 2 or more categories and all have the same non-empty name. A filtered chart with no text column other than its filter column numbers its categories by the rows drawn (1, 2, …), not by the table's rows. How the owner's deck got there: Insert chart stores the names it is given (step 2 of Choose the cells…, or the selection's first column in From the selected cells). The filter's Cells… and value, the type switch and + Stats and momentum never touch them, so the names stayed the Product column, which is also the filter's. No format change. Tests: core/tests/x4132-labels.test.ts, app/tests/x4132.test.ts, e2e B54-01 (the hint on the empty slide and not over the KPI cards, the Loans card stored with the Product names drawing the periods, no "No tables" in the stage or the Issues panel, the Loans chart's PowerPoint categories Q3, W37, W38, W39). B54-01's undo-step counts wait until the page's history mirror holds the step just made: change() returns at once, and the worker sends its history with the next document event, after the redraws queued before it. Under load, a count read right after the KPI row's change was one short, so the chart cards' insert then read two steps (the line-128 failure). Page rebuilt (5,028,232 bytes), app/tests/page-budget/x4132.json 1,000 by measurement.
 
+Under the hood
+* The bench's big30 read (`read_big30_ms`, budget 1 s) failed on CI run after run (PR #42: 1126 / 1147 / 1138 ms
+  against 1018; PR #43: up to 1270 against 1143 and 1174 / 1184 against 1044). It was not a slow regression of
+  4.8–4.13: CI's own bench logs, grouped by the runner's speed, show the same read on each kind of runner from 4.5 to
+  4.13.1, the read stays 2.16–2.19× the core's big30 parse on the same runner in every release, and the 4.3–4.13.1
+  pages read alike on one machine. The limit's scaling was off: the JS calibration rates some of GitHub's runners at
+  1.00–1.16× the reference PC where this read (like the formula engine, decision 2026-10-18) runs 1.3–1.6× slower, so
+  there the read sat at its limit (a run's worse read a median 1.02× it; every failing run was on such a runner). On CI
+  only, the read's limit now follows the larger of the JS and the engine calibration, as the engine's limits and the
+  CI task limits already do (at most 2×, as before): every kind of runner then reads at a median 0.71–0.77× its limit,
+  the tightest (JS ×1.0–1.1, engine ×1.27) at 0.86–0.93×. The budget, the +10 %, the repeat on CI and every other gate
+  are unchanged; nothing changes off CI.
+
 ## 4.13.1 - 2026-10-23
 
 What users notice
