@@ -124,6 +124,9 @@ describe("4.13.1 · a line's label stays inside the plot", () => {
       expect(l.top).toBeGreaterThanOrEqual(sepY(L)! - .5);
       expect(sem.bars!.series[0].labels!.points.find(q => q.i === 2)).toBeUndefined();
     }
+    // (the room made again for the label keeps the axis's ticks as 4.13.0 drew them – measured on 9452ce3)
+    const { L } = await deck("excel", axis({ min: 6900, max: 9100 }));
+    expect(L.ticks.map(t => Math.round(t.v))).toEqual([6900, 7400, 7900, 8400, 8900]);
   });
   it("ceiling and clamp on a scatter chart (no line, no room made above): the peak at the max below; on a short chart, where neither side fits, below held inside the plot – PowerPoint dLblPos b moved up by a manualLayout", async () => {
     const scatter = (c: ChartItem) => {

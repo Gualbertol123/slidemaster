@@ -295,11 +295,15 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
     // (B53) a line's value label above its highest point stays inside the frame (not over the title): the plot's top
     // comes down by what it lacks, measured on the label
     // (4.13.1: again while it lacks more than half a px – a point under a typed or cell max comes down with the plot, by
-    // the share of the span it stands under the max: one pass left that share over the edge)
+    // the share of the span it stands under the max: one pass left that share over the edge. The later passes keep the
+    // first pass's count of ticks: the axis reads as before, only the plot's top moves)
+    let maxN = 0;
     for (let pass = 0; pass < 4; pass++) {
       const need = labelRoomAbove(scale, h) - (top - area.y);
       if (!(need > .5)) break;
-      top += need; h = Math.max(10, h - need); scale = autoScale(P1.lo, P1.hi, { maxN: Math.floor(h / (vlh * 1.6)), axis: A.y, percent: P1.percent });
+      top += need; h = Math.max(10, h - need);
+      if (!pass) maxN = Math.floor(h / (vlh * 1.6));
+      scale = autoScale(P1.lo, P1.hi, { maxN, axis: A.y, percent: P1.percent });
     }
     tk = mkTicks(scale, num);
     const yw = valShow ? Math.max(...tk.map(t => tw(t.text, valSt))) + 8 : 0;
