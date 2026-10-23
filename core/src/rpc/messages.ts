@@ -204,8 +204,8 @@ export interface PageMethods {
   deckCompact(a: { key: string; baseGen: number; snapshot: DeckSnapshot }): { gen: number };
   deckRotate(a: { key: string; writer: string }): { deleted: string[] };
   deckPrepare(a: { key: string; writer: string }): unknown;
-  /** ADR-019: the deck's format-5 marker (decks.mark_format5), or with `format` 6 (7, 8, 9) its format-6 (format-7, format-8, format-9) marker */
-  deckFormat5(a: { key: string; format?: 5 | 6 | 7 | 8 | 9 }): { created?: boolean; at?: number | null; now?: number | null };
+  /** ADR-019: the deck's format-5 marker (decks.mark_format5), or with `format` 6 (7, 8, 9, 10) its format-6 (format-7, format-8, format-9, format-10) marker */
+  deckFormat5(a: { key: string; format?: 5 | 6 | 7 | 8 | 9 | 10 }): { created?: boolean; at?: number | null; now?: number | null };
   digitWidth(a: { font: string }): number;
   /** text measured with the page's fonts for the display list (decision 2026-10-12, 3): one call per measuring round of a table */
   measureRuns(a: { runs: import("../platform").RunReq[] }): import("../platform").RunMetrics[];

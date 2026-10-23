@@ -50,8 +50,8 @@ const r2 = (v: number) => Math.round(v * 100) / 100 || 0;
 const frac4 = (v: number) => Math.round(v * 10000) / 10000 || 0;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 /** what the design gives a series chart besides chart-dl.ts's ChartLook */
-interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
-function axisLook(ctx: RenderCtx): AxisLook {
+export interface AxisLook { tick: string; grid: LineSem | null; gridOn: boolean; line: LineSem | null; card: { fill: string; a: number; line: string } }
+export function axisLook(ctx: RenderCtx): AxisLook {
   const d = ctx.style.design;
   if (isConsult(d)) {
     const S = specOf(ctx);

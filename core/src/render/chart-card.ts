@@ -39,8 +39,17 @@ export const statsOf = (it: ChartItem) => onEntries<ChartStat>(it.stats).slice(0
 export const momsOf = (it: ChartItem) => onEntries<ChartMom>(it.moms).slice(0, MAX_MOMS);
 const sepOf = (it: ChartItem): LineStyle | null => isObj(it.sep) ? it.sep as LineStyle : null;
 const tagOf = (it: ChartItem) => isObj(it.tag) && (typeof it.tag.text === "string" ? !!it.tag.text.trim() : isObj(it.tag.text)) ? it.tag : null;
+const subOf = (it: ChartItem) => typeof it.subtitle === "string" ? (it.subtitle.trim() ? it.subtitle : null) : isObj(it.subtitle) && typeof it.subtitle.range === "string" ? it.subtitle : null;
 /** whether the chart has a card part (else it draws exactly as before 4.13) */
-export const hasCard = (it: ChartItem) => statsOf(it).length > 0 || momsOf(it).length > 0 || !!sepOf(it) || !!tagOf(it);
+export const hasCard = (it: ChartItem) => statsOf(it).length > 0 || momsOf(it).length > 0 || !!sepOf(it) || !!tagOf(it) || !!subOf(it);
+/** (B55) the subtitle's text: its own, or its cell's ("" and `issue` when its cell is not found) */
+export function subtitleText(it: ChartItem, ctx: RenderCtx): { text: string; issue?: string } {
+  const s = subOf(it);
+  if (!s) return { text: "" };
+  if (typeof s === "string") return { text: s.trim() };
+  const c = cellOf(s, ctx);
+  return c ? { text: c.text.trim() } : { text: "", issue: `the subtitle's cell ${refTarget(s, ctx).source} not found` };
+}
 
 /** the tag's text: its own, or its cell's (""; `issue` when its cell is not found) */
 export function tagText(it: ChartItem, ctx: RenderCtx): { text: string; issue?: string } {
@@ -51,7 +60,7 @@ export function tagText(it: ChartItem, ctx: RenderCtx): { text: string; issue?: 
   return c ? { text: c.text.trim().toUpperCase() } : { text: "", issue: `the tag's cell ${refTarget(tag.text, ctx).source} not found` };
 }
 /** the card's text styles, from the chart's label style */
-export interface CardStyles { label: St; value: St; tag: St; momVal: St; momCap: St; momHead: St }
+export interface CardStyles { label: St; value: St; tag: St; momVal: St; momCap: St; momHead: St; /** (B55) */ sub: St }
 export function cardStyles(lab: St, ink: string, muted: string): CardStyles {
   const s = lab.size, sz = (k: number) => Math.max(6, Math.round(s * k));
   return {
@@ -61,6 +70,7 @@ export function cardStyles(lab: St, ink: string, muted: string): CardStyles {
     momHead: { ...lab, size: sz(.86), weight: 700, italic: false, color: ink },
     momVal: { ...lab, size: sz(.92), weight: 700, italic: false, color: ink },
     momCap: { ...lab, size: sz(.82), weight: 400, italic: false, color: muted },
+    sub: { ...lab, size: sz(.86), weight: 400, italic: false, color: muted },
   };
 }
 /** the room the card's parts take: above the plot (a tag's own line when there is no title; the stats row and the
@@ -72,11 +82,15 @@ export function cardRoom(it: ChartItem, lab: St, hasTitle: boolean, ctx: RenderC
   // (a tag whose text is empty – an empty cell – takes no line)
   const tagLine = tagOf(it) && !hasTitle && tagText(it, ctx).text ? lineH(S.tag) + 6 : 0;
   let top = stats ? 2 + lineH(S.label) + 2 + lineH(S.value) + 10 : 0;
+  // (B55) the subtitle's line, right under the title (a subtitle whose text is empty – an empty cell – takes none)
+  if (subOf(it) && subtitleText(it, ctx).text) top += subRoom(S);
   if (sep) top += Math.max(.5, +(sep.w ?? 1) || 1) + 12;
   const caps = moms.some(([, k]) => capOf(k, null) !== "");
   const bottom = moms.length ? 14 + lineH(S.momVal) + (caps ? 2 + lineH(S.momCap) : 0) : 0;
   return { tagLine, top, bottom };
 }
+/** the subtitle line's room: its line, and a little air before what follows */
+const subRoom = (S: CardStyles) => lineH(S.sub) + 8;
 /** a chip's caption: its own, else the automatic one (null: categories unknown yet – only whether there is one) */
 function capOf(k: ChartMom, auto: string | null): string {
   if (typeof k.caption === "string") return k.caption.trim();
@@ -106,6 +120,13 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
     const lh = lineH(st), y = F.titleH ? Y0 + (F.titleH - lh) / 2 : Y0;
     if (T.text) out.push(textNode(m, ellipsis(m, T.text, st, W0 * .45), X0 + W0, y, st, "right"));
   }
+  // (B55) the subtitle: the first line under the title
+  let y = F.top;
+  if (subOf(it) && !F.skip?.stats) {
+    const T = subtitleText(it, ctx);
+    if (T.issue) issues.push(T.issue);
+    if (T.text) { out.push(textNode(m, ellipsis(m, T.text, S.sub, W0), X0, y - 4, S.sub)); y += subRoom(S); }
+  }
   const on = (x: unknown) => Object.values(isObj(x) ? x : {}).filter(v => isObj(v) && !v.off).length;
   if (on(it.stats) > MAX_STATS) issues.push(`the stats row draws ${MAX_STATS} chips: ${on(it.stats) - MAX_STATS} more not drawn`);
   if (on(it.moms) > MAX_MOMS) issues.push(`the momentum row draws ${MAX_MOMS} chips: ${on(it.moms) - MAX_MOMS} more not drawn`);
@@ -118,7 +139,6 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   const refs = (it.stats || it.moms) ? refValues(it, ctx, F.num) : [];
   // the stats row
   const stats = F.skip?.stats ? [] : statsOf(it);
-  let y = F.top;
   if (stats.length) {
     const slot = W0 / Math.max(3, stats.length), lhL = lineH(S.label);
     stats.forEach(([sid, k], j) => {

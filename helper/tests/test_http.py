@@ -462,6 +462,30 @@ class DeckFormatHttpTests(HttpBase):
         self.assertEqual(st, 400)
         self.assertIn("4.10", e["error"])
 
+    def test_a_4_13_page_is_refused_on_a_format_10_deck(self):
+        # B55: the 4.14 page raises to 10 (format10: incident-format-10.json); a 4.13 page sending "4,5,6,7,8,9" gets 409
+        v414 = {"X-SB-Deck-Formats": "4,5,6,7,8,9,10"}
+        r = self.open(v414)
+        key, w = r["key"], r["writer"]
+        base = "/api/decks/" + key
+        st, m = self.jreq("POST", base + "/format10", {}, headers=v414)
+        self.assertEqual((st, m["created"]), (200, True))
+        self.assertTrue(os.path.exists(decks.deck_dir(key, decks.MARKER10)))
+        snap = self.jreq("GET", base + "/snapshot", headers=v414)[1]["snapshot"]
+        with mock.patch.object(decks, "BUMP_WAIT_S", 0):
+            self.assertEqual(self.jreq("POST", base + "/compact", {"baseGen": 1, "snapshot": dict(snap, gen=2, format=10)}, headers=v414)[0], 200)
+        for headers in ({}, {"X-SB-Deck-Formats": "4,5,6,7,8"}, {"X-SB-Deck-Formats": "4,5,6,7,8,9"}):
+            for method, path, body in [("GET", base + "/snapshot", None),
+                                       ("POST", base + "/append", {"writer": w, "record": {"w": w, "s": 1, "l": 1, "ops": []}})]:
+                st, e = self.jreq(method, path, body, headers=headers)
+                self.assertEqual(st, 409, (path, headers, e))
+                self.assertIn("reload the page", e["error"])
+        self.assertEqual(self.open(v414)["snapshot"]["format"], 10)
+        cur = decks.read_snapshot(key)
+        st, e = self.jreq("POST", base + "/compact", {"baseGen": 2, "snapshot": dict(cur, gen=3, format=9)}, headers=v414)
+        self.assertEqual(st, 400)
+        self.assertIn("4.14", e["error"])
+
     def test_a_4_12_page_is_refused_on_a_format_9_deck(self):
         # B54: the 4.13 page raises to 9 (format9: incident-format-9.json); a 4.11 / 4.12 page sending "4,5,6,7,8" gets 409
         v413 = {"X-SB-Deck-Formats": "4,5,6,7,8,9"}

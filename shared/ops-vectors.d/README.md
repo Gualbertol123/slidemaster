@@ -9,7 +9,8 @@ structure – `auto.mode: "macro"` and `auto.sections`; `b51.json`: B51, the con
 layout – boxes `c:title` / `c:toc` of a slide's `free` entry, format 6; `b52.json`: B52, a chart's reference lines, gap
 arrows and change pills – marks of kinds `ref` / `gap` / `change` and their keys, format 7; `b53.json`: B53, label
 places, labels dragged on the stage (`nudge`) and an axis's bounds from cells (`cells`), format 8; `b54.json`: B54, the chart card – `stats`, `tag`, `sep`, `moms`,
-`momLabel`, `filter` – and a KPI card's kind, format 9).
+`momLabel`, `filter` – and a KPI card's kind, format 9; `b55.json`: B55, the budget-achievement chart – a chart's type
+`progress` and its `progress` key – and a chart card's `subtitle`, format 10).
 
 Each file is a JSON array of cases in the format of `shared/ops-vectors.json` (an operation case: `name`, `doc`, `ops`,
 `expect`; a fold case: `name`, `fold`, `expect`). `core/tests/vectors.ts` reads the main file and then every

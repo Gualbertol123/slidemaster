@@ -19,7 +19,9 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
   /* 4.13 (B54): the chart card's filter, tag, separator and momentum label; a KPI card's keys (model/kpi.ts) */
-  "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num"] as const;
+  "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num",
+  /* 4.14 (B55): a chart card's subtitle, the budget-achievement chart (type "progress") */
+  "subtitle", "progress"] as const;
 const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms"] as const;
 const ITEM_KINDS = ["chart", "shape", "line", /* 4.13 (B54) */ "kpi"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
@@ -420,6 +422,43 @@ const presetNeedsV9 = (p: Record<string, unknown>) => Array.isArray(p.slides) &&
 /** the same on a document (fold.ts nextSnapshot writes such a deck as format 9; a 4.13 page opening one below 9 raises it) */
 export function docNeedsV9(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
   return isObj(doc.preset) && presetNeedsV9(doc.preset as unknown as Record<string, unknown>);
+}
+/* ---- format 10 (ADR-019 amendment of 2026-10-23 for B55, 4.14) ----
+   4.13.1 applies a chart's B55 keys as nothing (the subtitle, the budget-achievement chart's `progress`: its applyOp copies
+   only the keys it lists, so its compaction would lose them) and draws a chart of type "progress" as a pie of `values`.
+   A deck that receives or holds one is raised to format 10 exactly as to 9 (marker incident-format-10.json – an incident
+   to every 4.0–4.13 helper –, the wait, tail, CAS, the Lamport jump). 4.13.1's lists, FROZEN (git show 87f0951:core/src/model/ops.ts
+   ITEM_KEYS / ITEM_MAPS / ITEM_KINDS; types.ts ChartType) – never add to them: later keys, kinds and chart types go to
+   the lists at the top, and are then needsV10 by themselves. */
+const V4131_ITEM = ["kind", "type", "values", "labels", "series", "title", "legend", "show", "startAngle", "box", "attach",
+  "shape", "icon", "text", "fill", "border", "radius", "tail", "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
+  "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
+  "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num",
+  "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", "stats", "moms"];
+const V4131_ITEM_KINDS = ["chart", "shape", "line", "kpi"];
+const V4131_CHART_TYPES = ["pie", "donut", "bar", "column", "line", "area", "scatter", "waterfall", "combo"];
+/** an item (or an item.patch) holding what 4.13.1 does not apply or draw whole: a later kind, a later chart type, or a
+    later key set (not null, not an empty or all-null map) */
+const itemV10 = (p: unknown) => isObj(p) && ((typeof p.kind === "string" && !V4131_ITEM_KINDS.includes(p.kind))
+  || (typeof p.type === "string" && !V4131_CHART_TYPES.includes(p.type))
+  || Object.keys(p).some(k => !V4131_ITEM.includes(k) && p[k] !== null && p[k] !== undefined && !(isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))));
+const itemsV10 = (items: unknown) => some(items, itemV10);
+/** an op 4.13.1 does not apply or draw whole: the deck must be format 10 before it is appended – an item.patch writing a
+    subtitle or a budget-achievement chart (its `progress`, or its type), a slide.add or preset.set carrying one. Removing
+    it (null) is not: 4.13 applies that whole */
+export function needsV10(op: Op | Record<string, unknown>): boolean {
+  const o = op as Record<string, unknown>;
+  switch (o.op) {
+    case "item.patch": return itemV10(o.patch);
+    case "slide.add": return isObj(o.slide) && itemsV10(o.slide.items);
+    case "preset.set": return isObj(o.preset) && presetNeedsV10(o.preset);
+  }
+  return false;
+}
+const presetNeedsV10 = (p: Record<string, unknown>) => Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV10(s.items));
+/** the same on a document (fold.ts nextSnapshot writes such a deck as format 10; a 4.14 page opening one below 10 raises it) */
+export function docNeedsV10(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
+  return isObj(doc.preset) && presetNeedsV10(doc.preset as unknown as Record<string, unknown>);
 }
 const isBox = (b: unknown) => isObj(b) && ["x", "y", "w", "h"].every(k => typeof b[k] === "number" && Number.isFinite(b[k])) && (b.w as number) > 0 && (b.h as number) > 0;
 /** map merge: null deletes the map; an object sets (replaces) or deletes (null) each entry; empty maps are removed */
