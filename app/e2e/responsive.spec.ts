@@ -12,8 +12,10 @@
            plain wheel scrolls the stage, Shift + wheel sideways; Ctrl + = / − / 0 and the status bar's − / + / Fit;
            over the side panel Ctrl + wheel zooms the slide too; the zoom is not in the deck.
    RZ-03 – at 200 % a shape dragged 100 × 60 screen px (Alt: no snapping) moves 50 × 30 slide px, saved so; its box on
-           the stage stays on the slide's drawing. Picture: zoom-200.png. */
-import { test, expect, type Page } from "@playwright/test";
+           the stage stays on the slide's drawing. Picture: zoom-200.png.
+   RZ-04 – (4.13.1) right after resize() the bars' marks are those of the new width, More ▾ shown exactly when it holds
+           groups (RZ-01 had read them before the page measured: CI on PR #42). */
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fold, type DeckRecord } from "../../core/src/model/fold";
@@ -105,13 +107,31 @@ const layoutProblems = (page: Page) => page.evaluate(() => {
   return out;
 });
 
+/** the window resized, and the page past it. setViewportSize returns with innerWidth already new, but Chromium
+    dispatches the window's `resize` event – where each OverflowBar measures again (ui/OverflowBar.tsx) – only in the
+    next rendering step: until then the bars carry the marks of the old width (RZ-01 in CI on PR #42 read the previous
+    size's data-has-more, then waited 90 s on a More button already hidden; RZ-04). One animation frame: the resize steps
+    run before its callbacks */
+async function resize(page: Page, width: number, height: number) {
+  await page.setViewportSize({ width, height });
+  await page.evaluate(() => new Promise<void>(r => requestAnimationFrame(() => r())));
+}
+
+/** a bar's More ▾ in one read: how many groups it holds (data-has-more) and whether its button is drawn */
+const moreState = (bar: Locator) => bar.evaluate((b: HTMLElement) => {
+  const m = b.querySelector<HTMLElement>(":scope > .obmore"), r = m?.getBoundingClientRect();
+  return { n: Number(b.getAttribute("data-has-more") || 0), shown: !!m && !!r && r.width > 0 && r.height > 0 && getComputedStyle(m).visibility !== "hidden" };
+});
+
 /** every control in a bar's More ▾: shown when it opens, inside the window and below the bar's first row */
 async function moreProblems(page: Page): Promise<string[]> {
   const out: string[] = [];
   const bars = page.locator(".topbar, .ribbon");
   for (let i = 0; i < await bars.count(); i++) {
-    const bar = bars.nth(i), n = Number(await bar.getAttribute("data-has-more") || 0);
-    if (!n) { expect(await bar.locator(":scope > .obmore").isVisible()).toBe(false); continue; }
+    // read at once, in the page: its groups in More and its More button shown – the one without the other is a bug
+    const bar = bars.nth(i), { n, shown } = await moreState(bar);
+    expect(shown, `bar ${i}: More ▾ shown exactly when it holds groups (data-has-more ${n})`).toBe(n > 0);
+    if (!n) continue;
     await bar.locator(":scope > .obmore").click();
     await expect(bar).toHaveAttribute("data-more", "");
     out.push(...await bar.evaluate((b: HTMLElement) => {
@@ -135,7 +155,7 @@ const SIZES: [number, number][] = [[1024, 768], [1280, 720], [1366, 768], [1440,
 test.describe("responsive", () => {
   test("RZ-01: at every window size the bars keep their rows (the rest in More ▾), the panel and the stage work", async ({ page }) => {
     const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
-    await page.setViewportSize({ width: 1366, height: 768 });
+    await resize(page, 1366, 768);
     await openDeck(page);
     await saved(page);
     // a cell selected: the text tools are on
@@ -143,7 +163,7 @@ test.describe("responsive", () => {
     await page.mouse.click(cb.x + cb.width / 2, cb.y + cb.height / 2);
     await expect(page.locator("#textTarget")).not.toHaveText("No text selected");
     for (const [w, h] of SIZES) {
-      await page.setViewportSize({ width: w, height: h });
+      await resize(page, w, h);
       await expect.poll(() => layoutProblems(page), { message: `${w}×${h}` }).toEqual([]);
       expect(await moreProblems(page), `${w}×${h}`).toEqual([]);
       // the side panel: a rail below 1100 px, open above (nothing chosen yet)
@@ -154,7 +174,7 @@ test.describe("responsive", () => {
       if (SHOTS && [1024, 1366, 1920].includes(w)) await page.screenshot({ path: path.join(SHOTS, `responsive-${w}.png`) });
     }
     // More ▾ at 1024: what it holds works from there – the alignment of the selected cell
-    await page.setViewportSize({ width: 1024, height: 768 });
+    await resize(page, 1024, 768);
     await expect.poll(() => layoutProblems(page)).toEqual([]);
     const r1 = page.locator("nav.ribbon:not(.ribbon2)");
     expect(Number(await r1.getAttribute("data-has-more"))).toBeGreaterThan(0);
@@ -175,7 +195,7 @@ test.describe("responsive", () => {
     await page.locator(".navhd #navRailBtn").click();
     await expect(page.locator("aside.nav")).toHaveClass(/\brail\b/);
     expect(await page.evaluate(() => localStorage.getItem("sbNavRail"))).toBe("rail");
-    await page.setViewportSize({ width: 1920, height: 1080 });
+    await resize(page, 1920, 1080);
     await expect(page.locator("aside.nav")).toHaveClass(/\brail\b/);    // chosen: at every width
     await page.locator("#navRail .railslide").first().click();
     await expect(page.locator("#navRail .railslide").first()).toHaveClass(/\bon\b/);
@@ -197,8 +217,33 @@ test.describe("responsive", () => {
     });
   }
 
+  // 4.13.1: RZ-01 read a bar's data-has-more before the page had measured the new width (CI on PR #42) – resize() waits
+  // for that; here the window goes from one size to another where the bars' More ▾ changes, and right after resize()
+  // the marks are those of the new width (the same a frame later), More ▾ shown exactly when it holds groups
+  test("RZ-04: right after the window is resized the bars' marks are those of the new width", async ({ page }) => {
+    await resize(page, 1024, 768);
+    await page.goto(ANNA);
+    await page.locator("#openBtn").waitFor({ state: "attached" });
+    // every bar in one read (the same test as moreState)
+    const state = () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".topbar, .ribbon")].map(b => {
+      const m = b.querySelector<HTMLElement>(":scope > .obmore"), r = m?.getBoundingClientRect();
+      return { n: Number(b.getAttribute("data-has-more") || 0), shown: !!m && !!r && r.width > 0 && r.height > 0 && getComputedStyle(m).visibility !== "hidden" };
+    }));
+    const frame = () => page.evaluate(() => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    await frame();
+    for (let k = 0; k < 6; k++) for (const w of [1920, 1024]) {
+      await resize(page, w, 768);
+      const now = await state();
+      for (const s of now) expect(s.shown, `${w}: More ▾ shown exactly when it holds groups`).toBe(s.n > 0);
+      // the narrow window has groups in More, the wide one none: each step changes the marks
+      expect(now.some(s => s.n > 0), `${w}`).toBe(w === 1024);
+      await frame();
+      expect(await state(), `${w}: the same a frame later`).toEqual(now);
+    }
+  });
+
   test("RZ-02: Ctrl + wheel zooms the slide at the pointer, never the page; the wheel scrolls the zoomed stage; the keys and the status bar", async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
+    await resize(page, 1366, 768);
     await openDeck(page);
     const view = () => page.evaluate(() => ({ dpr: devicePixelRatio, w: innerWidth, vv: visualViewport?.scale ?? 1, sx: scrollX, sy: scrollY,
       top: document.scrollingElement!.scrollTop, left: document.scrollingElement!.scrollLeft }));
@@ -263,18 +308,18 @@ test.describe("responsive", () => {
     expect(await view()).toEqual(v0);
     // a window resize keeps a chosen zoom; at Fit it fits again
     const z3 = await zoomPct();
-    await page.setViewportSize({ width: 1280, height: 720 });
+    await resize(page, 1280, 720);
     await expect.poll(zoomPct).toBe(z3);
     await page.keyboard.press("Control+0");
     const fit2 = await zoomPct();
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await resize(page, 1440, 900);
     await expect.poll(zoomPct).toBeGreaterThan(fit2);
-    await page.setViewportSize({ width: 1366, height: 768 });
+    await resize(page, 1366, 768);
     await expect.poll(zoomPct).toBe(fit);
   });
 
   test("RZ-03: at 200 % a drag moves a shape by half the screen px; its box stays on the drawing", async ({ page }) => {
-    await page.setViewportSize({ width: 1366, height: 768 });
+    await resize(page, 1366, 768);
     await openDeck(page);
     const S = doc().preset.slides[0], items = () => (doc().preset.slides[0].items || {}) as Record<string, any>;
     const box0 = { x: 400, y: 600, w: 160, h: 100 };

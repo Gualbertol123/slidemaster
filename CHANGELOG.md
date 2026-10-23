@@ -3,6 +3,16 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.1 - unreleased
+
+Under the hood
+* e2e RZ-01 (responsive.spec.ts) failed now and then (CI on PR #42): it read a toolbar's `data-has-more` right after
+  `setViewportSize`, before the page's `resize` event (where OverflowBar measures again) had run – the marks of the
+  previous window size – then waited 90 s on a More ▾ button the new size had hidden. The app was right; the spec now
+  resizes through `resize()` (one animation frame: Chromium dispatches `resize` before it) and checks a bar's
+  `data-has-more` and its More button in one read. New RZ-04: right after `resize()` the marks are the new width's
+  (fails 5 of 5 without the wait).
+
 ## 4.13.0 - 2026-10-23
 
 What users notice
