@@ -19,21 +19,30 @@ export function changeOf(cur: number, base: number): { d: number; pct: number | 
 }
 /** a number that shows as zero in a format (no digit 1–9: 0, 0.0, −0.004 in "0.0") */
 export const shownZero = (v: number, fmt: string) => !/[1-9]/.test(tickText(Math.abs(v), fmt));
-/** what a change shows: the absolute change, the %, or both ("+589 (+5.2%)"); "n/a" for a % of a zero base. A change that
-    shows as zero (a true zero, or one rounded to it) reads "+0 (+0.0%)" as the owner's sheet – never "−0" */
-export function changeText(c: { d: number; pct: number | null }, show: "abs" | "pct" | "both", fmt: string): string {
-  const z = (v: number, f: string) => shownZero(v, f) ? "+" + tickText(0, f) : signed(v, f);
-  const p = c.pct === null ? "n/a" : z(c.pct, "0.0%"), a = z(c.d, fmt);
+/** a signed number as shown: "+1.0%", "−2.0%"; one that shows as zero "+0.0%" (the owner's sheet) – never "−0", never
+    "++" (a format with its own sign keeps it) */
+export function signedText(v: number, fmt: string): string {
+  if (!shownZero(v, fmt)) return signed(v, fmt);
+  const t = tickText(0, fmt);
+  return /^[+\-−]/.test(t) ? t : "+" + t;
+}
+/** what a change shows, ONE rule for the chart card's chips and the KPI card's rows: the absolute change, the %, or both
+    as the owner's picture – "abs (%)": "−1,420 (−16.9%)", "+589 (+5.2%)", "+0 (+0.0%)"; "n/a" for a % of a zero base.
+    `pctFmt`: the %'s format (default 0.0%) */
+export function changeText(c: { d: number; pct: number | null }, show: "abs" | "pct" | "both", fmt: string, pctFmt = "0.0%"): string {
+  const p = c.pct === null ? "n/a" : signedText(c.pct, pctFmt), a = signedText(c.d, fmt);
   return show === "abs" ? a : show === "pct" ? p : `${a} (${p})`;
 }
-/** the sign a change's colour takes: of what it shows (0 when the shown number is zero – the design's grey) */
-export function shownSign(c: { d: number; pct: number | null }, show: "abs" | "pct" | "both", fmt: string): number {
-  const zero = show === "pct" ? c.pct === null || shownZero(c.pct, "0.0%") : shownZero(c.d, fmt);
-  return zero ? 0 : c.d;
+/** the sign a change's colour takes: of what it shows – the absolute change (abs, both) or the % (pct); 0 when that shows
+    as zero (the design's grey) */
+export function shownSign(c: { d: number; pct: number | null }, show: "abs" | "pct" | "both", fmt: string, pctFmt = "0.0%"): number {
+  const zero = show === "pct" ? c.pct === null || shownZero(c.pct, pctFmt) : shownZero(c.d, fmt);
+  return zero ? 0 : Math.sign(c.d);
 }
-/** a signed number's colour by its good direction (neutral: the ink; 0: the design's grey) */
+/** a signed number's colour by its good direction (neutral and 0: the design's grey – the KPI card's rule too; not a
+    number: the ink) */
 export function goodColor(d: number, good: GoodWay, look: Pick<TargetLook, "pos" | "neg" | "zero">, ink: string): string {
-  if (good === "neutral" || !Number.isFinite(d)) return ink;
-  if (d === 0) return look.zero;
+  if (!Number.isFinite(d)) return ink;
+  if (good === "neutral" || d === 0) return look.zero;
   return (d > 0) === (good === "up") ? look.pos : look.neg;
 }

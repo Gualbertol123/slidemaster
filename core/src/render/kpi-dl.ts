@@ -8,6 +8,7 @@ import type { Box } from "../model/types";
 import type { Node } from "../dl/types";
 import type { RenderCtx } from "./context";
 import type { Metrics } from "./excel-dl";
+import { changeOf, changeText, shownSign, shownZero, signedText } from "./deltas";
 import { isDataRef, kpiDelta, kpiTone, type KpiItem, type KpiRow } from "../model/kpi";
 import { cellOf, targetLook } from "./chart-targets";
 import { refTarget } from "./chart-data";
@@ -28,11 +29,10 @@ export interface KpiRowOut { text: string; tone: "good" | "bad" | "neutral"; lab
 /** a number format given on the card (a malformed one – not a string, or blank – is none) */
 const fmtOf = (x: unknown) => typeof x === "string" && x.trim() ? x : "";
 const MINUS = "−";
-/** a change shown with its sign, the sign taken from the number AS SHOWN: one that rounds to nothing reads "+0.0%" as the
-    owner's picture (the chart card's momentum chips alike, render/deltas.ts) and is neutral – never "−0" */
+/** a change shown with its sign, the sign taken from the number AS SHOWN – render/deltas.ts's one rule (signedText): one
+    that rounds to nothing reads "+0.0%" and is neutral, never "−0"; a format with its own sign is never doubled */
 export function signedShown(d: number, fmt: string): { text: string; sign: number } {
-  const t = tickText(Math.abs(d), fmt), zero = !/[1-9]/.test(t);
-  return zero ? { text: "+" + t, sign: 0 } : { text: (d > 0 ? "+" : MINUS) + t, sign: Math.sign(d) };
+  return { text: signedText(d, fmt), sign: shownZero(d, fmt) ? 0 : Math.sign(d) };
 }
 /** the card's texts and their colour keys, and the Issues lines (never throws) */
 export function kpiData(it: KpiItem, ctx: RenderCtx): { title: string; value: string; tone: "good" | "bad" | "neutral"; rows: KpiRowOut[]; issues: string[] } {
@@ -71,12 +71,11 @@ export function kpiData(it: KpiItem, ctx: RenderCtx): { title: string; value: st
       if (cur === null) return na;
       const mode = src.mode === "abs" || src.mode === "both" ? src.mode : "pct", d = kpiDelta(cur, c.v, mode);
       if (!d.ok) { issues.push(`row ${i + 1}: ${d.why} (${c.source}): n/a`); return na; }
-      // the % in the row's format (pct mode) else 0.0 %; the absolute part in the row's format, else the value cell's
-      // (General: one decimal with thousands)
-      const pct = d.pct !== null ? signedShown(d.pct, mode === "pct" && num ? num : "0.0%") : null;
-      const abs = d.abs !== null ? signedShown(d.abs, num || (isGeneral(fmt) ? "#,##0.0" : fmt)) : null;
-      const sign = pct && pct.sign ? pct.sign : abs ? abs.sign : 0;
-      return { text: pct && abs ? `${pct.text} (${abs.text})` : (pct || abs)!.text, tone: kpiTone(sign, good), label };
+      // render/deltas.ts's one rule (the chart card's momentum chips too): "abs (%)" as the owner's picture, the sign and
+      // colour of what is shown (the absolute change; the % alone in pct mode). The % in the row's format (pct mode) else
+      // 0.0 %; the absolute part in the row's format, else the value cell's (General: one decimal with thousands)
+      const ch = changeOf(cur, c.v), pf = mode === "pct" && num ? num : "0.0%", af = num || (isGeneral(fmt) ? "#,##0.0" : fmt);
+      return { text: changeText(ch, mode, af, pf), tone: kpiTone(shownSign(ch, mode, af, pf), good), label };
     }
     issues.push(`row ${i + 1}: no source`); return na;
   }

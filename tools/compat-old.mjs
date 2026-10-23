@@ -1256,7 +1256,7 @@ async function caseM53Before(run, oldDir, py) {
     the chart panel writes them (one item.patch each) */
 function m54Steps(slide, t0) {
   const r = range => ({ table: t0, range });
-  const [chart, ref, ...b53] = m54Steps(slide, t0);
+  const [chart, ref, ...b53] = m53Steps(slide, t0);
   return [chart, ref, ...b53,
     ["Chart card", [{ op: "item.patch", slide, id: "cpTarget", patch: { stats: { s1: { n: 1, label: "Latest", src: "last" }, s2: { n: 2, label: "Budget", src: "ref" }, s3: { n: 3, label: "Gap", src: "gap" } }, sep: {},
       moms: { m1: { n: 1, vs: "first" }, m2: { n: 2, vs: "trough" }, m3: { n: 3, vs: "prev", caption: "WoW" } } } }]],

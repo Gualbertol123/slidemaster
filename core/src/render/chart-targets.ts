@@ -140,6 +140,8 @@ export function refStyle(r: RefVal, look: TargetLook): LineSem {
 /** a difference with its sign (+ / − / none for 0) in a number format: the format of the absolute value */
 export function signed(d: number, fmt: string): string {
   const t = tickText(Math.abs(d), fmt);
+  // (B54) a format that writes its own sign ("+0.0%;-0.0%"): the number in it as it is, its minus as "−" – never "++"
+  if (/^[+\-−]/.test(t)) return tickText(d, fmt).replace(/^-/, MINUS);
   return d > 0 ? "+" + t : d < 0 ? MINUS + t : t;
 }
 /** a change as a %: one decimal, signed */

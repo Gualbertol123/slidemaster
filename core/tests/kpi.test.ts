@@ -113,7 +113,7 @@ describe("KPI card data (image 16)", () => {
   it("abs and both modes, the format override, good down", async () => {
     const { ctx } = await build("excel", {});
     const D = kpiData(card(2, 0, { rows: [{ src: { ref: ref("C2"), mode: "abs" }, num: "0.00", good: "down" }, { src: { ref: ref("D2"), mode: "both" }, label: "x" }, { src: { cell: ref("F2") }, num: "0%" }] }), ctx);
-    expect(D.rows.map(r => [r.text, r.tone])).toEqual([["+0,10", "bad"], ["−2,0% (+0)", "bad"], ["+1%", "good"]]);
+    expect(D.rows.map(r => [r.text, r.tone])).toEqual([["+0,10", "bad"], ["+0 (−2,0%)", "neutral"], ["+1%", "good"]]);
   });
   it("a zero reference shows n/a with an Issues line; a missing or text cell: n/a and an Issues line, never a throw", async () => {
     const { ctx } = await build("excel", {});
@@ -215,11 +215,17 @@ describe("B54 review fixes", () => {
   });
   it("the change column shrinks to fit too; rows that do not fit a tiny card are not drawn (an Issues line); nothing outside the card", async () => {
     const { dl } = await build("clean", { k: card(2, 40, { rows: [{ src: { ref: ref("C2"), mode: "both" }, label: "vs Bdg" }] }) });
-    const t = flat(dl.nodes.slice(...dl.items.k.at)).find(n => n.t === "text" && n.src.startsWith("+1,0%")) as Extract<Node, { t: "text" }>;
-    expect(t.src).toBe("+1,0% (+0)"); expect(dl.items.k.issue).toBeNull();
+    const t = flat(dl.nodes.slice(...dl.items.k.at)).find(n => n.t === "text" && n.src.endsWith("(+1,0%)")) as Extract<Node, { t: "text" }>;
+    expect(t.src).toBe("+0 (+1,0%)"); expect(dl.items.k.issue).toBeNull();
     const { dl: tiny } = await build("clean", { k: card(2, 40, { box: { x: 40, y: 120, w: 160, h: 40 } }) });
     expect(tiny.items.k.issue).toMatch(/too small for its rows/);
     for (const n of flat(tiny.nodes.slice(...tiny.items.k.at))) if (n.t === "text") { expect(n.y).toBeLessThanOrEqual(160); expect(n.x).toBeGreaterThanOrEqual(40); expect(n.x + n.w!).toBeLessThanOrEqual(200.5); }
+  });
+  it("one rule with the chart card (render/deltas.ts): \"abs (%)\", the sign of what is shown; a format with its own sign never doubled", async () => {
+    const { ctx } = await build("excel", {});
+    const D = kpiData(card(2, 0, { rows: [{ src: { cell: ref("F2") }, num: "+0.0%;-0.0%" }, { src: { cell: ref("G2") }, num: "+0.0%;-0.0%" }, { src: { ref: ref("C2"), mode: "both" }, num: "0.00" }] }), ctx);
+    expect(D.rows.map(r => r.text)).toEqual(["+1,0%", "−2,0%", "+0,10 (+1,0%)"]);
+    expect(signedShown(.01, "+0.0%;-0.0%").text).toBe("+1,0%");
   });
   it("a near-zero change takes its sign and colour from the number as shown", () => {
     expect(signedShown(-.00001, "0.0%")).toEqual({ text: "+0,0%", sign: 0 });            // (the owner's "+0 (+0.0%)", grey: never −0)

@@ -1,4 +1,4 @@
 {
   "bytes": 57000,
-  "why": "B54 (KPI cards and chart cards; product owner 2026-10-23): by measurement on v4/B54-kpi-cards after the merge of v4/B54-kpi-item – the page built from its base (main 5eab103, the 4.12.0 page, 4,969,866 bytes) is 5,026,353 bytes (+56,487): core render/chart-card.ts, deltas.ts, the long-table filter, render/kpi-dl.ts and model/kpi.ts and the format-9 guard in the app's and the workers' bundles; the chart panel's Card section, the KPI card panel, KPI cards from table; rounded up to the next 500."
+  "why": "B54 (KPI cards and chart cards; product owner 2026-10-23): by measurement on v4/B54-kpi-cards after the merge of v4/B54-kpi-item – the page built from its base (main 5eab103, the 4.12.0 page, 4,969,866 bytes) is 5,026,291 bytes (+56,425; 4.13.0 with the review fixes): core render/chart-card.ts, deltas.ts, the long-table filter, render/kpi-dl.ts and model/kpi.ts and the format-9 guard in the app's and the workers' bundles; the chart panel's Card section, the KPI card panel, KPI cards from table; rounded up to the next 500."
 }

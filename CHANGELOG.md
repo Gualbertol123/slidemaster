@@ -3,7 +3,7 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
-## 4.13.0 - unreleased
+## 4.13.0 - 2026-10-23
 
 What users notice
 * **KPI cards** (the owner's request of 2026-10-23): *Insert chart ▾ › KPI cards from table…* makes a row of cards from

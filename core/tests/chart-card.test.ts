@@ -73,13 +73,22 @@ describe("B54 · delta maths", () => {
     expect(changeText(changeOf(7000, 7000), "both", "#,##0")).toBe("+0 (+0,0%)");
     const c = changeOf(6999.6, 7000);
     expect(changeText(c, "both", "#,##0")).toBe("+0 (+0,0%)");
-    expect([shownSign(c, "both", "#,##0"), shownSign(c, "abs", "#,##0.0"), shownSign(c, "pct", "#,##0")]).toEqual([0, c.d, 0]);
+    expect([shownSign(c, "both", "#,##0"), shownSign(c, "abs", "#,##0.0"), shownSign(c, "pct", "#,##0")]).toEqual([0, -1, 0]);
     expect(changeText(c, "abs", "#,##0.0")).toBe(NEG + "0,4");
+  });
+  it("a format with its own sign is never doubled (\"+0.0%;-0.0%\": +1,0%, −2,0%; a stat chip's own format)", async () => {
+    expect([changeText(changeOf(101, 100), "pct", "0", "+0.0%;-0.0%"), changeText(changeOf(98, 100), "both", "+#,##0;-#,##0", "+0.0%;-0.0%")]).toEqual(["+1,0%", NEG + "2 (" + NEG + "2,0%)"]);
+    const ops = b54Ops();
+    (ops[6] as { patch: ChartItem }).patch.stats!.s3 = { n: 3, label: "Gap to budget", src: "gapPct", ref: "r1", num: "+0.0%;-0.0%" };
+    (ops[6] as { patch: ChartItem }).patch.moms!.m1 = { n: 1, vs: "first", num: "+#,##0;-#,##0" };
+    const { item } = await deck("excel", { ops });
+    expect(texts(item("cd").nodes).map(t => t.src)).toEqual(expect.arrayContaining([NEG + "19,5%", NEG + "1.420 (" + NEG + "16,9%)"]));
+    expect(texts(item("cd").nodes).some(t => t.src.includes("++"))).toBe(false);
   });
   it("good direction: up, down, neutral; zero grey", () => {
     const L = { pos: "#00AA00", neg: "#AA0000", zero: "#888888" };
     expect([goodColor(1, "up", L, "#000"), goodColor(-1, "up", L, "#000"), goodColor(1, "down", L, "#000"), goodColor(-1, "down", L, "#000"), goodColor(1, "neutral", L, "#000"), goodColor(0, "up", L, "#000")])
-      .toEqual(["#00AA00", "#AA0000", "#AA0000", "#00AA00", "#000", "#888888"]);
+      .toEqual(["#00AA00", "#AA0000", "#AA0000", "#00AA00", "#888888", "#888888"]);              // (neutral: grey, the KPI card's rule)
   });
 });
 
@@ -213,6 +222,9 @@ describe("B54 · format 9", () => {
     expect(needsV9(add({ kind: "kpi", box: { x: 0, y: 0, w: 300, h: 120 } }))).toBe(true);
     for (const k of ["stats", "moms", "tag", "sep", "filter", "momLabel"]) expect(needsV9(add({ [k]: k === "momLabel" ? "M" : { a: { n: 1 } } })), k).toBe(true);
     expect(needsV9(add({ deltas: { d1: { n: 1 } } }))).toBe(true);                      // (any later key)
+    // the KPI card's keys, one by one (an item.patch of an existing card)
+    for (const [k, v] of [["head", "Loans"], ["cur", { sheet: "KPI", range: "B2" }], ["rows", [{ src: { cell: { sheet: "KPI", range: "F2" } } }]], ["good", "down"], ["num", "0.0"]] as const)
+      expect(needsV9(add({ [k]: v })), k).toBe(true);
     expect(needsV9(add({ stats: null }))).toBe(false);
     // (review) a plain key's {} is content: `sep: {}` draws the hairline – format 9 by item.patch, slide.add, on a document
     expect(needsV9(add({ sep: {} }))).toBe(true);
