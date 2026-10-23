@@ -19,3 +19,7 @@ file is such an array with unique names (the helper itself applies no operation)
 
 4.9 (M16): each step its own `m16-<step>.json` – `m16-hidden.json` (S16.1), `m16-versions.json` (S16.2),
 `m16-cells.json` (S16.3), `m16-slides.json` (S13.7's duplicated slide, moved out of the main file by AUDIT-3 VEC-2).
+
+4.14 (B57): `m20-repoint.json` – an item's `bind` (what each reference was bound to, follow its header; merged per entry),
+a table.patch moving a table's cells (`sheet`, `range`, its header row `bind`), and a whole Move by 2 rows of a table
+as Data sources sends it (with each op's inverse).

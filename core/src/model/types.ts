@@ -8,7 +8,8 @@ interface TableExtras { name?: string; cols?: Record<string, number>; rows?: Rec
   /** gridlines: "on" draws a line at every row/column edge, "off" removes them; unset = as in Excel */ gridH?: "on" | "off"; gridV?: "on" | "off";
   /** column widths / row heights of one design (over cols/rows, which older decks share between designs) */ sizes?: Partial<Record<Design, TableSizes>>;
   /** gridlines on selected cells (4.4, B20), by the cell's A1 address: a light layer of their own, never a border */ cellGrid?: Record<string, CellGrid>;
-  /** cell borders on the slide (4.4, B28), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders> }
+  /** cell borders on the slide (4.4, B28), by the cell's A1 address: over the workbook's, which is never changed */ borders?: Record<string, CellBorders>;
+  /** (B57, 4.14) the header row as bound: Data sources › Find the block finds it again */ bind?: TableBind }
 /** a cell's own border on one side (product owner 2026-10-19: Borders ▾ as Excel's): a style and a colour, or "none" (the
     workbook's border of that side removed on the slide) */
 export type CellBorderSide = { style: "thin" | "medium" | "thick" | "dashed" | "dotted" | "double"; color: string } | "none";
@@ -17,6 +18,17 @@ export type CellBorders = Partial<Record<"top" | "left" | "right" | "bottom", Ce
     border): h = its top and bottom edges, v = its left and right ("off" = none, as unset); o = part of an outlined rectangle
     (its edges where the next cell is not outlined – the outline of the selection); c = colour, w = weight in px (0.5–3) */
 export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?: string; w?: number }
+/* ---- 4.14 (B57, model/datarefs.ts): references that follow the workbook's cells when they move ---- */
+/** what a reference was bound to (all optional; a reference without one skips the checks): `at` its address then
+    ("Sheet!C2:C9"; the entry counts only while the reference still reads there), `h` the header text beside it – at `hr`
+    rows above (0 = its own first cell) and `hc` columns left of its first cell –, `l` a label (its first category) at
+    `lr` / `lc`, `f` follow the header: the address is found again by the header text where the cells are read (the
+    stored A1 stays the fallback) */
+export interface RefBind { at?: string; h?: string; hr?: number; hc?: number; l?: string; lr?: number; lc?: number; f?: boolean }
+/** an item's binds by reference path */
+export type Binds = Record<string, RefBind>;
+/** a table's header row as it was bound (B57): its address and the texts of its first row, to find the block again */
+export interface TableBind { at: string; h: string[] }
 export interface TableSizes { cols?: Record<string, number>; rows?: Record<string, number> }
 export type TableDef =
   | ({ id: string; sheet: string; kind: "markers"; anchor: string; index: number } & TableExtras)
@@ -160,7 +172,9 @@ export interface ChartItem { kind: "chart"; /** without `sers` a type other than
   /* ---- 4.14 (B55, ADR-015 amendment of 2026-10-23): the subtitle line of any chart card, and the budget-achievement
      chart. A chart holding either, or of type "progress", is format 10 (ops.ts needsV10) ---- */
   /** a small grey line under the title ("Latest volume / EoM budget") – text, or a cell's text */ subtitle?: string | DataRef;
-  /** type "progress": where its values and targets come from and how it looks */ progress?: ChartProgress }
+  /** type "progress": where its values and targets come from and how it looks */ progress?: ChartProgress;
+  /** (B57, 4.14; model/datarefs.ts) per reference of the item (its path, "sers.s1.vals.0") what it was bound to – the header
+      and label beside it, to see a moved block – and whether it follows its header; merged per entry */ bind?: Binds }
 /** (B55) a budget-achievement chart: per category a tall bar – a light track standing for 100 % of the category's target,
     a fill up to value / target, capped at the track –, the achievement % above it, the category's name under it and the
     gap under that ("+210 over", "1,700 to go"). Its bars' gap is the item's `gap` (Excel's gap width, % of a bar); its
@@ -210,7 +224,7 @@ export interface Heads { a?: Head; b?: Head; size?: "s" | "m" | "l" }
 export interface Anchor { /** "t:<table>" | "i:<item>" | "n:<noteKey>" */ to: string;
   at: "l" | "r" | "t" | "b" | "c" | "tl" | "tr" | "bl" | "br"; dx?: number; dy?: number }
 export type LineRoute = "straight" | "elbow" | "curve" | "bracket" | "range";
-export interface LineItem { kind: "line"; route: LineRoute;
+export interface LineItem { kind: "line"; route: LineRoute; /** (B57) its label's quoted cells' binds ("text~0") */ bind?: Binds;
   /** slide px; the ends when not attached */ a: { x: number; y: number }; b: { x: number; y: number };
   /** elbow: where the bend sits (0–1 along the run); bracket: depth px; curve: bulge */ mid?: number;
   /** elbow: horizontal first or vertical first */ bend?: "hv" | "vh";
@@ -221,7 +235,7 @@ export interface LineItem { kind: "line"; route: LineRoute;
       geometry from the resolved ends, never from it */ box: Box;
   /** never beside a table: a line's ends attach instead (`ends`) */ attach?: undefined }
 export type ShapeKind = "rect" | "round" | "circle" | "pill" | "arrow" | "bubble" | "icon";
-export interface ShapeItem { kind: "shape"; shape: ShapeKind;
+export interface ShapeItem { kind: "shape"; shape: ShapeKind; /** (B57) its quoted cells' binds ("text~0") */ bind?: Binds;
   /** a built-in icon name (render/icons.ts), or "tabler:<name>" / "tabler-filled:<name>" (4.8, 09 §2.4) */ icon?: string;
   /** an outline icon's stroke width, px at 24 (1–3, default 2; 4.8) */ stroke?: number;
   /** may quote cells: {Sheet!C7} / {[Peers.xlsx]Peer!F7} */ text?: string;
@@ -301,19 +315,22 @@ export interface ConfigDoc { schema: number; rev: number; updated?: number; upda
 export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" | null; zoom?: number | "fit" | null; /** version shown on screen, per workbook */ versions?: Record<string, string> | null; /** soft shadows on screen: one blurred shape instead of the 5 layers the PDF draws (B3) */ softShadows?: boolean | null }
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
-type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms";
-type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach"> & Omit<KpiItem, "kind" | "box" | "attach">;
+type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms"
+  | /* (B57) */ "bind";
+type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt" | "bind"> & Omit<LineItem, "kind" | "fmt" | "attach" | "bind"> & Omit<KpiItem, "kind" | "box" | "attach" | ItemMaps>;
 /** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
   sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;
   axes?: Partial<Record<"x" | "y" | "y2", ChartAxis | null>> | null; marks?: Record<string, ChartMark | null> | null;
   nudge?: Record<string, { dx: number; dy: number } | null> | null;
   stats?: Record<string, ChartStat | null> | null; moms?: Record<string, ChartMom | null> | null;
-  legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null };
+  legendHide?: Record<string, true | null> | null; titleFmt?: Record<string, unknown> | null;
+  /* (B57) */ bind?: Record<string, RefBind | null> | null };
 export type Op =
   | { op: "preset.set"; preset: Preset | null }
   | { op: "slide.patch"; id: string; patch: Nullable<Pick<SlideDef, "title" | "subtitle" | "date" | "note" | "logo" | "layout" | "align" | "valign" | "scale" | "subs">> & { notes?: Record<string, Note | null> | null; sizes?: Partial<Record<Design, SlideSizing | null>> | null; fmt?: Partial<Record<SlideTextKey, TextFmt | null>> | null; free?: Partial<Record<Design, FreeLayout | null>> | null; looks?: Partial<Record<Design, Partial<import("./designs").ConsultOptions> | null>> | null; hide?: Partial<Record<Design, true | null>> | null; hidden?: Record<string, true | null> | null } }
-  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null; borders?: Record<string, CellBorders | null> | null } }
+  | { op: "table.patch"; id: string; patch: { name?: string | null; gridH?: "on" | "off" | null; gridV?: "on" | "off" | null; cols?: Record<string, number | null> | null; rows?: Record<string, number | null> | null; scales?: Record<string, ScaleRule | null> | null; merges?: Record<string, "merge" | "split" | null> | null; sizes?: Partial<Record<Design, TableSizes | null>> | null; cellGrid?: Record<string, CellGrid | null> | null; borders?: Record<string, CellBorders | null> | null;
+    /** (B57, 4.14) the table's cells moved: its sheet, a range table's range (never null), its header row as bound */ sheet?: string; range?: string; bind?: TableBind | null } }
   | { op: "cell.patch"; sheet: string; ref: string; patch: Nullable<CellEdit> }
   /** field-level patch of one slide item; `patch: null` deletes it; a patch with `kind` on a missing id creates it */
   | { op: "item.patch"; slide: string; id: string; patch: ItemPatch | null }

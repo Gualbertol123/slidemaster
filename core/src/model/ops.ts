@@ -6,7 +6,7 @@ import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
 const SLIDE_MAPS = ["notes", "fmt", "sizes", "free", "looks", "hide", "hidden"] as const;
-const TABLE_KEYS = ["name", "gridH", "gridV"] as const;
+const TABLE_KEYS = ["name", "gridH", "gridV", /* 4.14 (B57): the table's cells moved – its sheet, its range, its header row as bound */ "sheet", "range", "bind"] as const;
 const TABLE_MAPS = ["cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"] as const;
 const CELL_KEYS = ["text", "orig", "font", "sz", "b", "i", "color", "fill", "bg", "cf", "align", "role", "valign", "num"] as const;
 const STYLE_MAPS = ["pn", "footer", "theme", "text", "colors", "designs"] as const;
@@ -22,7 +22,8 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num",
   /* 4.14 (B55): a chart card's subtitle, the budget-achievement chart (type "progress") */
   "subtitle", "progress"] as const;
-const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms"] as const;
+const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms",
+  /* 4.14 (B57, model/datarefs.ts): what each reference was bound to, follow its header */ "bind"] as const;
 const ITEM_KINDS = ["chart", "shape", "line", /* 4.13 (B54) */ "kpi"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
@@ -35,6 +36,10 @@ const marksKnown = (m: unknown) => !isObj(m) || Object.values(m).every(k => k ==
 /* slide.add / table.add (4.6, 09 §2.8): the slide types and table kinds this page draws (a later page's are skipped) */
 const SLIDE_TYPES = ["cover", "index", "content"], TABLE_KINDS = ["markers", "range"];
 const REF = /^[A-Z]{1,3}[0-9]{1,7}$/;
+/** (B57) a range table's range: one cell or a rectangle, A1 */
+const A1RANGE = /^[A-Z]{1,3}[0-9]{1,7}(:[A-Z]{1,3}[0-9]{1,7})?$/;
+/** (B57) a table's header row as bound: its address and the texts of its first row */
+const isTableBind = (b: unknown) => isObj(b) && typeof b.at === "string" && Array.isArray(b.h) && b.h.every(x => typeof x === "string");
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const clone = <T>(x: T): T => x === undefined ? x : JSON.parse(JSON.stringify(x));
 
@@ -61,6 +66,10 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
       if (typeof o.id !== "string" || !isObj(o.patch) || !doc.preset) return false;
       const t = doc.preset.tables.find(x => x.id === o.id) as unknown as Record<string, unknown> | undefined;
       if (!t) return false;
+      // (B57) a table always has a sheet, a range table a range: never removed, a bad one skips the op (a markers table has none)
+      if ("sheet" in o.patch && !(typeof o.patch.sheet === "string" && o.patch.sheet)) return false;
+      if ("range" in o.patch && !(t.kind === "range" && typeof o.patch.range === "string" && A1RANGE.test(o.patch.range))) return false;
+      if ("bind" in o.patch && o.patch.bind !== null && !isTableBind(o.patch.bind)) return false;
       for (const k of TABLE_KEYS) if (k in o.patch) { const v = o.patch[k]; if (v === null) delete t[k]; else t[k] = clone(v); }
       for (const k of TABLE_MAPS) if (k in o.patch) mapMerge(t, k, o.patch[k]);
       return true;
@@ -474,6 +483,8 @@ const V4131_INSIDE: Record<string, Sch> = {
   head: V4131_REF, cur: V4131_REF, good: V4131_GOOD,
   tag: { k: { text: V4131_REF, color: 0 } }, filter: { k: { by: V4131_REF, eq: V4131_REF } }, sep: { k: { color: 0, w: 0, dash: V4131_DASH } },
   titleFmt: V4131_FMT, fmt: V4131_FMT, nudge: { m: { k: { dx: 0, dy: 0 } } },
+  /* (B57 review of this list: 4.13.1's two top-level references, read as a DataRef – a later key inside them is beyond it too) */
+  values: V4131_REF, labels: V4131_REF,
 };
 /** a value holding what its 4.13.1 schema does not (a removal – null – never does) */
 function beyond(v: unknown, sc: Sch | 0): boolean {
@@ -509,10 +520,19 @@ export function needsV10(op: Op | Record<string, unknown>): boolean {
     case "item.patch": return itemV10(o.patch);
     case "slide.add": return isObj(o.slide) && itemsV10(o.slide.items);
     case "preset.set": return isObj(o.preset) && presetNeedsV10(o.preset);
+    // (B57) a table's cells moved (its sheet, its range) or its header row bound: 4.13.1 applies none of them
+    case "table.patch": return isObj(o.patch) && Object.keys(o.patch).some(k => !V4131_TABLE.includes(k) && (o.patch as Record<string, unknown>)[k] !== null && (o.patch as Record<string, unknown>)[k] !== undefined);
+    case "table.add": return isObj(o.table) && tableV10(o.table);
   }
   return false;
 }
-const presetNeedsV10 = (p: Record<string, unknown>) => Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV10(s.items));
+/* (B57) 4.13.1's table.patch keys, FROZEN (git show 87f0951:core/src/model/ops.ts TABLE_KEYS / TABLE_MAPS) – never add to
+   them: a later key is needsV10 by itself */
+const V4131_TABLE = ["name", "gridH", "gridV", "cols", "rows", "scales", "merges", "sizes", "cellGrid", "borders"];
+/** (B57) a table definition holding what 4.13.1 does not know: the header row as bound */
+const tableV10 = (t: unknown) => isObj(t) && holds(t, ["bind"]);
+const presetNeedsV10 = (p: Record<string, unknown>) => (Array.isArray(p.slides) && (p.slides as unknown[]).some(s => isObj(s) && itemsV10(s.items)))
+  || (Array.isArray(p.tables) && (p.tables as unknown[]).some(tableV10));
 /** the same on a document (fold.ts nextSnapshot writes such a deck as format 10; a 4.14 page opening one below 10 raises it) */
 export function docNeedsV10(doc: Pick<WorkbookDoc, "preset" | "edits">): boolean {
   return isObj(doc.preset) && presetNeedsV10(doc.preset as unknown as Record<string, unknown>);

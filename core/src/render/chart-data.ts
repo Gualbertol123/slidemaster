@@ -70,7 +70,9 @@ export function cellsOf(S: Sheet, g: Range, hide?: HideSet | null): [number, num
     A chart on another slide reading the same cells keeps them (the rows are hidden on that slide only) */
 /** a chart's slide: only slides that hide rows are looked at, the item by identity (a duplicated slide's chart is an
     object of its own; a copy on no slide skips nothing of a slide's) */
-export const slideOf = (it: ChartItem, ctx: RenderCtx) => ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(it));
+export const slideOf = (it: ChartItem, ctx: RenderCtx) => { const o = (ORIGIN.get(it) ?? it) as ChartItem; return ctx.slides.find(R => R.cfg.hidden && R.cfg.items && Object.values(R.cfg.items).includes(o)); };
+/** (B57, render/follow.ts) a drawn copy of an item – its references at their headers' places now – → the item itself */
+export const ORIGIN = new WeakMap<object, object>();
 export function chartHide(it: ChartItem, ctx: RenderCtx, S: Sheet, g: Range, ref: DataRef | undefined): HideSet | null {
   const h = dropHidden(ctx.version?.drop?.[S.name]);
   for (const L of slideOf(it, ctx)?.tables || []) {

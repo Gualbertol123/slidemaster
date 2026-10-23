@@ -14,6 +14,7 @@ export interface KpiItem { kind: "kpi";
   /** the delta rows, in order (replaced whole by item.patch) */ rows?: KpiRow[];
   /** the value's good direction (its colour by sign; default up) */ good?: KpiGood;
   /** the value's number format; else the cell's */ num?: string;
+  /** (B57) its references' binds (model/datarefs.ts) */ bind?: import("./types").Binds;
   box: Box; attach?: { table: string; side: Side } }
 
 /** a delta row's result: the value(s) shown, or n/a with why */
