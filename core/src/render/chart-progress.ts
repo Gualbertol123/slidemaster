@@ -22,7 +22,7 @@ import type { BarsSem, BarSerSem, LineSem } from "../pptx/chart-sem";
 import { cardParts, cardRoom, cardStyles, tagText } from "./chart-card";
 import { catsOf, cellsOf, chartHide, genOf, labelsFor, numberAt, readRefs, refTarget, removedOf, shown, type Val } from "./chart-data";
 import { tickText } from "./chart-axes";
-import { ellipsis, font, lineH, textNode, type St } from "./chart-font";
+import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
 import { axisLook, fontSem, withFmt, type SeriesStyle } from "./chart-series";
 import { isGeneral, targetLook } from "./chart-targets";
 import { shownZero, signedText } from "./deltas";
@@ -183,6 +183,12 @@ export interface ProgressLayout {
   /** the chart card's parts (subtitle, tag, separator) */ card: Node[];
   issue: string | null; frame: Box;
 }
+/** the % label's default: the design's accent – its first palette colour that reads as a colour, not as ink (a
+    consulting design's palette opens with its navy, the bars' own colour): else the picture's blue */
+export function accentOf(colors: string[]): string {
+  const c = colors.find(x => HEX.test(x) && lum(x) > .25 && lum(x) < .8);
+  return (c || "#2F55F4").toUpperCase();
+}
 /** the design's colours of the bars: its dark (the KPI card's header – the B54 slide's), a light grey of it, its positive colour */
 export function progressColors(it: ChartItem, ctx: RenderCtx, ink: string) {
   const P = progressOf(it), dark = kpiHeadColor(ctx), T = targetLook(ctx, ink);
@@ -221,7 +227,7 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   issues.push(...card.issues);
   // the texts' styles: the % large, bold, in the design's accent; the name bold in capitals; the gap small and grey
   const T = targetLook(ctx, sty.ink), s = sty.lab.size;
-  const pctSt = withFmt({ ...sty.lab, size: Math.round(s * 1.9), weight: 700, italic: false, color: (sty.colors[0] || sty.ink).toUpperCase() }, P.pct?.fmt);
+  const pctSt = withFmt({ ...sty.lab, size: Math.round(s * 1.9), weight: 700, italic: false, color: accentOf(sty.colors) }, P.pct?.fmt);
   const catSt = withFmt({ ...sty.lab, size: Math.max(6, Math.round(s * .9)), weight: 700, italic: false, color: sty.ink }, P.cat?.fmt);
   const capSt = withFmt({ ...sty.lab, size: Math.max(6, Math.round(s * .86)), weight: 400, italic: false, color: T.muted }, P.gap?.fmt);
   const axisSt: St = { ...sty.lab, size: Math.max(6, Math.round(s * .8)), weight: 400, italic: false, color: axisLook(ctx).tick };

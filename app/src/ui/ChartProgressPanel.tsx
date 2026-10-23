@@ -11,7 +11,7 @@ import type { ChartRefWhat } from "../editor/chart-panel";
 import { numOrNull } from "../editor/chart-panel";
 import { progressFmtPatch, progressPatch, sourcePatch, subtitlePatch, type ProgressRef } from "../editor/chart-progress";
 import { tagPatch } from "../editor/chart-card";
-import { progressColors, PROGRESS_GAP } from "@slide-builder/core/render/chart-progress";
+import { accentOf, progressColors, PROGRESS_GAP } from "@slide-builder/core/render/chart-progress";
 import { chartLook } from "@slide-builder/core/render/chart-dl";
 import { ctx, style } from "../state/app";
 import { Input } from "./Input";
@@ -33,7 +33,7 @@ function Swatch({ a, own, shown, title, onSet }: { a: string; own: unknown; show
 export function ChartProgressPanel({ c, id, set }: { c: ChartItem; id: string; set: Set }) {
   useStore(() => style().design);
   const P: ChartProgress = c.progress && typeof c.progress === "object" ? c.progress : {}, table = !!P.table;
-  const look = chartLook(ctx(), "Arial"), col = progressColors(c, ctx(), look.ink), accent = look.colors[0] || "#2F55F4";
+  const look = chartLook(ctx(), "Arial"), col = progressColors(c, ctx(), look.ink), accent = accentOf(look.colors);
   const pp = (label: string, p: Record<string, unknown>, sub?: "pct" | "cat" | "gap") => set(label, progressPatch(c, p, sub));
   const pctC = P.pct?.fmt?.color, ax = c.axes?.y || {};
   return <div id="chartProgress">

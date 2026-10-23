@@ -17,7 +17,7 @@ import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList, type SlideDL } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
-import { gapText, progressData, progressLayout, progressTexts, type ProgressLayout } from "../src/render/chart-progress";
+import { accentOf, gapText, progressData, progressLayout, progressTexts, type ProgressLayout } from "../src/render/chart-progress";
 import { seriesLayout, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
 import { writePptx } from "../src/pptx/writer";
 import type { SlideSem } from "../src/pptx/scene";
@@ -125,6 +125,8 @@ describe("B55 · the bars", () => {
     expect(ax.axis.ticks.map(t => t.text)).toEqual(["0%", "25%", "50%", "75%", "100%"]);
     expect(ax.axis.grid).not.toBeNull(); expect(ax.plot.x).toBeGreaterThan(F.x);
     expect(ax.barW).toBeCloseTo(ax.slot / 2.5, 6);
+    // the % in the design's accent: its first palette colour that is a colour, not ink (a consulting palette opens with navy)
+    expect([accentOf(["#051C2C", "#2251FF"]), accentOf(["#000000"]), accentOf(["#3E6A9C"])]).toEqual(["#2251FF", "#2F55F4", "#3E6A9C"]);
     const own = lay({ ...c, progress: { ...c.progress, fill: "#123456", track: "#EEEEEE" } }, ctx);
     expect(own.colors).toMatchObject({ fill: "#123456", track: "#EEEEEE" });
     // one bar in a wide box stays a bar; nine values: eight drawn and the rest named
