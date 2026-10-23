@@ -1,0 +1,45 @@
+/* (B57) Data sources: the side panel's section of the selected object's (or table's) references – from 280 px up */
+.srcpanel{border-top:1px solid var(--line,#e3e5ea);padding:8px 14px 10px;font-size:12px;container-type:inline-size;min-width:0}
+.srcpanel .srchd{display:flex;align-items:center;gap:6px;min-width:0}
+.srcpanel .srctg{border:0;background:none;padding:2px 0;font-weight:600;font-size:12.5px;cursor:pointer;color:inherit;flex:1 1 auto;text-align:left;min-width:0}
+.srcpanel .srcx{width:26px;padding:0;justify-content:center;flex:none}
+.srcpanel .btn.small{height:24px;padding:0 8px;font-size:12px;flex:none}
+.srcpanel .srclist{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.srcpanel .srcrow{border:1px solid var(--line,#e3e5ea);border-radius:6px;padding:4px 6px;min-width:0}
+.srcpanel .srcrow.bad{border-color:#F0C36D;background:#FFF9EC}
+.srcpanel .srcl{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0}
+.srcpanel .srcl b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srcpanel .srca{display:flex;align-items:center;gap:6px;margin-top:2px;min-width:0}
+.srcpanel .srca code{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;background:#F1F3F6;padding:1px 4px;border-radius:3px}
+.srcpanel .st{flex:none;font-size:11px;border-radius:9px;padding:0 7px;line-height:17px;background:#E8F5EC;color:#1E7B3A;white-space:nowrap}
+.srcpanel .st-empty,.srcpanel .st-text,.srcpanel .st-moved,.srcpanel .st-bad{background:#FFF1D6;color:#8A5300}
+.srcpanel .st-sheet,.srcpanel .st-table,.srcpanel .st-bad.st-bad{background:#FDE7E7;color:#B42318}
+.srcpanel .st-wait,.srcpanel .st-markers{background:#EEF0F4;color:#5B6274}
+.srcpanel .srcwhy{color:#8A5300;font-size:11px;margin-top:2px;overflow-wrap:anywhere}
+.srcpanel .srcnote{color:#5B6274;font-size:11px;margin-top:2px;overflow-wrap:anywhere}
+.srcpanel .srcfollow{display:flex;align-items:center;gap:4px;margin-top:2px;font-size:11px;min-width:0;overflow-wrap:anywhere}
+.srcpanel .srcbulk{border-top:1px dashed var(--line,#e3e5ea);padding-top:6px;display:flex;flex-direction:column;gap:4px}
+.srcpanel .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.srcpanel .row .lbl{width:40px;flex:none;color:#5B6274}
+.srcpanel select,.srcpanel input.num{height:24px;border:1px solid var(--line2,#D5D8DF);border-radius:6px;background:#fff;padding:0 6px;min-width:0;max-width:100%}
+.srcpanel .row select{flex:1 1 120px}
+.srcpanel .srcsec{border:1px solid var(--line,#e3e5ea);border-radius:6px;padding:2px 6px}
+.srcpanel .srcsec>summary{cursor:pointer;font-weight:600;padding:2px 0}
+.srcpanel .srcsec>*:not(summary){margin:4px 0}
+.srcpanel .srcgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px}
+.srcpanel .srcgrid label{display:flex;flex-direction:column;gap:1px;min-width:0;font-size:11px;color:#5B6274}
+.srcpanel .srcgrid input{width:100%}
+.srcpanel .srcbtns{gap:6px}
+.srcpanel .srcprev{margin-top:6px;border:1px solid #C7DBF6;background:#F4F8FE;border-radius:6px;padding:6px}
+.srcpanel .srcmoves{margin:4px 0;padding-left:18px;max-height:240px;overflow:auto}
+.srcpanel .srcmoves li{margin:3px 0;min-width:0}
+.srcpanel .srcmoves .what{display:block;font-weight:600;overflow-wrap:anywhere}
+.srcpanel .srcmoves .what small{font-weight:400;color:#5B6274}
+.srcpanel .srcmoves .ft{display:block;overflow-wrap:anywhere}
+.srcpanel .srcmoves code{font-size:11px;background:#fff;padding:0 3px;border-radius:3px}
+.srcpanel .srcmoves li.stuck{color:#8A5300}
+.srcissues .btn.small{height:20px;padding:0 6px;font-size:11px;vertical-align:middle}
+/* the side panel scrolls as one page while Data sources is open (as with a chart's panel) */
+.nav:has(> .srcpanel){overflow-y:auto;overflow-x:hidden}
+.nav:has(> .srcpanel) > *{flex-shrink:0}
+.nav:has(> .srcpanel) > .thumbs{flex:0 0 auto;max-height:170px}

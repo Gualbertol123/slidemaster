@@ -22,3 +22,7 @@ file is such an array with unique names (the helper itself applies no operation)
 
 4.14 (B56): `m19-text.json` – an item's `texts` (a part's text format), `lay` (its parts' layout) and `offs` (parts dragged
 on the stage), each merged per entry (a KPI card's and a chart card's).
+
+4.14 (B57): `m20-repoint.json` – an item's `bind` (what each reference was bound to, follow its header; merged per entry),
+a table.patch moving a table's cells (`sheet`, `range`, its header row `bind`), and a whole Move by 2 rows of a table
+as Data sources sends it (with each op's inverse).

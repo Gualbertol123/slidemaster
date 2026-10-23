@@ -174,6 +174,7 @@ function BorderMenu({ T }: { T: import("@slide-builder/core/xlsx/types").TableLa
 
 const ROLES = [["auto", "Auto", "Detected from the Excel formatting"], ["header", "Header", "Column/row header"], ["total", "Total", "Highlighted total (tile)"], ["body", "Body", "Normal data"], ["caption", "Note", "Small note"]] as const;
 
+import { openTableSources } from "./DataSources";
 export function TableRibbon() {
   const sel = useStore(s => s.selection.sel), noteSel = useStore(s => s.selection.noteSel), anyTables = useStore(s => s.deck.slides.some(x => x.tables.length));
   const R = useCurSlide(), c = useCtx(), st = useStyle(), open = useStore(s => s.doc.open);
@@ -234,6 +235,8 @@ export function TableRibbon() {
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="gridBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Add or remove horizontal / vertical gridlines of the table, or lines on the selected cells" onClick={t}>
           <Ic n="border-inner" />Gridlines</button>}>
           {close => R && tIdx >= 0 ? <GridMenu close={close} T={R.tables[tIdx]} /> : null}</Dropdown>
+        <button className="tb" id="tableSources" disabled={!(tIdx >= 0 && R?.tables[tIdx]?.def)} title="Data sources: where this table reads its cells – change them, move them by rows / columns, another sheet, find the block (B57)"
+          onClick={() => { const d = R && tIdx >= 0 ? R.tables[tIdx]?.def : null; if (d) openTableSources(d.id); }}>Data sources…</button>
         <button className="tb" id="tablesDlg" disabled={!anyTables} title="Match sizes of tables on several slides, copy column widths between tables" onClick={() => setDialogs({ tables: true })}>Sizes…</button>
         <button className={"tb" + (free ? " on" : "")} id="freeLayout" disabled={!R || R.type === "cover"} title={free ? "Back to the automatic layout of this slide (the free places are kept)" : R?.type === "index" ? "Free layout: move and resize the contents list and its title, the text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)" : "Free layout: move and resize the tables, text boxes, charts and shapes of this slide one by one (in this design; Alt while dragging: no snapping)"}
           onClick={() => R && (free ? freeLayoutOff(R) : freeLayoutOn(R))}>Free layout</button>

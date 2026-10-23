@@ -269,6 +269,20 @@ numbers measured twice). Measured numbers go into the step's line.
   `Format10Tests` / HTTP / `test_update`, app `chart-progress-panel.test.tsx`, e2e B55-01, pptxcheck 6 / 6. Page budget
   `page-budget/b55.json` (+48,963 measured). Version 4.14.0 (CHANGELOG unreleased).
 
+- [x] B57 · Repoint references when cells move in Excel (product owner 2026-10-23: "if i move cells around in excel the
+  graphs and tabs will break, i want to be easily able to repoint them without having to rebuild the entire graph"; branch
+  `v4/B57-repoint` on v4/B55-achievement 143c4db) — (commit: see the branch; runs: by the orchestrator). Core: every
+  reference of an item in one place (model/datarefs.ts refsOf with labels and paths, rewritePatch = one item.patch, the
+  shift maths with Excel's insert / delete, fingerprint with a repeated header's occurrence, checks with the label advisory, find the block refusing an ambiguous header), bulk plans
+  (model/repoint.ts: an item, a slide, a sheet; a table with its cell-keyed settings, slide hidden keys, cell edits,
+  versions' entries inside it and the items reading it), follow the header where the cells are read (render/follow.ts,
+  the resolved address in every cache key; LRU per view), the item's "moved?" issue; presetSheets now lists every
+  reference (the B53–B55 cells too). Format 10: an item's `bind` map (top level: gated by 4.13.1's frozen ITEM list),
+  table.patch `sheet` / `range` / `bind` (frozen V4131_TABLE); V4131_INSIDE's top-level values / labels added. App: the
+  Data sources panel (DataSources.tsx; 280 px), its Issues lines with Repoint…, the sheet view preselected, the table
+  ribbon's Data sources…. Vectors `m20-repoint.json`. Tests: core `repoint.test.ts` (refsOf by a type-level walk), app
+  `data-sources.test.tsx`, e2e B57-01. Page budget `page-budget/b57.json`. Version 4.14.0 (CHANGELOG unreleased).
+
 - [x] B53 · Chart labels: room for the plot, places for every label, labels dragged on the slide, an axis's bounds from
   cells, the "12000" fix (product owner 2026-10-22, three pictures: "the line is smoother, there are circles at every
   datapoint, we have a clear space management problem … give me more options to place the labels … the scale values for

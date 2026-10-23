@@ -29,6 +29,7 @@ import { lineEnds, lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
 import type { Box, ChartItem, KpiItem, LineItem, ShapeItem } from "../model/types";
 import { kpiNodes } from "./kpi-dl";
+import { bindIssue, boundItem } from "./follow";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
@@ -253,8 +254,8 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     return slideBg;
   }
   /* a chart (4.3; series charts 4.7, M14) */
-  function chartItem(it: ChartItem, id: string, box: Box): ItemInfo {
-    const s0 = low.length;
+  function chartItem(it0: ChartItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length, it = boundItem(it0, ctx);                 // (B57: references that follow their header)
     const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
     // built once per chart key (S14.2: the item, its data with each sheet's generation, the look, the scenario's overlay)
     const c = cachedChartNodes(it, id, box, ctx, m, { V, wall, family });
@@ -263,8 +264,10 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     const sem = opts.sem ? chartSem(it, box, ctx, family, m) : null;
     // (the card under the native chart; dividers and marks over it as plain shapes, S14.3)
     const card = sem ? cachedChartNodes(it, id, box, ctx, m, { V, wall, family, noContent: true }) : null;
-    return { box, issue: c.issue, geom: c.geom, at: [s0, low.length], ...(sem && card ? { pptx: { kind: "chart", at: [s0, low.length], card: card.nodes, chart: sem, ...(card.overlay?.length ? { overlay: card.overlay } : {}) } } : {}) };
+    return { box, issue: joinIssue(c.issue, bindIssue(it, ctx)), geom: c.geom, at: [s0, low.length], ...(sem && card ? { pptx: { kind: "chart", at: [s0, low.length], card: card.nodes, chart: sem, ...(card.overlay?.length ? { overlay: card.overlay } : {}) } } : {}) };
   }
+  /** (B57) an item's issue and what its binds say, in one line */
+  function joinIssue(a: string | null, b: string | null): string | null { return a && b ? a + "; " + b : a || b; }
   /* a callout or an icon (4.3; Tabler icons 4.8, M15) */
   function shapeItem(it: ShapeItem, id: string, box: Box): ItemInfo {
     const s0 = low.length;
@@ -283,12 +286,12 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
       ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)), ...(s.icon ? { icon: s.icon } : {}) } } : {}) };
   }
   /* a KPI card (B54, 4.13; render/kpi-dl.ts) */
-  function kpiItem(it: KpiItem, id: string, box: Box): ItemInfo {
-    const s0 = low.length;
+  function kpiItem(it0: KpiItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length, it = boundItem(it0, ctx);                 // (B57)
     const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
     const k = kpiNodes(it, id, box, ctx, { V, wall, family, m });
     low.push(...k.nodes);
-    return { box, issue: k.issue, geom: null, at: [s0, low.length], ...(opts.sem ? { pptx: { kind: "kpi", at: [s0, low.length] } } : {}) };
+    return { box, issue: joinIssue(k.issue, bindIssue(it, ctx)), geom: null, at: [s0, low.length], ...(opts.sem ? { pptx: { kind: "kpi", at: [s0, low.length] } } : {}) };
   }
   /* a line (4.8, M15 S15.3; 09 §2.3, §3.4): at its ends as resolved in this design (attached ends follow their object);
      its box the bounds of what it draws (the stage's layer), not its saved `box` */

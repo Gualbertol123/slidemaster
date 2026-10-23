@@ -396,9 +396,10 @@ function RangeInput({ W, onAdd, onChange }: { W: W; onAdd: (r: string) => boolea
 
 /** the wizard's sheet view on its own, for picking a range elsewhere (Run for each value… › From a range…, S8.1): drag,
     Shift+click or Shift+arrows select; `onSel` hears the range ("C4:C13", null when none), Enter gives it to `onEnter` */
-export function RangePicker({ book, S, onSel, onEnter, single }: { book: number; S: SheetInfo; onSel: (r: string | null) => void; onEnter: (r: string) => void; single?: boolean }) {
+export function RangePicker({ book, S, onSel, onEnter, single, init }: { book: number; S: SheetInfo; onSel: (r: string | null) => void; onEnter: (r: string) => void; single?: boolean;
+  /** (B57) the cells shown selected at first ("C2:C9"): Data sources' Change… opens on the reference's own cells */ init?: { r1: number; c1: number; r2: number; c2: number } | null }) {
   const ref = useRef<W | null>(null);
-  ref.current ||= { step: 2, sheets: new Set(), tables: [], slides: [], versions: [], vcur: null, links: [], cur: S.name, sel: null, suggest: {}, focusSlide: null,
+  ref.current ||= { step: 2, sheets: new Set(), tables: [], slides: [], versions: [], vcur: null, links: [], cur: S.name, sel: init ?? null, suggest: {}, focusSlide: null,
     grids: {}, grow: false, info: {}, sizes: {}, sizeSig: "", windows: {}, failed: {}, ready: true, ...(single ? { single: true } : {}) };
   const W = ref.current, [, setN] = useState(0);
   // one cell: "C7"; a range: "C4:C13"

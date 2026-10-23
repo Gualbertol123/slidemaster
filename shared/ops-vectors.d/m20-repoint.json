@@ -1,0 +1,1009 @@
+[
+ {
+  "name": "B57 item.patch: Data sources repoints a chart's series and its filter column (only that series' entry and the filter, the other series and the styles kept) with their binds – the header and label bound, the series following its header –; then one bind removed, then the binds map; format 10",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s",
+      "type": "content",
+      "title": "Volumes",
+      "tables": []
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s",
+    "id": "c",
+    "patch": {
+     "kind": "chart",
+     "type": "line",
+     "values": {
+      "sheet": "Volumes",
+      "range": "C2:C9"
+     },
+     "labels": {
+      "sheet": "Volumes",
+      "range": "B2:B9"
+     },
+     "box": {
+      "x": 61,
+      "y": 340,
+      "w": 725,
+      "h": 520
+     },
+     "sers": {
+      "vol": {
+       "n": 1,
+       "name": "Loans",
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        }
+       ],
+       "color": "#2F55F4"
+      },
+      "bud": {
+       "n": 2,
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "D2:D9"
+        }
+       ]
+      }
+     },
+     "filter": {
+      "by": {
+       "sheet": "Volumes",
+       "range": "A2:A9"
+      },
+      "eq": "Loans"
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s",
+    "id": "c",
+    "patch": {
+     "sers": {
+      "vol": {
+       "n": 1,
+       "name": "Loans",
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "E4:E11"
+        }
+       ],
+       "color": "#2F55F4"
+      }
+     },
+     "filter": {
+      "by": {
+       "sheet": "Volumes",
+       "range": "A4:A11"
+      },
+      "eq": "Loans"
+     },
+     "bind": {
+      "sers.vol.vals.0": {
+       "at": "Volumes!E4:E11",
+       "h": "Volume_EUR_m",
+       "hr": 1,
+       "l": "Q3",
+       "lc": 3,
+       "f": true
+      },
+      "filter.by": {
+       "at": "Volumes!A4:A11",
+       "h": "Product",
+       "hr": 1,
+       "l": "Loans"
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s",
+    "id": "c",
+    "patch": {
+     "bind": {
+      "filter.by": null
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s",
+    "id": "c",
+    "patch": {
+     "bind": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s",
+      "type": "content",
+      "title": "Volumes",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "labels": {
+         "sheet": "Volumes",
+         "range": "B2:B9"
+        },
+        "box": {
+         "x": 61,
+         "y": 340,
+         "w": 725,
+         "h": 520
+        },
+        "filter": {
+         "by": {
+          "sheet": "Volumes",
+          "range": "A4:A11"
+         },
+         "eq": "Loans"
+        },
+        "sers": {
+         "vol": {
+          "n": 1,
+          "name": "Loans",
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "E4:E11"
+           }
+          ],
+          "color": "#2F55F4"
+         },
+         "bud": {
+          "n": 2,
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "D2:D9"
+           }
+          ]
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 4,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "s",
+     "id": "c",
+     "patch": null
+    },
+    {
+     "op": "item.patch",
+     "slide": "s",
+     "id": "c",
+     "patch": {
+      "sers": {
+       "vol": {
+        "n": 1,
+        "name": "Loans",
+        "vals": [
+         {
+          "sheet": "Volumes",
+          "range": "C2:C9"
+         }
+        ],
+        "color": "#2F55F4"
+       }
+      },
+      "filter": {
+       "by": {
+        "sheet": "Volumes",
+        "range": "A2:A9"
+       },
+       "eq": "Loans"
+      },
+      "bind": {
+       "sers.vol.vals.0": null,
+       "filter.by": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s",
+     "id": "c",
+     "patch": {
+      "bind": {
+       "filter.by": {
+        "at": "Volumes!A4:A11",
+        "h": "Product",
+        "hr": 1,
+        "l": "Loans"
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s",
+     "id": "c",
+     "patch": {
+      "bind": {
+       "sers.vol.vals.0": {
+        "at": "Volumes!E4:E11",
+        "h": "Volume_EUR_m",
+        "hr": 1,
+        "l": "Q3",
+        "lc": 3,
+        "f": true
+       }
+      }
+     }
+    }
+   ]
+  }
+ },
+ {
+  "name": "B57 table.patch: a range table's cells moved – its range, its sheet, its header row as bound (then removed); a removed or bad sheet / range, a range on a markers table and a malformed bind are skipped; format 10",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [
+     {
+      "id": "t",
+      "sheet": "Volumes",
+      "kind": "range",
+      "range": "A1:D9",
+      "name": "Volumes"
+     },
+     {
+      "id": "m",
+      "sheet": "Volumes",
+      "kind": "markers",
+      "anchor": "F1",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "s",
+      "type": "content",
+      "tables": [
+       "t",
+       "m"
+      ]
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "range": "A3:D11",
+     "bind": {
+      "at": "A3:D11",
+      "h": [
+       "Product",
+       "Period",
+       "Volume_EUR_m",
+       "EoM_Budget_EUR_m"
+      ]
+     }
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "sheet": "Volumes (2)"
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "range": null
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "sheet": ""
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "range": "3:5"
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "m",
+    "patch": {
+     "range": "F1:G3"
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "bind": {
+      "at": "A3",
+      "h": "Product"
+     }
+    }
+   },
+   {
+    "op": "table.patch",
+    "id": "t",
+    "patch": {
+     "bind": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [
+     {
+      "id": "t",
+      "sheet": "Volumes (2)",
+      "kind": "range",
+      "range": "A3:D11",
+      "name": "Volumes"
+     },
+     {
+      "id": "m",
+      "sheet": "Volumes",
+      "kind": "markers",
+      "anchor": "F1",
+      "index": 0
+     }
+    ],
+    "slides": [
+     {
+      "id": "s",
+      "type": "content",
+      "tables": [
+       "t",
+       "m"
+      ]
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "inverses": [
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "range": "A1:D9",
+      "bind": null
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "sheet": "Volumes"
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "range": "A3:D11"
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "sheet": "Volumes (2)"
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "range": "A3:D11"
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "m",
+     "patch": {
+      "range": null
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "bind": {
+       "at": "A3:D11",
+       "h": [
+        "Product",
+        "Period",
+        "Volume_EUR_m",
+        "EoM_Budget_EUR_m"
+       ]
+      }
+     }
+    },
+    {
+     "op": "table.patch",
+     "id": "t",
+     "patch": {
+      "bind": {
+       "at": "A3:D11",
+       "h": [
+        "Product",
+        "Period",
+        "Volume_EUR_m",
+        "EoM_Budget_EUR_m"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ },
+ {
+  "name": "B57 Move by 2 rows (Data sources of a table, one undo step): its range, widths, heights (per design), merges, colour scale, gridlines, borders; the slide's hidden row; the cell edits inside it (cleared, then set two rows down); the version's emptied cells and deleted rows; the charts reading it (by the table, by its cells) – each op's inverse",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "Volumes",
+      "kind": "range",
+      "range": "A1:D9",
+      "cols": {
+       "3": 90
+      },
+      "rows": {
+       "2": 30
+      },
+      "sizes": {
+       "glass": {
+        "rows": {
+         "5": 40
+        }
+       }
+      },
+      "merges": {
+       "A2:A5": "merge"
+      },
+      "scales": {
+       "s1": {
+        "range": "C2:C9",
+        "dir": "col",
+        "mode": "minmax",
+        "fill": true,
+        "ink": false
+       }
+      },
+      "cellGrid": {
+       "C3": {
+        "h": "on"
+       }
+      },
+      "borders": {
+       "D4": {
+        "top": "none"
+       }
+      }
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "hidden": {
+       "t1:r4": true,
+       "t1:cB": true
+      },
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "pie",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "values": {
+         "table": "t1",
+         "range": "C2:C5"
+        }
+       },
+       "c2": {
+        "kind": "chart",
+        "type": "pie",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "values": {
+         "sheet": "Volumes",
+         "range": "C6:C9"
+        }
+       }
+      }
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {
+       "Volumes": [
+        "C5:D6",
+        "G2"
+       ]
+      },
+      "drop": {
+       "Volumes": [
+        "3:4",
+        "F:G"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {
+    "Volumes": {
+     "C3": {
+      "bg": "#FFFF00"
+     },
+     "B7": {
+      "text": "x",
+      "orig": "W37"
+     },
+     "F2": {
+      "b": true
+     }
+    }
+   }
+  },
+  "ops": [
+   {
+    "op": "table.patch",
+    "id": "t1",
+    "patch": {
+     "range": "A3:D11",
+     "rows": {
+      "2": null,
+      "4": 30
+     },
+     "sizes": {
+      "glass": {
+       "rows": {
+        "7": 40
+       }
+      }
+     },
+     "merges": {
+      "A2:A5": null,
+      "A4:A7": "merge"
+     },
+     "cellGrid": {
+      "C3": null,
+      "C5": {
+       "h": "on"
+      }
+     },
+     "borders": {
+      "D4": null,
+      "D6": {
+       "top": "none"
+      }
+     },
+     "scales": {
+      "s1": {
+       "range": "C4:C11",
+       "dir": "col",
+       "mode": "minmax",
+       "fill": true,
+       "ink": false
+      }
+     }
+    }
+   },
+   {
+    "op": "slide.patch",
+    "id": "s1",
+    "patch": {
+     "hidden": {
+      "t1:r4": null,
+      "t1:cB": true,
+      "t1:r6": true
+     }
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "Volumes",
+    "ref": "C3",
+    "patch": {
+     "bg": null
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "Volumes",
+    "ref": "B7",
+    "patch": {
+     "text": null,
+     "orig": null
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "Volumes",
+    "ref": "C5",
+    "patch": {
+     "bg": "#FFFF00"
+    }
+   },
+   {
+    "op": "cell.patch",
+    "sheet": "Volumes",
+    "ref": "B9",
+    "patch": {
+     "text": "x",
+     "orig": "W37"
+    }
+   },
+   {
+    "op": "version.patch",
+    "id": "v1",
+    "patch": {
+     "hide": {
+      "Volumes": [
+       "C7:D8",
+       "G2"
+      ]
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c1",
+    "patch": {
+     "values": {
+      "table": "t1",
+      "range": "C4:C7"
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "c2",
+    "patch": {
+     "values": {
+      "sheet": "Volumes",
+      "range": "C8:C11"
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "Volumes"
+    ],
+    "tables": [
+     {
+      "id": "t1",
+      "sheet": "Volumes",
+      "kind": "range",
+      "range": "A3:D11",
+      "cols": {
+       "3": 90
+      },
+      "rows": {
+       "4": 30
+      },
+      "sizes": {
+       "glass": {
+        "rows": {
+         "7": 40
+        }
+       }
+      },
+      "merges": {
+       "A4:A7": "merge"
+      },
+      "scales": {
+       "s1": {
+        "range": "C4:C11",
+        "dir": "col",
+        "mode": "minmax",
+        "fill": true,
+        "ink": false
+       }
+      },
+      "cellGrid": {
+       "C5": {
+        "h": "on"
+       }
+      },
+      "borders": {
+       "D6": {
+        "top": "none"
+       }
+      }
+     }
+    ],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [
+       "t1"
+      ],
+      "hidden": {
+       "t1:cB": true,
+       "t1:r6": true
+      },
+      "items": {
+       "c1": {
+        "kind": "chart",
+        "type": "pie",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "values": {
+         "table": "t1",
+         "range": "C4:C7"
+        }
+       },
+       "c2": {
+        "kind": "chart",
+        "type": "pie",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "values": {
+         "sheet": "Volumes",
+         "range": "C8:C11"
+        }
+       }
+      }
+     }
+    ],
+    "versions": [
+     {
+      "id": "v1",
+      "name": "Chief",
+      "hide": {
+       "Volumes": [
+        "C7:D8",
+        "G2"
+       ]
+      },
+      "drop": {
+       "Volumes": [
+        "3:4",
+        "F:G"
+       ]
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {
+    "Volumes": {
+     "F2": {
+      "b": true
+     },
+     "C5": {
+      "bg": "#FFFF00"
+     },
+     "B9": {
+      "text": "x",
+      "orig": "W37"
+     }
+    }
+   },
+   "applied": 9,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "table.patch",
+     "id": "t1",
+     "patch": {
+      "range": "A1:D9",
+      "rows": {
+       "2": 30,
+       "4": null
+      },
+      "sizes": {
+       "glass": {
+        "rows": {
+         "5": 40
+        }
+       }
+      },
+      "merges": {
+       "A2:A5": "merge",
+       "A4:A7": null
+      },
+      "cellGrid": {
+       "C3": {
+        "h": "on"
+       },
+       "C5": null
+      },
+      "borders": {
+       "D4": {
+        "top": "none"
+       },
+       "D6": null
+      },
+      "scales": {
+       "s1": {
+        "range": "C2:C9",
+        "dir": "col",
+        "mode": "minmax",
+        "fill": true,
+        "ink": false
+       }
+      }
+     }
+    },
+    {
+     "op": "slide.patch",
+     "id": "s1",
+     "patch": {
+      "hidden": {
+       "t1:r4": true,
+       "t1:cB": true,
+       "t1:r6": null
+      }
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "Volumes",
+     "ref": "C3",
+     "patch": {
+      "bg": "#FFFF00"
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "Volumes",
+     "ref": "B7",
+     "patch": {
+      "text": "x",
+      "orig": "W37"
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "Volumes",
+     "ref": "C5",
+     "patch": {
+      "bg": null
+     }
+    },
+    {
+     "op": "cell.patch",
+     "sheet": "Volumes",
+     "ref": "B9",
+     "patch": {
+      "text": null,
+      "orig": null
+     }
+    },
+    {
+     "op": "version.patch",
+     "id": "v1",
+     "patch": {
+      "hide": {
+       "Volumes": [
+        "C5:D6",
+        "G2"
+       ]
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c1",
+     "patch": {
+      "values": {
+       "table": "t1",
+       "range": "C2:C5"
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "s1",
+     "id": "c2",
+     "patch": {
+      "values": {
+       "sheet": "Volumes",
+       "range": "C6:C9"
+      }
+     }
+    }
+   ]
+  }
+ }
+]
