@@ -186,3 +186,22 @@ raise (a 4.11 op joining a raise to 7 raises on to 8). `knownOp` learns `nudge` 
 `test_update` format-8 list, e2e B53-01 (the deck goes to 8). Cost: once per deck, ≈ 23 s of "Saving…" on the first
 4.11 edit.
 
+
+**Amendment 2026-10-23 (B54): format 9 for 4.13's KPI cards and chart cards.** 4.13 adds a slide item kind, the KPI card
+(`kind: "kpi"`, v4/B54-kpi-item), and a chart card's parts on a series chart (`stats`, `moms` – maps merged per entry –,
+`tag`, `sep`, `momLabel`, `filter`; ADR-015 amendment). 4.12.0 skips an item.patch of an unknown kind whole (the KPI card
+never exists there) and copies only the item keys it lists (the chart card's keys vanish from its fold, its compaction
+would lose them, its exports draw the chart unfiltered and bare). So 4.13 raises a deck to **format 9** exactly as 4.11
+raised to 8 (`needsV9` / `docNeedsV9`, from 4.12.0's FROZEN lists – its item keys and maps, git show
+5eab103:core/src/model/ops.ts – and its item kinds chart / shape / line): an `item.patch` with a later kind (checked by
+its name: "kpi") or a later key set (not null; for a MAP key – stats, moms – not an empty or all-null map: a removal; a
+plain key's `{}` is content: `sep: {}` draws the hairline), a `slide.add` or `preset.set` carrying one. Marker
+**`incident-format-9.json`** (an incident to every 4.0–4.12 helper: 4.11's and 4.12's `_is_incident` except the format-5
+to format-8 markers only, their `READ_FORMATS` is (4, 5, 6, 7, 8)), the 23 s wait, tail, CAS to `format: 9`, the Lamport
+jump, never lowered; `POST …/format9`; `X-SB-Deck-Formats` `4,5,6,7,8,9`; the helper refuses a format-9 deck to a page
+that does not send 9 (409 "reload") and a compaction that would lower it (400). `knownOp` learns the new keys and kind.
+`update.py --use 4.12` (and 4.6–4.11) names the format-9 decks once and asks; `capture-v3` reads 9; `compat-old`: 4.11 and
+4.12 among the old versions, case `m54` (every older page gets the 409 wall, the deck byte-intact) and `m54-before`
+(a 4.11 / 4.12 page open on the format-8 deck during the raise: its records fold below the jump, nothing lost).
+Tests: core `chart-card.test.ts` (needsV9, docNeedsV9, inverses, vectors `b54.json`), `docsync` format 9; helper
+`Format9Tests`, HTTP format 9, `test_update` format-9 list. Cost: once per deck, ≈ 23 s of "Saving…" on the first 4.13 edit.

@@ -27,6 +27,7 @@ import { chartChange } from "../editor/chart-send";
 import { Input } from "./Input";
 import { Field } from "./Field";
 import { ChartTargets } from "./ChartTargetsPanel";
+import { ChartCard } from "./ChartCardPanel";
 
 const LEGEND_AT: [LegendAt, string][] = [["right", "Right"], ["left", "Left"], ["top", "Top"], ["bottom", "Bottom"], ["top-right", "Top right"], ["inside-tl", "Inside, top left"], ["inside-tr", "Inside, top right"], ["none", "None"]];
 const LABEL_SHOW = [["value", "Values"], ["name", "Series"], ["category", "Categories"], ["percent", "Shares"], ["ofTarget", "% of target"]] as const;
@@ -147,6 +148,7 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
     </details>}
 
     <ChartTargets c={c} id={id} set={set} sel={sel.point && !stalePoint ? sel.point : null} />
+    {(t === "line" || t === "column" || t === "area" || combo || t === "bar") && <ChartCard c={c} id={id} set={set} />}
 
     <details className="sec" id="chartMarks" open={!!curMark && !["ref", "gap", "change"].includes(curMark.kind)}><summary>Marks</summary>
       {/* (B52's reference lines, gap arrows and change pills are under Targets) */}

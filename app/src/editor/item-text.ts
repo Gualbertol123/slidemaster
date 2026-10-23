@@ -10,6 +10,7 @@ import type { Issue } from "./issues";
 import { CHART_TEXT } from "./chart-text";
 import { SHAPE_TEXT } from "./shape-text";
 import { LINE_TEXT } from "./line-text";
+import { KPI_TEXT } from "./kpi-text";
 
 export interface KindText<I = Item> {
   /** the tooltip's prefix of a broken item on the stage ("Chart: …") */ name(it: I): string;
@@ -23,6 +24,7 @@ export const ITEM_TEXT: Record<string, KindText<never>> = {
   /* ---- M14 above this line, M15 below it ---- */
   shape: SHAPE_TEXT,                              // M15: callouts and icons
   line: LINE_TEXT,                                // M15
+  kpi: KPI_TEXT,                                  // B54: KPI cards
 };
 /** a kind this page does not know (a newer page's): never drawn, so never selected; kept in the deck */
 const LATER: KindText<Item> = {

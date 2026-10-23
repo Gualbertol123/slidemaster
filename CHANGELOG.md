@@ -3,6 +3,36 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.0 - 2026-10-23
+
+What users notice
+* **KPI cards** (the owner's request of 2026-10-23): *Insert chart ▾ › KPI cards from table…* makes a row of cards from
+  a table like the owner's (one card per product); each card shows the name in a dark header bar, the current value
+  green / red by sign and its changes against the budget, the previous week and the end of month – details below.
+* **Chart cards** (the owner's request of 2026-10-23): a line, column, bar, area or combo chart can carry its own numbers
+  inside its box – the chart panel's new **Card** section:
+  * a **stats row** under the title: up to 4 chips, each a small label over a big number – the latest value, the first,
+    the previous, the lowest or the highest, a cell of any sheet, the reference line's value (e.g. the EoM budget) or
+    the **gap to it** (−1,700 in red, 210 in green; % too). *+ Stats and momentum* sets up the usual card in one step;
+  * a **tag** in the title line's corner ("ILLUSTRATIVE" in red, "ACTUAL LOANS" in grey) – typed or from a cell;
+  * a **separator** under the stats row;
+  * a **momentum row** at the bottom: the latest value's change against the first period ("−1,420 (−16.9%) vs Q3"),
+    since the trough or the peak, against the previous period ("WoW") or a cell – absolute, %, or both, green / red by
+    sign, and *Down is good* for numbers that should fall (costs, outflows);
+  * the plot makes room for them; every number follows the workbook, a reload, a scenario and Run for each value.
+* **A chart from a long table**: *Filter* in the Card section picks the column (e.g. Product) and the value to keep
+  (e.g. Deposits) – typed, or from a cell, so Run for each value can draw each product in turn. The periods become the
+  chart's categories.
+* PowerPoint: the card's numbers are text boxes and a line over the native chart (editable), never pictures.
+* Decks that use a KPI card or a chart card open only in Slide Builder 4.13 or later (older versions show them
+  read-only); `Update Slide Builder` names those decks before going back to an older version.
+
+Details
+- B54 · KPI card item (new item kind "kpi", core/src/model/kpi.ts, render/kpi-dl.ts): a dark header bar with the title in caps (typed or a cell), the big current value coloured by sign and good direction, a thin divider and N delta rows – a % read from a cell, or computed from a reference cell (% = (cur − ref) / |ref|, absolute, or both) – each with its label, good direction (up / down / neutral) and number format (the cell's, or its own). A zero reference shows "n/a" with an Issues line; a missing or non-numeric cell gives an Issues line, never a crash. Drawn in all five designs on the design's card (glass, plain card, outlined box, consulting tint); cells read as a chart's, so a reload, a scenario and "Run for each value" redraw it; PDF through the display list, PowerPoint as native shapes and text boxes (group "KPI card").
+- B54 · Insert chart ▾ › KPI cards from table…: pick a range with a header row and one row per product (image 16); one card per row, evenly across the slide, in one undo step, each independent afterwards. Columns found by header name (Product, Current, Budget_reference / Previous_week / EoM_reference, Delta_*: a reference column gives a computed %, a Delta column alone a cell row), else by column order; labels "vs Bdg", "vs prev. Week", "vs EoM".
+- B54 · review fixes: a sheet only a KPI card reads is loaded on reload, scenario and Run for each value (preset.ts kpiSheets); the format painter copies a card's direction; PowerPoint writes each text of a card as its own text box and the header bar as one shape of its height, rounded on top only; a long value or change shrinks to fit (cut with an Issues line only below the minimum size), rows that do not fit a small card are not drawn (Issues line); a near-zero change takes its sign and colour from the number as shown (never "−0"); the absolute difference defaults to #,##0.0 for a General cell; the fold drops malformed rows and formats. KPI cards from table: at most 4 cards a row (more rows below), a first row of numbers is data, Current never matches Currency, a second column of the same kind is reported.
+- B54 · KPI card panel (ui/KpiPanel.tsx, fits a 280 px side panel): title typed or from a cell, the value's cell, direction and format; delta rows added, removed, reordered, each with its source (%, Δ, % Δ from a reference cell, or a cell), label, direction and format; cells picked in the sheet view.
+
 ## 4.12.0 - 2026-10-22
 
 What users notice

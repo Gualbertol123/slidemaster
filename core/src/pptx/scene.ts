@@ -65,7 +65,9 @@ export type ItemSem =
       /** a Tabler icon (4.8, S15.2): written as custom geometry from its paths, never a picture (iconEls) */ icon?: "tabler" | "tabler-filled" }
   /** a line (4.8, M15; 09 §4.3): its heads, written as native a:headEnd / a:tailEnd (no connector shape); `line` (S15.3)
       its geometry at the resolved ends, its stroke and its label's nodes (render/line-dl.ts LineSem) */
-  | { kind: "line"; at: [number, number]; heads: Heads | null; line?: LineSem };
+  | { kind: "line"; at: [number, number]; heads: Heads | null; line?: LineSem }
+  /** a KPI card (B54, 4.13): its shapes and text boxes, grouped */
+  | { kind: "kpi"; at: [number, number] };
 export interface SlideSem { type: "cover" | "index" | "content"; items: Record<string, ItemSem>; /** the design's chart / accent colours */ palette: string[];
   /** the top-level nodes [start, end) the slide's layout carries, never the slide (B48 review, 3: the Excel designs' logo
       and cover band – on the layout even when the deck has one slide of that kind) */
@@ -198,8 +200,11 @@ class Walker {
     // a line (S15.3): its own shape from its geometry, its label (background and text box) walked alone
     if (it.kind === "line" && it.line) { this.prims.push(...lineEls(it.line, assemble(this.sub(() => this.walk(it.line!.label, c)))).map(el => ({ p: "el" as const, el }))); return; }
     const prims = this.sub(() => this.walk(nodes, c));
+    // a KPI card (B54): each text its own text box where it is drawn (title, value, each change and label), never one
+    // box reflowing them all under the card's hit
+    if (it.kind === "kpi") for (const p of prims) if (p.p === "text") p.owner = null;
     // (a line's member without its geometry – S14.P's – : its nodes' shapes, grouped)
-    const els = it.kind === "line" ? group(assemble(prims), "Line") : callout(assemble(prims), it);
+    const els = it.kind === "line" ? group(assemble(prims), "Line") : it.kind === "kpi" ? group(assemble(prims), "KPI card") : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));
   }
 

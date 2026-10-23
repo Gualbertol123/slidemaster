@@ -175,3 +175,26 @@ and PowerPoint agree.
 * **Format.** 4.10 keeps these keys whole (or, `nudge`, not at all) but draws them its own way: format 8 (ADR-019
   amendment of the same day).
 
+
+**Amendment 2026-10-23 (B54, 4.13): the chart card and a long table's filter.** The owner's picture of 2026-10-23 (a row
+of KPI cards over two chart cards) asks for charts that carry their own numbers. A series chart gains optional parts
+inside its own box, each an item key switched on and off in the chart panel's *Card* section, all drawn from the chart's
+data (or a cell) so a reload, a scenario and Run for each value move them (render/chart-card.ts):
+* `tag` – a small text (or a cell's) in the title line's right corner, its colour; a long title is cut with "…" before it;
+* `stats` – up to 4 chips under the title: a small caps label over a big value – the last / first / previous / lowest /
+  highest value of a series, a cell, a reference line's value, the last value's gap to a reference line (absolute or %),
+  coloured by sign with a good direction (up / down / neutral) where asked (the gap by default);
+* `sep` – a hairline under the stats row (`{}`: the design's);
+* `moms` and `momLabel` – the momentum row at the bottom: up to 6 chips of the last value's change against the first
+  value, the lowest (since the trough), the highest (since the peak), the previous value or a cell – absolute, % of
+  |base| (a negative level too; a zero base "n/a" and an Issues line) or both, a change shown as zero reads "+0 (+0.0%)"
+  in the design's grey, coloured by sign with a good direction; a caption under each (automatic: "vs Q3", "since trough").
+seriesLayout reserves their room (the title, then the stats row and separator, the plot, the momentum row): the plot
+shrinks, so the native PowerPoint chart's plot moves with it; a box too small drops the momentum row, then the stats row
+(Issues lines), the plot keeping 60 px. The parts are overlay nodes – text boxes and a line over the native chart in
+PowerPoint, never pictures. A chart without them lays out byte-identical.
+`filter: { by, eq }` reads a long table: only the rows whose cell in column `by` (a range as tall as the values') shows
+`eq` (a text, or a cell's text – a scenario or Run for each value can switch the product); categories and every series
+are filtered alike; Issues lines for a missing column or value cell, a column of another height, no matching row, an
+empty value; a scatter chart takes none. (A sub-range of the table draws one product too, but breaks when the table's
+rows move or grow – the filter does not.) Format 9 (ADR-019 amendment of the same day).

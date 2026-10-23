@@ -162,7 +162,7 @@ export type SeriesData =
 /** a number per cell: its value (null = a gap), its text, its format */
 interface Val { v: number | null; text: string; fmt: string }
 /** the cells of several rectangles, concatenated (a series from different places); `missing` when one is not found */
-function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem): { vals: Val[]; source: string; missing: boolean; first: { S: Sheet; g: Range; hide: HideSet | null } | null } {
+function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): { vals: Val[]; source: string; missing: boolean; first: { S: Sheet; g: Range; hide: HideSet | null } | null; /** the cells read, before a filter */ count: number } {
   const list = Array.isArray(refs) ? refs as DataRef[] : refs && typeof refs === "object" ? [refs as DataRef] : [];
   const vals: Val[] = [], sources: string[] = [];
   let missing = !list.length, first: { S: Sheet; g: Range; hide: HideSet | null } | null = null;
@@ -176,15 +176,50 @@ function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem): { vals: Val[]; 
       vals.push({ v, text: v === null ? "" : formatValue(x!).text, fmt: v === null ? "" : x!.fmt || "General" });
     }
   }
-  return { vals, source: sources.join(", ") || "?", missing, first };
+  return { vals: keep ? keep.pick(vals) : vals, source: sources.join(", ") || "?", missing, first, count: vals.length };
+}
+/* ---- (B54) a long table's rows for one value of a column (ChartItem.filter) ---- */
+/** the positions (in reading order, hidden cells skipped as for the values) whose cell in the filter's column shows the
+    filter's value; `pick` keeps them of a list read the same way */
+export interface Keep { at: number[]; n: number; pick<T>(xs: T[]): T[] }
+const isRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string";
+/** the filter's value: its text (a number typed into a shared document: as text), or its cell's text (trimmed); null when
+    the cell is not found */
+export function filterValue(f: NonNullable<ChartItem["filter"]>, ctx: RenderCtx): string | null {
+  const eq = f.eq as unknown;
+  if (typeof eq === "string") return eq.trim();
+  if (typeof eq === "number" && Number.isFinite(eq)) return String(eq);
+  if (!isRef(eq)) return "";
+  const T = refTarget(eq, ctx);
+  return T.S && T.g ? shown(T.S, T.g.r1, T.g.c1, ctx).trim() : null;
+}
+/** the rows a chart keeps (null: no filter, or one that cannot be read – said in `issues`). An empty value keeps no row
+    (and says so); a scatter chart takes no filter (its x values are read apart: said) */
+export function filterKeep(it: ChartItem, ctx: RenderCtx, issues: string[]): Keep | null {
+  const f = it.filter;
+  if (!f || typeof f !== "object" || !isRef(f.by)) return null;
+  if (it.type === "scatter") { issues.push("a scatter chart takes no filter: every row is drawn"); return null; }
+  const T = refTarget(f.by, ctx), eq = filterValue(f, ctx);
+  if (!T.S || !T.g) { issues.push(`filter column ${T.source} not found`); return null; }
+  if (eq === null) { issues.push(`filter value's cell ${refTarget(f.eq as DataRef, ctx).source} not found`); return { at: [], n: 0, pick: () => [] }; }
+  const S = T.S, removed = removedOf(ctx, S), want = eq.toLowerCase();
+  const texts = cellsOf(S, T.g, chartHide(it, ctx, S, T.g, f.by)).map(([r, c]) => removed(r, c) ? "" : shown(S, r, c, ctx).trim().toLowerCase());
+  const at = want ? texts.flatMap((t, k) => t === want ? [k] : []) : [];
+  if (!want) issues.push(`the filter has no value: no row of ${T.source} is drawn`);
+  else if (!at.length) issues.push(`no row of ${T.source} shows “${eq}”`);
+  // (a point's own settings and a dragged value label are kept by position among the rows drawn: another value, another point)
+  const perPoint = Object.values(it.sers || {}).some(x => x && x.points && Object.keys(x.points).length) || Object.keys(it.nudge || {}).some(k => k.startsWith("v:"));
+  if (perPoint && at.length) issues.push("per-point settings and moved value labels follow the position among the filtered rows, not the category");
+  return { at, n: texts.length, pick: <T>(xs: T[]) => at.filter(k => k < xs.length).map(k => xs[k]) };
 }
 /** a category list: a DataRef's texts (hidden rows / columns skipped; a removed cell is an empty name) or given names */
-function catsOf(cats: ChartGroup["cats"] | undefined, ctx: RenderCtx, it: ChartItem): string[] | null {
+function catsOf(cats: ChartGroup["cats"] | undefined, ctx: RenderCtx, it: ChartItem, keep?: Keep | null): string[] | null {
   if (Array.isArray(cats)) return cats.map(c => typeof c === "string" ? c : String(c ?? ""));
   const T = refTarget(cats as DataRef | undefined, ctx);
   if (!T.S || !T.g) return null;
   const S = T.S, removed = removedOf(ctx, S);
-  return cellsOf(S, T.g, chartHide(it, ctx, S, T.g, cats as DataRef)).map(([r, c]) => removed(r, c) ? "" : shown(S, r, c, ctx).trim());
+  const all = cellsOf(S, T.g, chartHide(it, ctx, S, T.g, cats as DataRef)).map(([r, c]) => removed(r, c) ? "" : shown(S, r, c, ctx).trim());
+  return keep ? keep.pick(all) : all;
 }
 /** a series' name: its text, or the cell it names, else the text beside its first rectangle, else "Series n" */
 function nameOf(s: ChartSeries, first: { S: Sheet; g: Range; hide?: HideSet | null } | null, k: number, ctx: RenderCtx): string {
@@ -220,6 +255,10 @@ function refSheets(it: ChartItem, ctx: RenderCtx): string[] {
   for (const k of Object.values(it.marks && typeof it.marks === "object" ? it.marks : {})) if (k && typeof k === "object") { add(k.value); add(k.name); }
   // (B53) the cells an axis's bounds and major unit are read from
   for (const a of Object.values(it.axes && typeof it.axes === "object" ? it.axes : {})) if (a && typeof a === "object" && a.cells && typeof a.cells === "object") { add(a.cells.min); add(a.cells.max); add(a.cells.step); }
+  // (B54) the filter's column and value, the chart card's cells (a stat's, a momentum chip's, the tag's)
+  if (it.filter && typeof it.filter === "object") { add(it.filter.by); add(it.filter.eq); }
+  for (const x of [...Object.values(it.stats && typeof it.stats === "object" ? it.stats : {}), ...Object.values(it.moms && typeof it.moms === "object" ? it.moms : {})]) if (x && typeof x === "object") add(x.cell);
+  if (it.tag && typeof it.tag === "object") add(it.tag.text);
   out.delete("");
   return [...out].sort();
 }
@@ -231,7 +270,7 @@ const SERIES = new Map<string, SeriesData>();
 export function seriesData(it: ChartItem, ctx: RenderCtx): SeriesData {
   const sheets = refSheets(it, ctx);
   // (the chart's type: a series without its own type takes the chart's – S14.2 review 2)
-  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null, slideOf(it, ctx)?.cfg.hidden]);
+  const key = JSON.stringify([it.type, it.sers, it.groups ?? null, it.labels ?? null, it.filter ?? null, sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null, slideOf(it, ctx)?.cfg.hidden]);
   const hit = SERIES.get(key); if (hit) return hit;
   const out = resolveSeries(it, ctx, key);
   if (SERIES.size > 200) SERIES.clear();
@@ -240,7 +279,10 @@ export function seriesData(it: ChartItem, ctx: RenderCtx): SeriesData {
 }
 function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
   const list = seriesList(it), issues: string[] = [];
-  const read = list.map(([id, s], k) => ({ id, s, k, r: readRefs(s.vals, ctx, it), t: s.target ? readRefs(s.target, ctx, it) : null }));
+  // (B54) a long table: the rows of one value of a column
+  const keep = filterKeep(it, ctx, issues);
+  const read = list.map(([id, s], k) => ({ id, s, k, r: readRefs(s.vals, ctx, it, keep), t: s.target ? readRefs(s.target, ctx, it, keep) : null }));
+  if (keep && keep.n) for (const x of read) if (!x.r.missing && x.r.count !== keep.n) issues.push(`the filter column has ${keep.n} cells for ${x.r.count} values`);
   if (!read.length || read.every(x => x.r.missing && !x.r.vals.length)) return { ok: false, source: read[0]?.r.source || "?", why: "missing", key };
   // the category groups, in their order; without groups one, named by the labels range or the first series' headers
   // (a scatter chart has no categories: its points stand on a numeric x axis, S14.4 – groups are not read)
@@ -249,7 +291,7 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     .sort(([a, p], [b, q]) => (+p.n || 0) - (+q.n || 0) || (a < b ? -1 : a > b ? 1 : 0));
   const groups: GroupData[] = [], cats: string[] = [];
   if (gdefs.length) for (const [gid, g] of gdefs) {
-    const names = catsOf(g.cats, ctx, it);
+    const names = catsOf(g.cats, ctx, it, keep);
     if (!names) issues.push(`categories ${refTarget(g.cats as DataRef, ctx).source} not found`);
     groups.push({ id: gid, n: +g.n || 0, start: cats.length, len: (names || []).length, label: typeof g.label === "string" ? g.label : "", divider: g.divider });
     cats.push(...(names || []));
@@ -259,7 +301,9 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     if (scatter) for (let k = 0; k < len; k++) cats.push(String(k + 1));
     else if (f) {
       const at = labelsFor(f.S, f.g, L, ctx, f.hide), cells = cellsOf(f.S, f.g, f.hide);
-      for (let k = 0; k < len; k++) cats.push(k < cells.length ? at(cells[k][0], cells[k][1], k) || numToCol(cells[k][1]) + cells[k][0] : L ? "" : String(k + 1));
+      // (B54: a filtered chart's k-th value is the table's keep.at[k]-th row)
+      const pos = (k: number) => keep ? keep.at[k] ?? cells.length : k;
+      for (let k = 0; k < len; k++) { const q = pos(k); cats.push(q < cells.length ? at(cells[q][0], cells[q][1], q) || numToCol(cells[q][1]) + cells[q][0] : L ? "" : String(k + 1)); }
     } else for (let k = 0; k < len; k++) cats.push(String(k + 1));
     groups.push({ id: "", n: 0, start: 0, len, label: "", divider: undefined });
   }
@@ -279,7 +323,7 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
     if (scatter) Object.assign(out, scatterXs(s, name, r.vals.length, cats.length, ctx, issues, it));
     return out;
   });
-  if (!series.some(s => s.vals.some(v => v !== null && v !== 0))) return { ok: false, source: read.map(x => x.r.source).join(", "), why: "empty", key };
+  if (!series.some(s => s.vals.some(v => v !== null && v !== 0))) return { ok: false, source: read.map(x => x.r.source).join(", ") + (keep && it.filter ? ` (rows of ${refTarget(it.filter.by, ctx).source} showing “${filterValue(it.filter, ctx) ?? ""}”)` : ""), why: "empty", key };
   return { ok: true, cats, groups, series, issues, key };
 }
 /** a scatter series' x values (09 §2.2 `xs`, S14.4): one per value, in reading order like the values (hidden cells

@@ -27,7 +27,8 @@ import { shapeNodes, shapeRadius } from "./shape-dl";
 import { frameStroke, noteFrame } from "./note-frame";
 import { lineEnds, lineNodes } from "./line-dl";
 import type { ItemSem } from "../pptx/scene";
-import type { Box, ChartItem, LineItem, ShapeItem } from "../model/types";
+import type { Box, ChartItem, KpiItem, LineItem, ShapeItem } from "../model/types";
+import { kpiNodes } from "./kpi-dl";
 import type { Exhibit, ExFacts } from "./exhibit";
 import { deckFmt, hasMarkup, slideTextFmt, titleGeom } from "./text";
 import { todayLabel } from "./cover";
@@ -208,7 +209,7 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
   // has no item info (never on the stage, never exported) – the Issues panel names it (app editor/item-text.ts)
   for (const [id, it] of Object.entries(R.cfg.items || {})) {
     const box = itemBoxOf(R, id, boxes, ctx); if (!box || !it) continue;
-    const info = it.kind === "chart" ? chartItem(it, id, box) : it.kind === "shape" ? shapeItem(it, id, box) : it.kind === "line" ? lineItem(it, id, box) : null;
+    const info = it.kind === "chart" ? chartItem(it, id, box) : it.kind === "shape" ? shapeItem(it, id, box) : it.kind === "line" ? lineItem(it, id, box) : it.kind === "kpi" ? kpiItem(it, id, box) : null;
     if (info) items[id] = info;
   }
   if (logo && !isp) logoNodes(logo);
@@ -280,6 +281,14 @@ export function slideToDisplayList(R: RuntimeSlide, idx: number, ctx0: RenderCtx
     }
     return { box, issue: s.issue, geom: null, at: [s0, low.length],
       ...(opts.sem ? { pptx: { kind: "shape", at: [s0, low.length], shape: it.shape, box, tail: it.tail ?? null, radius: shapeRadius(it, ctx, inPanel(box.x)), ...(s.icon ? { icon: s.icon } : {}) } } : {}) };
+  }
+  /* a KPI card (B54, 4.13; render/kpi-dl.ts) */
+  function kpiItem(it: KpiItem, id: string, box: Box): ItemInfo {
+    const s0 = low.length;
+    const family = glassy ? base : C ? C.note.family : d === "clean" ? NOTE_FONT.clean : NOTE_FONT.excel;
+    const k = kpiNodes(it, id, box, ctx, { V, wall, family, m });
+    low.push(...k.nodes);
+    return { box, issue: k.issue, geom: null, at: [s0, low.length], ...(opts.sem ? { pptx: { kind: "kpi", at: [s0, low.length] } } : {}) };
   }
   /* a line (4.8, M15 S15.3; 09 §2.3, §3.4): at its ends as resolved in this design (attached ends follow their object);
      its box the bounds of what it draws (the stage's layer), not its saved `box` */

@@ -54,7 +54,7 @@ export interface RefVal { id: string; k: ChartMark; v: number | null; text: stri
   /** why it is not drawn ("" = a gap: nothing to say) */ issue?: string }
 const isRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string";
 /** the first cell of a DataRef: its number (null: text, blank, an error), the cell's format, its text */
-function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string; gone: boolean } | null {
+export function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; text: string; source: string; gone: boolean } | null {
   const T = refTarget(ref, ctx);
   if (!T.S || !T.g) return null;
   // (a cell the shown version empties is no number: the line is not drawn, as a series gets a gap there)
@@ -63,7 +63,7 @@ function cellOf(ref: DataRef, ctx: RenderCtx): { v: number | null; fmt: string; 
   return { v, fmt: c?.fmt || "General", text: gone ? "" : shown(T.S, T.g.r1, T.g.c1, ctx).trim(), source: T.source, gone };
 }
 /** a cell's format that says nothing of how to show its number (Excel's General) */
-const isGeneral = (f: string) => !f || /^general$/i.test(f.trim());
+export const isGeneral = (f: string) => !f || /^general$/i.test(f.trim());
 /** a value axis with its bounds and major unit read from cells (`cells`: each over the typed number; B53). A cell
     without a number leaves that setting to the typed one (else automatic) and says so */
 export function axisFromCells(A: ChartAxis | undefined, ctx: RenderCtx, name: string, issues: string[]): ChartAxis | undefined {
@@ -140,6 +140,8 @@ export function refStyle(r: RefVal, look: TargetLook): LineSem {
 /** a difference with its sign (+ / − / none for 0) in a number format: the format of the absolute value */
 export function signed(d: number, fmt: string): string {
   const t = tickText(Math.abs(d), fmt);
+  // (B54) a format that writes its own sign ("+0.0%;-0.0%"): the number in it as it is, its minus as "−" – never "++"
+  if (/^[+\-−]/.test(t)) return tickText(d, fmt).replace(/^-/, MINUS);
   return d > 0 ? "+" + t : d < 0 ? MINUS + t : t;
 }
 /** a change as a %: one decimal, signed */

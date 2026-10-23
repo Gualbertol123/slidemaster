@@ -972,3 +972,40 @@ describe("DocSync v4: format 8 for 4.11 label places, dragged labels, axis cells
     expect(() => deck.doCompact(deck.snap.gen, { ...deck.snap, gen: deck.snap.gen + 1, format: 7 })).toThrow(/objects/);
   });
 });
+
+describe("DocSync v4: format 9 for 4.13 chart cards and KPI cards (ADR-019 amendment for B54)", () => {
+  const preset = { op: "preset.set", preset: { sheets: ["S"], slides: [{ id: "s1", type: "content", title: "T", tables: [] }], tables: [] } } as unknown as Op;
+  const chart = { op: "item.patch", slide: "s1", id: "c1", patch: { kind: "chart", type: "line", values: { sheet: "S", range: "B1:B2" }, box: { x: 0, y: 0, w: 10, h: 10 },
+    sers: { s1: { n: 1, vals: [{ sheet: "S", range: "B1:B2" }] } }, nudge: { title: { dx: .1, dy: 0 } } } } as unknown as Op;
+  const stats = { op: "item.patch", slide: "s1", id: "c1", patch: { stats: { s1: { n: 1, src: "last", label: "Latest" } } } } as unknown as Op;
+  const kpi = { op: "item.patch", slide: "s1", id: "k1", patch: { kind: "kpi", box: { x: 0, y: 0, w: 10, h: 10 } } } as unknown as Op;
+  const u = (deck: FakeDeck, who: string, api: DeckApi = deck.api(), o: Record<string, unknown> = {}) =>
+    new DocSync(api, "W.xlsx", deck.open(writer(who)), who, { autoTail: false, compactMargin: 0, bumpWaitMs: 0, ...o });
+  it("B54: a stats row raises a format-8 deck to 9 first – marker, tail, CAS, then the record; a removal (null) raises nothing", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush();
+    a.apply([chart]); await a.flush();
+    expect(deck.snap.format).toBe(8);
+    deck.log.length = 0;
+    a.apply([stats]); await a.flush();
+    expect(deck.log).toEqual(["format9", "tail", "compact:9", "append"]);
+    expect(deck.snap.format).toBe(9); expect(deck.marker9).not.toBeNull(); expect(deck.calls.format8).toBe(1);
+    await a.poll();
+    expect((a.view.preset!.slides[0].items!.c1 as { stats?: unknown }).stats).toEqual({ s1: { n: 1, src: "last", label: "Latest" } });
+    const d2 = new FakeDeck(), b = u(d2, "bea");
+    b.apply([preset]); await b.flush(); b.apply([chart]); await b.flush();
+    d2.log.length = 0;
+    b.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { stats: null, moms: { m1: null } } } as unknown as Op]); await b.flush();
+    expect(d2.log).toEqual(["append"]); expect(d2.snap.format).toBe(8);
+  });
+  it("a page opening a deck whose journal holds a 4.13 page's KPI card (kind \"kpi\", by its name alone) raises it to 9", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush();
+    expect(deck.snap.format).toBe(4);
+    const p = writer("p413");
+    deck.doAppend(p, { l: 9, w: p, s: 1, by: "p413", ops: [kpi] });
+    const b = u(deck, "bea", deck.api(), { bumpOnOpen: true });
+    expect(await b.upgrading).toBe(true);
+    expect(deck.snap.format).toBe(9); expect(deck.calls.format9).toBe(1); expect(deck.marker8).toBeNull();
+  });
+});

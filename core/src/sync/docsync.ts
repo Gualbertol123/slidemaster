@@ -18,14 +18,16 @@
    4.0–4.8 window can; one that is about to receive, or holds, what 4.9.0 does not draw whole (needsV7: 4.10's reference
    lines, gap arrows and change pills on a chart, B52) is raised to format 7 the same way, so that no 4.0–4.9 window can;
    one that is about to receive, or holds, what 4.10.1 does not draw whole (needsV8: 4.11's label places, dragged labels,
-   axis bounds from cells, B53) is raised to format 8 the same way, so that no 4.0–4.10 window can. */
+   axis bounds from cells, B53) is raised to format 8 the same way, so that no 4.0–4.10 window can; one that is about to
+   receive, or holds, what 4.12.0 does not apply whole (needsV9: 4.13's KPI cards and chart cards, B54) is raised to format
+   9 the same way, so that no 4.0–4.12 window can. */
 import type { Op, WorkbookDoc } from "../model/types";
-import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5, needsV6, docNeedsV6, needsV7, docNeedsV7, needsV8, docNeedsV8 } from "../model/ops";
+import { applyOps, inverseOf, applyOp, knownOp, needsV5, docNeedsV5, needsV6, docNeedsV6, needsV7, docNeedsV7, needsV8, docNeedsV8, needsV9, docNeedsV9 } from "../model/ops";
 import { firstCopy, fold, nextSnapshot, recordId, validRecord, type DeckRecord, type DeckSnapshot, type Folded } from "../model/fold";
 /** a format the guard raises a deck to */
-export type RaisedFormat = 5 | 6 | 7 | 8;
+export type RaisedFormat = 5 | 6 | 7 | 8 | 9;
 /** the first Slide Builder that reads a raised format (messages) */
-const SINCE: Record<RaisedFormat, string> = { 5: "4.6", 6: "4.9", 7: "4.10", 8: "4.11" };
+const SINCE: Record<RaisedFormat, string> = { 5: "4.6", 6: "4.9", 7: "4.10", 8: "4.11", 9: "4.13" };
 
 export interface TailJournal { offset: number; records: DeckRecord[]; /** each record's end offset */ ends?: number[] }
 export interface TailResult { journals: Record<string, TailJournal>; gen: number | null; readonly?: string;
@@ -44,7 +46,7 @@ export interface DeckApi {
   /** open this writer's journal ahead of its first append (the append then costs write + flush only) */
   prepare?(key: string, writer: string): Promise<unknown>;
   /** ADR-019: the deck's marker incident-format-5.json (every 4.0–4.5 helper then takes the deck for read-only) or,
-      `format` 6, incident-format-6.json (every 4.0–4.8 helper), 7: incident-format-7.json (every 4.0–4.9 helper), 8: incident-format-8.json (every 4.0–4.10 helper); `at`
+      `format` 6, incident-format-6.json (every 4.0–4.8 helper), 7: incident-format-7.json (every 4.0–4.9 helper), 8: incident-format-8.json (every 4.0–4.10 helper), 9: incident-format-9.json (every 4.0–4.12 helper); `at`
       when it was written and `now`, the file server's
       ms (an existing one is fine: created false) */
   format5(key: string, format?: RaisedFormat): Promise<{ created?: boolean; at?: number | null; now?: number | null; /** ms the helper waits (its own wall) */ wait?: number }>;
@@ -321,22 +323,22 @@ export class DocSync {
       a record past it) hold what 4.0.0 (4.8.0) does not apply whole */
   private due(ops?: Op[]): 0 | RaisedFormat {
     const f = this.snap.format;
-    if (!this.api.served || f >= 8) return 0;
-    const need = (o: Op) => needsV8(o) ? 8 : f < 7 && needsV7(o) ? 7 : f < 6 && needsV6(o) ? 6 : f < 5 && needsV5(o) ? 5 : 0;
+    if (!this.api.served || f >= 9) return 0;
+    const need = (o: Op) => needsV9(o) ? 9 : f < 8 && needsV8(o) ? 8 : f < 7 && needsV7(o) ? 7 : f < 6 && needsV6(o) ? 6 : f < 5 && needsV5(o) ? 5 : 0;
     let t = 0;
     if (ops) for (const o of ops) t = Math.max(t, need(o));
     else {
-      t = docNeedsV8(this.snap.doc) ? 8 : f < 7 && docNeedsV7(this.snap.doc) ? 7 : f < 6 && docNeedsV6(this.snap.doc) ? 6 : f < 5 && docNeedsV5(this.snap.doc) ? 5 : 0;
-      for (const e of this.entries.values()) for (const o of e.rec.ops) if (t < 8) t = Math.max(t, need(o));
+      t = docNeedsV9(this.snap.doc) ? 9 : f < 8 && docNeedsV8(this.snap.doc) ? 8 : f < 7 && docNeedsV7(this.snap.doc) ? 7 : f < 6 && docNeedsV6(this.snap.doc) ? 6 : f < 5 && docNeedsV5(this.snap.doc) ? 5 : 0;
+      for (const e of this.entries.values()) for (const o of e.rec.ops) if (t < 9) t = Math.max(t, need(o));
     }
     return t > f ? t as RaisedFormat : 0;
   }
   /** the bump in progress (tests), or null */
   get upgrading(): Promise<boolean> | null { return this.bump; }
   /** raise the deck to format 5, or `to` 6 (one bump at a time; true when it is that format now). ADR-019, amended
-      2026-10-21 (and 2026-10-22: format 6 the same way, its marker incident-format-6.json, for 4.6–4.8; and format 7, incident-format-7.json, for 4.9 – B52; and format 8, incident-format-8.json, for 4.10 – B53):
+      2026-10-21 (and 2026-10-22: format 6 the same way, its marker incident-format-6.json, for 4.6–4.8; and format 7, incident-format-7.json, for 4.9 – B52; and format 8, incident-format-8.json, for 4.10 – B53; and format 9, incident-format-9.json, for 4.11–4.12 – B54):
       1. the helper writes incident-format-5.json: every 4.0–4.5 helper takes the deck for read-only from its next look
-         at the deck's folder (6: incident-format-6.json, every 4.0–4.8 helper; 7: incident-format-7.json, every 4.0–4.9 helper; 8: incident-format-8.json, every 4.0–4.10 helper);
+         at the deck's folder (6: incident-format-6.json, every 4.0–4.8 helper; 7: incident-format-7.json, every 4.0–4.9 helper; 8: incident-format-8.json, every 4.0–4.10 helper; 9: incident-format-9.json, every 4.0–4.12 helper);
       2. wait BUMP_WAIT_MS from the marker's time (an old page may still append until then: a wizard preset.set too),
          then ask for the marker again (the helper lists the journals afresh; a marker removed meanwhile is written
          again, and waited for);
