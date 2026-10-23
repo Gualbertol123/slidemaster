@@ -10,6 +10,10 @@ import type { KpiGood } from "@slide-builder/core/model/kpi";
 import { deleteItem, itemOf, itemPatch } from "../editor/charts";
 import { moveRow, newRow, refName, rowsPatch, setRow, sourcePatch } from "../editor/kpi";
 import { Field } from "./Field";
+import { Input } from "./Input";
+import { TextFmtBox } from "./TextFmtBox";
+import { layPatch, offsResetPatch, textsPatch } from "../editor/textparts";
+import { layNum, layWord } from "@slide-builder/core/model/textparts";
 import { useCurSlide } from "./hooks";
 import "./chart-panel.css";
 
@@ -62,7 +66,51 @@ export function KpiPanel() {
       </div>;
     })}</div>
     <div className="row"><button className="btn small" id="kpiAddRow" onClick={() => set("Add KPI row", rowsPatch(k, rs => [...rs, newRow(k)]))}>+ Row</button></div>
+    <KpiText k={k} set={set} />
+    <KpiLayout k={k} set={set} />
     {issue && <div className="err" id="kpiIssue">{issue}</div>}
     <div className="row"><button className="btn small" id="kpiDelete" onClick={deleteItem}>Delete KPI card</button></div>
   </div>;
+}
+
+/* (B56, 4.14) each text of the card – the header's title, the value, the changes, their labels – in a font, size, colour,
+   weight and alignment of its own (`texts`, one entry per part) */
+const PARTS: [string, string, { b?: boolean; caps?: boolean; align?: "left" | "center" | "right" }, boolean][] = [
+  ["head", "Header", { b: true, caps: true, align: "left" }, true], ["value", "Value", { b: true, align: "left" }, false],
+  ["delta", "Change %", { b: true, align: "right" }, false], ["label", "Row label", { align: "left" }, false]];
+function KpiText({ k, set }: { k: KpiItem; set: (label: string, p: ItemPatch | null) => void }) {
+  return <details className="sec" id="kpiText" open={!!k.texts && Object.keys(k.texts).length > 0}><summary>Text</summary>
+    {PARTS.map(([part, name, dflt, caps]) => <TextFmtBox key={part} id={"kpi-" + part} label={name} value={k.texts?.[part as keyof NonNullable<KpiItem["texts"]>]} dflt={dflt}
+      can={{ caps }} onChange={(l, f) => set(l, textsPatch(part, f))} />)}
+  </details>;
+}
+/** a number box of the layout (empty = automatic) */
+function LayNum({ id, k, name, min, max, unit, title, set }: { id: string; k: KpiItem; name: string; min: number; max: number; unit: string; title: string; set: (label: string, p: ItemPatch | null) => void }) {
+  const v = layNum(k, name, min, max);
+  return <label className="layrow" title={title + ` (${min}–${max} ${unit}; empty = automatic)`}><Field className="num" id={id} placeholder="auto" value={v === undefined ? "" : String(v)}
+    onCommit={t => { const n = parseFloat(t.replace(",", ".")); set(title, layPatch(name, Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : null)); }} /><small>{unit}</small></label>;
+}
+/* (B56, 4.14) sizing and positioning inside the card (`lay`): the value's place in its section, the divider, the header
+   bar, the rows, the padding; the value and the rows dragged on the slide (`offs`) – Reset puts them back */
+function KpiLayout({ k, set }: { k: KpiItem; set: (label: string, p: ItemPatch | null) => void }) {
+  const al = k.texts?.value?.align || "left", va = layWord(k, "valign", ["top", "middle", "bottom"] as const) || "middle";
+  const rows = layWord(k, "rows", ["spread", "top", "middle", "bottom"] as const) || "spread", moved = Object.keys(k.offs || {}).length;
+  const seg = <T extends string>(id: string, cur: T, opts: [T, string, string][], on: (v: T) => void) => <div className="seg small" id={id}>{opts.map(([v, l, t]) => <button key={v} data-v={v} title={t} className={cur === v ? "on" : ""} onClick={() => on(v)}>{l}</button>)}</div>;
+  return <details className="sec" id="kpiLayout" open={!!k.lay || moved > 0}><summary>Layout</summary>
+    <div className="row wrap"><span className="lbl">Value</span>
+      {seg("kpiValueAlign", al, [["left", "⇤", "Value on the left of its section"], ["center", "↔", "Value centred in its section"], ["right", "⇥", "Value on the right of its section"]],
+        v => set("KPI value alignment", textsPatch("value", { ...(k.texts?.value || {}), align: v })))}
+      {seg("kpiValueV", va, [["top", "↥", "At the top"], ["middle", "↕", "In the middle"], ["bottom", "↧", "At the bottom"]], v => set("KPI value vertical place", layPatch("valign", v === "middle" ? null : v)))}</div>
+    <div className="row wrap"><label className="chk"><Input type="checkbox" id="kpiDiv" checked={k.lay?.div !== false} onCommit={e => set("KPI divider", layPatch("div", (e.target as HTMLInputElement).checked ? null : false))} />Divider at</label>
+      <LayNum id="kpiSplit" k={k} name="split" min={10} max={90} unit="%" title="KPI divider place" set={set} /></div>
+    <div className="row wrap"><label className="chk"><Input type="checkbox" id="kpiBar" checked={k.lay?.bar !== false} onCommit={e => set("KPI header bar", layPatch("bar", (e.target as HTMLInputElement).checked ? null : false))} />Header bar</label>
+      <LayNum id="kpiHeadH" k={k} name="headH" min={8} max={200} unit="px" title="KPI header bar height" set={set} /></div>
+    <div className="row wrap"><span className="lbl">Rows</span>
+      {seg("kpiRows", rows, [["spread", "Spread", "Spread over the card"], ["top", "Top", "A block at the top"], ["middle", "Middle", "A block in the middle"], ["bottom", "Bottom", "A block at the bottom"]], v => set("KPI rows place", layPatch("rows", v === "spread" ? null : v)))}
+      {rows !== "spread" && <LayNum id="kpiRowGap" k={k} name="rowGap" min={0} max={80} unit="px apart" title="KPI row spacing" set={set} />}</div>
+    <div className="row wrap"><span className="lbl">Padding</span><LayNum id="kpiPad" k={k} name="pad" min={0} max={80} unit="px" title="KPI padding" set={set} /></div>
+    <div className="row wrap"><span className="lbl">Moved</span><span className="note" id="kpiMovedN">{moved || "none"}</span>
+      <button className="btn small" id="kpiOffsReset" disabled={!moved} title="The value and the rows back where the card puts them" onClick={() => set("KPI parts back in place", offsResetPatch())}>Reset</button>
+      <span className="note">Drag the value or the rows on the slide.</span></div>
+  </details>;
 }

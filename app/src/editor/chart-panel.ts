@@ -7,7 +7,7 @@
    their own, app/tests/chart-panel.test.tsx; no page state here, so the core's export runs them in node too); chart-send.ts
    sends them. */
 import { cardRefPatch } from "./chart-card";
-import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType } from "@slide-builder/core/model/types";
+import type { ChartAxis, ChartGroup, ChartItem, ChartMark, ChartSeries, ChartType, DataRef, ItemPatch, LegendAt, MarkAt, SeriesType, TextFmt } from "@slide-builder/core/model/types";
 
 /** a point's settings as the panel writes them (colour, marker, label, a waterfall's `total`; core/src/model/types.ts) */
 export type PointSet = NonNullable<ChartSeries["points"]>[string];
@@ -106,7 +106,7 @@ export function pointPatch(it: ChartItem, id: string, i: number, p: Partial<Reco
   return seriesPatch(it, id, { points: Object.keys(pts).length ? pts : null });
 }
 /** a series' labels: what they show and where (none shown and no position: the key goes) */
-export function labelsPatch(it: ChartItem, id: string, p: { show?: string[]; pos?: string | null; num?: string | null }): ItemPatch | null {
+export function labelsPatch(it: ChartItem, id: string, p: { show?: string[]; pos?: string | null; num?: string | null; fmt?: TextFmt | null }): ItemPatch | null {
   const cur = it.sers?.[id]; if (!cur) return null;
   const L = withKeys({ show: [], ...(cur.labels || {}) } as Record<string, unknown>, p) as NonNullable<ChartSeries["labels"]>;
   return seriesPatch(it, id, { labels: (L.show || []).length || L.pos || L.num || L.fmt ? L : null });

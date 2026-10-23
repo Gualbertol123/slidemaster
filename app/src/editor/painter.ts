@@ -65,15 +65,16 @@ function fmtOf(T: TableLayout, raw: Item, e: Item): Fmt {
 
 /* ---- objects (4.9): the style keys copied per kind – never the data, the text, the place or the attachment ---- */
 const OBJ_KEYS: Record<string, string[]> = {
-  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle", "sers", "axes"],
+  chart: ["legend", "legendAt", "show", "colors", "fmt", "titleFmt", "stack", "gap", "overlap", "frame", "titleRule", "startAngle", "sers", "axes",
+    /* B56: the card's texts and layout (never the dragged offsets: they belong to that chart's data) */ "texts", "lay"],
   shape: ["fill", "border", "radius", "fmt"],
   icon: ["fill", "stroke", "border"],
   line: ["style", "fmt"],
   /* B54: a KPI card's look – its value's good direction (its rows, cells and formats are its data) */
-  kpi: ["good"],
+  kpi: ["good", /* B56: its texts and layout */ "texts", "lay"],
 };
 /** item.patch merges these per entry (core model/ops.ts ITEM_MAPS): a paste sends the source's entries and nulls the rest */
-const MAPS = new Set(["colors", "fmt", "titleFmt"]);
+const MAPS = new Set(["colors", "fmt", "titleFmt", /* B56 */ "texts", "lay"]);
 const objKind = (it: SlideItem) => it.kind === "shape" ? (it.shape === "icon" ? "icon" : "shape") : it.kind;
 const KIND_NAME: Record<string, string> = { chart: "charts", shape: "callouts and shapes", icon: "icons", line: "lines", kpi: "KPI cards" };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

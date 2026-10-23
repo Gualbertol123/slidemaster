@@ -26,6 +26,8 @@ import {
 import { chartChange } from "../editor/chart-send";
 import { Input } from "./Input";
 import { Field } from "./Field";
+import { TextFmtBox } from "./TextFmtBox";
+import { offsResetPatch, textsPatch } from "../editor/textparts";
 import { ChartTargets } from "./ChartTargetsPanel";
 import { ChartCard } from "./ChartCardPanel";
 
@@ -131,6 +133,7 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
     <details className="sec" id="chartLegend"><summary>Legend</summary>
       <div className="row"><span className="lbl">Place</span><select id="chartLegendAt" value={legendAtOf(c)} onChange={e => set("Chart legend", legendAtPatch((e.target as HTMLSelectElement).value as LegendAt))}>
         {LEGEND_AT.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+      <TextFmtBox id="chart-legend" label="Legend text" value={c.texts?.legend} can={{ align: false }} onChange={(l, f) => set(l, textsPatch("legend", f))} />
       <div className="row hides">{(fall ? [["up", "Increase"], ["down", "Decrease"], ["total", "Total"]] as [string, string][] : sers.filter(([, s]) => !s.hide).map(([sid, s]): [string, string] => [sid, typeof s.name === "string" && s.name ? s.name : sid]))
         .map(([key, l]) => <label key={key} className="chk"><Input type="checkbox" data-hide={key} checked={!c.legendHide?.[key]} onCommit={e => set("Legend entry", legendHidePatch(key, !(e.target as HTMLInputElement).checked))} />{l}</label>)}</div>
     </details>
@@ -167,8 +170,9 @@ function SeriesPanel({ c, id, sel }: { c: ChartItem; id: string; sel: ItemSel })
     </details>
 
     {/* (B53) labels dragged on the stage: how many, and all back at their places in one step */}
-    <div className="row"><span className="lbl">Moved labels</span><span className="note" id="chartNudgeN">{Object.keys(c.nudge || {}).length || "none"}</span>
-      <button className="btn small" id="chartNudgeReset" disabled={!Object.keys(c.nudge || {}).length} title="Every label dragged on the slide back where the chart puts it" onClick={() => set("Labels back in place", nudgeResetPatch())}>Reset</button>
+    {/* (B56: the card's chips, tag and momentum label dragged too – `offs`) */}
+    <div className="row"><span className="lbl">Moved labels</span><span className="note" id="chartNudgeN">{Object.keys(c.nudge || {}).length + Object.keys(c.offs || {}).length || "none"}</span>
+      <button className="btn small" id="chartNudgeReset" disabled={!Object.keys(c.nudge || {}).length && !Object.keys(c.offs || {}).length} title="Every label and card part dragged on the slide back where the chart puts it" onClick={() => set("Labels back in place", { ...(Object.keys(c.nudge || {}).length ? nudgeResetPatch() : {}), ...(Object.keys(c.offs || {}).length ? offsResetPatch() : {}) })}>Reset</button>
       <span className="note">Drag a label on the slide to move it.</span></div>
     <div className="row"><label className="chk"><Input type="checkbox" id="chartFrame" checked={!!c.frame && c.frame !== "none"} onCommit={e => set("Chart frame", { frame: (e.target as HTMLInputElement).checked ? { color: "#D9D9D9", w: 1 } : null })} />Frame</label>
       <label className="chk"><Input type="checkbox" id="chartRule" checked={!!c.titleRule && c.titleRule !== "none"} onCommit={e => set("Title rule", { titleRule: (e.target as HTMLInputElement).checked ? { w: 1.5 } : null })} />Line under the title</label></div>
@@ -184,6 +188,8 @@ function Labels({ c, sid, st, set }: { c: ChartItem; sid: string; st: SeriesType
       onCommit={e => set("Series labels", labelsPatch(c, sid, { show: (e.target as HTMLInputElement).checked ? [...show.filter(x => x !== k), k] : show.filter(x => x !== k) }))} />{l}</label>)}
     {st !== "area" && <select data-a="lpos" value={L?.pos || ""} onChange={e => set("Label position", labelsPatch(c, sid, { show, pos: (e.target as HTMLSelectElement).value || null }))}>
       {(bar ? POS_BAR : POS_LINE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>}
+    {/* (B56) the data labels' text */}
+    <div style={{ flexBasis: "100%" }}><TextFmtBox id={"labels-" + sid} label="Label text" value={L?.fmt} can={{ align: false }} onChange={(l, f) => set(l, labelsPatch(c, sid, { show, fmt: f }))} /></div>
   </div>;
 }
 
@@ -217,6 +223,8 @@ function AxisRow({ c, id, ax, cat, grid, set }: { c: ChartItem; id: string; ax: 
       {(["min", "max", "step"] as const).map(k => { const r = A.cells?.[k]; return <span key={k} className="mmcell" data-cell={k}>
         {r ? <><code title={"From " + refText(r)}>{refText(r)}</code><button className="btn small" data-a={"nocell-" + k} title="Typed (or automatic) again" onClick={() => set(`${name}: ${k} typed`, axisCellPatch(c, ax, k, null))}>×</button></>
           : <button className="btn small" data-a={"cell-" + k} title={`The ${k === "step" ? "step" : k + "imum"} from a cell: it follows the workbook, a reload and a scenario`} onClick={() => pick(id, { what: "axis", ax, key: k })}>Cell…</button>}</span>; })}</div>}
+    {/* (B56) the axis's tick labels (the category axis: the category labels) */}
+    <TextFmtBox id={"axis-" + ax} label={cat ? "Category labels" : "Tick labels"} value={A.fmt} can={{ align: false }} onChange={(l, f) => up(l.replace(/^[^:]*: /, "text: "), { fmt: f })} />
     {!cat && <div className="row"><span className="lbl">Format</span><Field className="nm" data-a="num" title="Its number format, as Excel writes it (#,##0 · 0.0% …); empty = its cells'" placeholder="As the cells" value={A.num || ""} onCommit={v => up("number format", { num: v.trim() || null })} /></div>}
   </div>;
 }

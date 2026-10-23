@@ -14,6 +14,7 @@ import { refText } from "../editor/charts";
 import { addChangePatch, addGapPatch, addRefPatch, allSeries, labelsPatch, markOnPatch, markPatch, numOrNull, refMarks, removeMarkPatch, removeRefPatch, type ChartRefWhat } from "../editor/chart-panel";
 import { Input } from "./Input";
 import { Field } from "./Field";
+import { TextFmtBox } from "./TextFmtBox";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 type Set = (label: string, p: ItemPatch | null) => void;
@@ -75,6 +76,7 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
         <div className="row"><span className="lbl">Label</span>
           <select data-a="rshow" value={k.show || "both"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Reference line label", mid, { show: v === "both" ? null : v }); }}>{SHOW.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <select data-a="rpos" value={RPOS.some(([v]) => v === k.pos) ? k.pos : "right"} onChange={e => { const v = (e.target as HTMLSelectElement).value; mp("Reference line label place", mid, { pos: v === "right" ? null : v }); }}>{RPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <TextFmtBox id={"ref-" + mid} label="Label text" value={k.fmt} dflt={{ b: true }} can={{ align: false }} onChange={(l, f) => mp(l, mid, { fmt: f })} />
       </div>;
     })}
     <div className="row"><button className="btn small" id="chartAddRef" title="A line across the plot at a cell's value (a budget, an ambition): it follows the workbook" onClick={() => pick(id, { what: "ref-add" })}>+ Reference line from a cell…</button>
@@ -107,6 +109,7 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
           <select data-a="gfrom" title="The arrow's direction" value={k.from === "point" ? "point" : ""} onChange={e => mp("Gap arrow direction", mid, { from: (e.target as HTMLSelectElement).value || null })}>{GFROM.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <select data-a="glabel" title="Where its label stands" value={k.labelSide === "left" || k.labelSide === "right" ? k.labelSide : ""} onChange={e => mp("Gap label side", mid, { labelSide: (e.target as HTMLSelectElement).value || null })}>{GLAB.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           <select data-a="gcap" title="The caption under or over the difference" value={k.capPos === "above" ? "above" : ""} onChange={e => mp("Gap caption place", mid, { capPos: (e.target as HTMLSelectElement).value || null })}>{GCAP.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <TextFmtBox id={"gap-" + mid} label="Label text" value={k.fmt} dflt={{ b: true }} can={{ align: false }} onChange={(l, f) => mp(l, mid, { fmt: f })} />
       </div>;
     })}
     <div className="row"><button className="btn small" id="chartAddGap" disabled={!refs.length || !sers.length} title={refs.length ? "An arrow from a point (the selected one, else the last) to the first reference line, with the live difference" : "Add a reference line first"}
@@ -130,6 +133,7 @@ export function ChartTargets({ c, id, set, sel }: { c: ChartItem; id: string; se
           <select data-a="ccap" title="Where the caption stands" value={k.capPos === "right" || k.capPos === "below" ? k.capPos : ""} onChange={e => mp("Change pills: caption place", mid, { capPos: (e.target as HTMLSelectElement).value || null })}>{CCAP.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           {!fixed && <>{sw("pos", look.pos, "A rise")}{sw("neg", look.neg, "A fall")}{sw("zero", look.zero, "No change")}</>}
           {fixed && <label className="sw" title="Their colour"><Input type="color" data-a="ccolor" value={HEX.test(k.style?.color || "") ? k.style!.color! : look.zero} onCommit={e => mp("Change pill colours", mid, { style: { ...(k.style || {}), color: (e.target as HTMLInputElement).value.toUpperCase() } })} /><i style={{ background: k.style?.color || look.zero }} /></label>}</div>
+        <TextFmtBox id={"chg-" + mid} label="Pill text" value={k.fmt} dflt={{ b: true }} can={{ align: false }} onChange={(l, f) => mp(l, mid, { fmt: f })} />
       </div>;
     })}
     <div className="row"><button className="btn small" id="chartAddChange" disabled={!sers.length} title="Pills between consecutive points: the change and its %, coloured by sign" onClick={() => set("Add change pills", addChangePatch(c, sel?.s))}>+ Change pills</button></div>

@@ -65,3 +65,13 @@
 .chartpanel #chartCard .stat,.chartpanel #chartCard .mom{border-left:2px solid var(--line,#e3e5ea);padding:2px 0 4px 6px;margin:2px 0}
 .chartpanel #chartCard .hid .row>*:not(.chk){opacity:.55}
 .chartpanel #chartCard .num[data-a=snum],.chartpanel #chartCard .num[data-a=mnum]{width:88px;flex:none}
+/* (B56) the Text control: one line per part, opened with Aa */
+.chartpanel .tfbox{margin:2px 0}
+.chartpanel .tfbox .tfhd{margin:0}
+.chartpanel .tftog.own{border-color:#C7DBF6;background:var(--accent-soft)}
+.chartpanel .tfbody{padding:2px 0 4px 8px;border-left:2px solid var(--line,#e3e5ea)}
+.chartpanel .tfbody .fontbtn{max-width:150px;height:26px}
+.chartpanel .tfbody .num{width:64px}
+.chartpanel .row.wrap{flex-wrap:wrap}
+.chartpanel .layrow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chartpanel .layrow .num{width:58px}

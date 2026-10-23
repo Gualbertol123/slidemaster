@@ -15,6 +15,8 @@ import { CHART_TYPES, typePatch } from "../editor/chart-panel";
 import { hasSeries } from "@slide-builder/core/render/chart-data";
 import "./chart-panel.css";
 import { Field } from "./Field";
+import { TextFmtBox } from "./TextFmtBox";
+import { fmtMapPatch } from "../editor/textparts";
 import { useCurSlide } from "./hooks";
 
 const SHOW = [["label", "Names"], ["value", "Values"], ["percent", "Percent"]] as const;
@@ -39,6 +41,9 @@ export function ChartPanel() {
       <Field className="ctitle" id="chartTitle" title="The chart's title (Enter to apply); empty = no title" value={typeof c.title === "string" ? c.title : ""}
         placeholder={typeof c.title === "string" ? "No title" : "From the data"} onCommit={v => set("Chart title", { title: v.trim() })} />
       <button className="btn small" id="chartTitleAuto" disabled={typeof c.title !== "string"} title="The name of the numbers as the title (the header above them)" onClick={() => set("Chart title from the data", { title: null })}>Auto</button></div>
+    {/* (B56) the title's and all labels' text: font, size, colour, bold, italic (the title's alignment too) */}
+    {series && <TextFmtBox id="chart-title" label="Title text" value={c.titleFmt} dflt={{ b: true, align: "center" }} onChange={(l, f) => set(l, { titleFmt: fmtMapPatch(c.titleFmt, f) })} />}
+    <TextFmtBox id="chart-labels" label="All labels" value={c.fmt} can={{ align: false }} onChange={(l, f) => set(l, { fmt: fmtMapPatch(c.fmt, f) })} />
     {series ? <ChartSeriesPanel c={c} id={id} sel={itemSel} /> : <>
     <div className="row"><span className="lbl">Labels</span>
       {SHOW.map(([k, l]) => <label key={k} className="chk"><Input type="checkbox" data-show={k} checked={show.includes(k)}

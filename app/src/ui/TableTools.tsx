@@ -24,6 +24,9 @@ import { HideMenu } from "./HideMenu";
 import { useCtx, useCurSlide, useStyle } from "./hooks";
 import { Ic } from "./Ic";
 import { OverflowBar } from "./OverflowBar";
+import { TextFmtBox } from "./TextFmtBox";
+import { SCOPES, applyTableText, scopeItems, scopeShown, type TableScope } from "../editor/tabletext";
+import type { TableLayout } from "@slide-builder/core/xlsx/types";
 
 const uniq = (a: number[]) => [...new Set(a.map(v => Math.round(v)))];
 
@@ -209,6 +212,9 @@ export function TableRibbon() {
           <Ic n="border-all" />Borders ▾</button>}>{() => T ? <BorderMenu T={T} /> : null}</Dropdown>
         <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="scaleBtn" disabled={!hasSel} title="Colour scale: deeper green/red the bigger the number" onClick={t}>
           <i className="scaleico" />Colour scale</button>}>{close => <ScaleMenu close={close} />}</Dropdown>
+        {/* (B56) the table's text in one step: the whole table, its header, body or totals */}
+        <Dropdown menuClass="wide" button={(_o, t) => <button className="tb" id="tableTextBtn" disabled={!(tIdx >= 0 && R?.tables[tIdx])} title="Font, size, colour, bold, italic and alignment of the whole table, its header, body or totals" onClick={t}>
+          <Ic n="align-left" />Table text ▾</button>}>{() => R && tIdx >= 0 ? <TableTextMenu T={R.tables[tIdx]} /> : null}</Dropdown>
         <VersionMenu />
       </div>
       <div className="grp" data-prio="3">
@@ -260,4 +266,17 @@ export function TableRibbon() {
       {isConsult(st.design) && <LookGroup />}
     </OverflowBar>
   );
+}
+
+/** (B56) the table's text menu: a part of the table (whole, header, body, totals) and its text control */
+function TableTextMenu({ T }: { T: TableLayout }) {
+  const [scope, setScope] = useState<TableScope>("all");
+  useStore(s => s.deck);                                   // (drawn again when the cells' formats change)
+  const items = scopeItems(T, scope), shown = scopeShown(items);
+  return <div className="scalemenu chartpanel" id="tableTextMenu">
+    <div className="hd">Text of {T.def?.name || "the table"}</div>
+    <div className="seg small" id="tableTextScope">{SCOPES.map(([k, l]) => <button key={k} data-scope={k} className={scope === k ? "on" : ""} onClick={() => setScope(k)}>{l}</button>)}</div>
+    {items.length ? <TextFmtBox key={scope} id={"table-" + scope} label={SCOPES.find(x => x[0] === scope)![1]} value={shown} open dflt={{ align: "left" }}
+      onChange={(l, f) => applyTableText(l, items, shown, f)} /> : <div className="note">No {scope === "total" ? "totals" : scope} rows in this table.</div>}
+  </div>;
 }

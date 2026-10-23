@@ -13,6 +13,9 @@ import { addMomPatch, addStatPatch, cardPresetPatch, filterPatch, momPatch, remo
 import { MAX_MOMS, MAX_STATS } from "@slide-builder/core/render/chart-card";
 import { Input } from "./Input";
 import { Field } from "./Field";
+import { TextFmtBox } from "./TextFmtBox";
+import { layPatch, textsPatch } from "../editor/textparts";
+import { layNum, layWord } from "@slide-builder/core/model/textparts";
 
 type Set = (label: string, p: ItemPatch | null) => void;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -83,5 +86,50 @@ export function ChartCard({ c, id, set }: { c: ChartItem; id: string; set: Set }
         <Field className="num" data-a="mnum" title="Its number format (empty = the cells')" placeholder="as the cells" value={k.num || ""} onCommit={v => set("Momentum format", momPatch(c, mid, { num: v.trim() || null }))} /></div>
     </div>)}
     <div className="row"><button className="btn small" id="chartAddMom" disabled={moms.filter(([, k]) => !k.off).length >= MAX_MOMS} title="A chip of the momentum row: the last value's change (up to 6)" onClick={() => set("Add momentum chip", addMomPatch(c, moms.length ? "prev" : "first"))}>+ Momentum</button></div>
+    {any && <CardText c={c} set={set} />}
+    <CardLayout c={c} set={set} />
   </details>;
+}
+
+/* (B56, 4.14) the card's texts: a stat's label and value, the tag, the momentum row's label, changes and captions, the
+   subtitle – each its own font, size, colour, weight (and, in a chip, its alignment) – `texts`, one entry per part */
+const CARD_TEXT: [string, string, { b?: boolean; caps?: boolean }, { caps?: boolean; align?: boolean; color?: boolean }][] = [
+  ["statLabel", "Stat label", { b: true, caps: true }, { caps: true }], ["statValue", "Stat value", { b: true }, {}],
+  ["tag", "Tag", { b: true, caps: true }, { caps: true, color: false }], ["momHead", "Momentum label", { b: true, caps: true }, { caps: true, align: false }],
+  ["momVal", "Momentum change", { b: true }, {}], ["momCap", "Momentum caption", {}, {}], ["sub", "Subtitle", {}, { align: false }]];
+function CardText({ c, set }: { c: ChartItem; set: Set }) {
+  return <><b className="sub">Text</b>
+    {CARD_TEXT.filter(([p]) => p !== "sub" || !!c.subtitle).map(([part, name, dflt, can]) => <TextFmtBox key={part} id={"card-" + part} label={name} value={c.texts?.[part as keyof NonNullable<ChartItem["texts"]>]} dflt={dflt} can={can}
+      onChange={(l, f) => set(l, textsPatch(part, f))} />)}</>;
+}
+const ROW_AL = [["left", "Left", "From the left (in thirds)"], ["center", "Centre", "Centred as a group"], ["spread", "Spread", "Spread to both edges"]] as const;
+/** a number of the card's layout (empty = automatic) */
+function LayNum({ id, c, k, min, max, unit, title, set }: { id: string; c: ChartItem; k: string; min: number; max: number; unit: string; title: string; set: Set }) {
+  const v = layNum(c, k, min, max);
+  return <label className="layrow" title={`${title} (${min}–${max} ${unit}; empty = automatic)`}><Field className="num" id={id} placeholder="auto" value={v === undefined ? "" : String(v)}
+    onCommit={t => { const n = parseFloat(t.replace(",", ".")); set(title, layPatch(k, Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : null)); }} /><small>{unit}</small></label>;
+}
+/* (B56, 4.14) sizing and positioning inside the card (`lay`): the stats and momentum rows' alignment and chip width, the
+   tag's place, the spacing between the header, the plot and the footer, the plot's margins. The chips, the tag and the
+   momentum label are dragged on the slide (`offs`; Reset under the chart's Moved labels) */
+function CardLayout({ c, set }: { c: ChartItem; set: Set }) {
+  const row = (k: "stats" | "moms", w: "statW" | "momW", name: string) => {
+    const cur = layWord(c, k, ["left", "center", "spread"] as const) || "left";
+    return <div className="row wrap"><span className="lbl">{name}</span>
+      <div className="seg small" id={k === "stats" ? "chartStatsAlign" : "chartMomsAlign"}>{ROW_AL.map(([v, l, t]) => <button key={v} data-v={v} title={t} className={cur === v ? "on" : ""} onClick={() => set(`${name} alignment`, layPatch(k, v === "left" ? null : v))}>{l}</button>)}</div>
+      <LayNum id={k === "stats" ? "chartStatW" : "chartMomW"} c={c} k={w} min={5} max={100} unit="% each" title={`${name} chip width`} set={set} /></div>;
+  };
+  const tag = layWord(c, "tag", ["right", "below"] as const) || "right";
+  return <><b className="sub">Layout</b>
+    {Object.keys(c.stats || {}).length > 0 && row("stats", "statW", "Stats row")}
+    {Object.keys(c.moms || {}).length > 0 && row("moms", "momW", "Momentum row")}
+    {c.tag && <div className="row wrap"><span className="lbl">Tag</span><div className="seg small" id="chartTagPos">
+      {([["right", "Title corner"], ["below", "Under the title"]] as const).map(([v, l]) => <button key={v} data-v={v} className={tag === v ? "on" : ""} onClick={() => set("Tag place", layPatch("tag", v === "right" ? null : v))}>{l}</button>)}</div></div>}
+    <div className="row wrap"><span className="lbl">Spacing</span>
+      <LayNum id="chartGapH" c={c} k="gapH" min={0} max={80} unit="px under the title" title="Space under the title" set={set} />
+      <LayNum id="chartGapP" c={c} k="gapP" min={0} max={120} unit="px above the plot" title="Space above the plot" set={set} />
+      <LayNum id="chartGapF" c={c} k="gapF" min={0} max={120} unit="px above the momentum row" title="Space above the momentum row" set={set} /></div>
+    <div className="row wrap"><span className="lbl">Plot margins</span>
+      {([["padL", "left"], ["padR", "right"], ["padT", "top"], ["padB", "bottom"]] as const).map(([k, n]) => <LayNum key={k} id={"chart" + k[0].toUpperCase() + k.slice(1)} c={c} k={k} min={0} max={400} unit={"px " + n} title={`Plot margin, ${n}`} set={set} />)}</div>
+  </>;
 }
