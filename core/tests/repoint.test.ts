@@ -216,16 +216,39 @@ describe("B57 · the same header twice (review of 35757c1, 1)", () => {
   const ctxS = (S: Sheet): RenderCtx => ({ ...ctxOf({ sheets: [S] } as unknown as Workbook), sheet: n => n === "S" ? S : null });
   const item = (): ChartItem => ({ kind: "chart", type: "column", box: BOX, values: { sheet: "S", range: "C2:C3" },
     sers: { s1: { n: 1, vals: [{ sheet: "S", range: "C2:C3" }] }, s2: { n: 2, vals: [{ sheet: "S", range: "E2:E3" }] } }, bind: { "sers.s2.vals.0": { ...b, f: true } } });
-  it("the label is found by scanning left along the row (a column inserted between labels and data); both candidates agree: ambiguous", () => {
-    expect(b).toEqual({ at: "S!E2:E3", h: "Actual", hr: 1, l: "Loans", lc: 4 });
-    expect(findBlock(after, parseA1("E2:E3")!, b)).toEqual({ ambiguous: 2 });
+  const old = { at: "S!E2:E3", h: "Actual", hr: 1, l: "Loans", lc: 4 };                // (a bind made before the occurrence was kept)
+  it("the fingerprint keeps which of the repeated headers it was; the label is found by scanning left along the row", () => {
+    expect(b).toEqual({ ...old, ho: 2, hn: 2 });
+    expect(findBlock(after, parseA1("E2:E3")!, b)).toEqual({ dr: 0, dc: 1 });          // the 2nd “Actual” of 2: F
     expect(findBlock(before, parseA1("E2:E3")!, b)).toEqual({ dr: 0, dc: 0 });
+    // an old bind: both candidates' labels agree – ambiguous, never guessed
+    expect(findBlock(after, parseA1("E2:E3")!, old)).toEqual({ ambiguous: 2 });
   });
-  it("following: the stored A1 kept (never the 2025 column), and the item's issue says moved?", () => {
-    const x = ctxS(after), r = boundItem(item(), x);
-    expect(r.sers!.s2.vals).toEqual([{ sheet: "S", range: "E2:E3" }]);
-    expect(bindIssue(item(), x)).toMatch(/Series 2 values: the cells moved\? .*“Actual” is in 2 places: not followed/);
+  it("following: the 2nd “Actual” followed (never the 2025 column); an old bind keeps the stored A1 and says moved?", () => {
+    const x = ctxS(after);
+    expect(boundItem(item(), x).sers!.s2.vals).toEqual([{ sheet: "S", range: "F2:F3" }]);
+    expect(bindIssue(item(), x)).toBe(null);
+    const it0 = { ...item(), bind: { "sers.s2.vals.0": { ...old, f: true } } } as ChartItem;
+    expect(boundItem(it0, x).sers!.s2.vals).toEqual([{ sheet: "S", range: "E2:E3" }]);
+    expect(bindIssue(it0, x)).toMatch(/Series 2 values: the cells moved\? .*“Actual” is in 2 places: not followed/);
     expect(checkRef({ ref: { sheet: "S", range: "E2:E3" }, want: "num" }, { sheet: () => after }, b).status).toBe("moved");
+  });
+  it("two columns inserted: the stored E1 holds the 1st “Actual” now – not in place: moved?, followed to the 2nd; another “Actual” added: ambiguous", () => {
+    const two = fakeSheet("S", { A1: "Product", E1: "Actual", G1: "Actual", A2: "Loans", E2: 10, G2: 20, A3: "Deposits", E3: 11, G3: 21 });
+    const c = checkRef({ ref: { sheet: "S", range: "E2:E3" }, want: "num" }, { sheet: () => two }, b);
+    expect(c.status).toBe("moved"); expect(c.why).toContain("the 2nd “Actual” of 2 was at E1; it is the 1st of 2 there now");
+    expect(findBlock(two, parseA1("E2:E3")!, b)).toEqual({ dr: 0, dc: 2 });
+    expect(boundItem(item(), ctxS(two)).sers!.s2.vals).toEqual([{ sheet: "S", range: "G2:G3" }]);
+    // (an old bind: as before – the text in place counts, the 2025 column is read; why the occurrence is kept now)
+    expect(findBlock(two, parseA1("E2:E3")!, old)).toEqual({ dr: 0, dc: 0 });
+    const three = fakeSheet("S", { A1: "Product", C1: "Actual", E1: "Actual", G1: "Actual", A2: "Loans", C2: 1, E2: 10, G2: 20 });
+    expect(findBlock(three, parseA1("E2:E3")!, b)).toEqual({ ambiguous: 3 });
+    const it3 = item(), x3 = ctxS(three);
+    expect(boundItem(it3, x3).sers!.s2.vals).toEqual([{ sheet: "S", range: "E2:E3" }]);
+    expect(bindIssue(it3, x3)).toContain("of 2 was at E1; it is the 2nd of 3 there now");
+    // rows inserted above: the same line, the same occurrence
+    const down = fakeSheet("S", { A3: "Product", C3: "Actual", E3: "Actual", A4: "Loans", C4: 10, E4: 20 });
+    expect(findBlock(down, parseA1("E2:E3")!, b)).toEqual({ dr: 2, dc: 0 });
   });
   it("one header with that text: found wherever the column went; a label that differs alone is a note, not moved?", () => {
     const one = fakeSheet("S", { A1: "Product", D1: "Actual", A2: "Loans", D2: 10, A3: "Deposits", D3: 11 });

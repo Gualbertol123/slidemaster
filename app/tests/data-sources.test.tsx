@@ -15,9 +15,9 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
-import { openLocalFile, undo } from "../src/state/app";
+import { change, openLocalFile, undo } from "../src/state/app";
 import { itemOf, selectItem } from "../src/editor/charts";
-import { applySrcPick, itemRows, planMove, planSheetChange, resetPrevious, slideSrcIssues, type SrcPick } from "../src/editor/datasources";
+import { applySrcPick, tableTo, itemRows, planMove, planSheetChange, resetPrevious, slideSrcIssues, type SrcPick } from "../src/editor/datasources";
 import { openTableSources } from "../src/ui/DataSources";
 import type { ChartItem, KpiItem, Op } from "@slide-builder/core/model/types";
 import { b54Ops } from "../../core/tests/b54-deck";
@@ -174,6 +174,33 @@ describe("Data sources on the page (B57)", () => {
     const h = history(); await act(async () => undo(false)); await confirmed(h - 1);
     expect(get().doc.view!.preset!.tables.find(t => t.id === "tv")).toMatchObject({ range: "A1:D9", rows: { 3: 30 } });
     expect(get().doc.view!.edits.Volumes).toEqual({ C4: { b: true } });
+  });
+  it("re-review nits: the sheet choice follows the scope; Apply makes the plan again (a change meanwhile: a new preview, a second click); a table to other cells of another sheet says its settings keep their coordinates", async () => {
+    await act(async () => selectItem("cd")); await settle();
+    if (!panel().querySelector("#srcList")) await act(async () => { fireEvent.click(q("#srcToggle")); });
+    await act(async () => { fireEvent.click(q("#srcMove > summary")); });
+    await act(async () => { fireEvent.change(q("#srcSheet"), { target: { value: "*" } }); });
+    await act(async () => { fireEvent.change(q("#srcScope"), { target: { value: "slide" } }); });
+    expect((q("#srcSheet") as HTMLSelectElement).value).toBe("Volumes");               // (not a stale "every sheet")
+    await act(async () => { fireEvent.change(q("#srcScope"), { target: { value: "item" } }); });
+    // a preview, then the chart changed by somebody else before Apply: the preview is made again, nothing applied
+    await act(async () => { fireEvent.change(q("#srcDr"), { target: { value: "1" } }); fireEvent.change(q("#srcSheet"), { target: { value: "Volumes" } }); });
+    await act(async () => { fireEvent.click(q("#srcMovePrev")); });
+    expect(q("#srcPreview").textContent).toContain("Volumes!A4:A11 → Volumes!A5:A12");
+    await step(() => { change("Other writer", [{ op: "item.patch", slide: "s", id: "cd", patch: { filter: { by: { sheet: "Volumes", range: "A1:A9" }, eq: "Deposits" } } } as Op]); });
+    const h = history();
+    await act(async () => { fireEvent.click(q("#srcApply")); }); await settle();
+    expect(history()).toBe(h);
+    expect(q("#srcChanged")).toBeTruthy();
+    expect(q("#srcPreview").textContent).toContain("Volumes!A1:A9 → Volumes!A2:A10");
+    await step(() => { fireEvent.click(q("#srcApply")); });
+    expect(chart().filter!.by).toEqual({ sheet: "Volumes", range: "A2:A10" });
+    expect(document.getElementById("srcPreview")).toBeNull();
+    // a table to other cells of another sheet
+    const def = get().doc.view!.preset!.tables.find(t => t.id === "tv")!;
+    const p = tableTo(def, "KPI", "B2:E9")!;
+    expect(p.notes.join(" ")).toMatch(/To another sheet at other cells: its column widths, row heights, merges.*keep their old coordinates/);
+    expect(tableTo(def, "KPI", "A1:D9")!.notes.join(" ")).not.toMatch(/To another sheet/);
   });
   it("fits a 280 px side panel: no fixed widths, every control may shrink", () => {
     const html = panel().outerHTML;

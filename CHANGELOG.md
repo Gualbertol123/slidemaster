@@ -38,9 +38,11 @@ What users notice
     whole deck also moves that sheet's tables, cell edits and versions' entries.
   * **Change sheet…**: every reference from one sheet to another (a renamed or copied sheet).
   * **Find the block**: the headers the references were bound to are looked for on the sheet and the new addresses
-    proposed – the Volume column moved from C to E is found by its header "Volume_EUR_m". A header found in several
-    places is not guessed: you choose with Change….
-  * Each bulk action shows every old → new address first and is applied as one undo step.
+    proposed – the Volume column moved from C to E is found by its header "Volume_EUR_m". The same header twice
+    ("Actual" over 2025 and over 2026) is told apart by which one it was; when that is not clear it is not guessed:
+    you choose with Change….
+  * Each bulk action shows every old → new address first and is applied as one undo step; if the deck changed
+    meanwhile, the preview is shown again for a second click instead.
   * **Follow header** (per reference): the cells are found by their header text whenever they are read – a moved column
     or rows inserted above need no repoint at all, on the screen, in every export, after a reload and in *Run for each
     value*. The address is kept as the fallback.

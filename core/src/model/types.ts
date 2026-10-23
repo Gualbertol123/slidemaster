@@ -25,7 +25,9 @@ export interface CellGrid { h?: "on" | "off"; v?: "on" | "off"; o?: boolean; c?:
     `lr` / `lc` (advisory: a data value – a mismatch alone is a note, never "moved?"), `f` follow the header (never on a
     text's quoted cell, "text~0": ops.ts refuses it): the address is found again by the header text where the cells are read (the
     stored A1 stays the fallback) */
-export interface RefBind { at?: string; h?: string; hr?: number; hc?: number; l?: string; lr?: number; lc?: number; f?: boolean }
+export interface RefBind { at?: string; h?: string; hr?: number; hc?: number; l?: string; lr?: number; lc?: number; f?: boolean;
+  /** the header text more than once along its row (a row header's: its column): which one it was (1 = the first from the
+      left / top) of how many – "the 2nd “Actual” of 2" */ ho?: number; hn?: number }
 /** an item's binds by reference path */
 export type Binds = Record<string, RefBind>;
 /** a table's header row as it was bound (B57): its address and the texts of its first row, to find the block again */

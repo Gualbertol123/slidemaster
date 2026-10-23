@@ -50,7 +50,7 @@ function Panel({ target }: { target: SrcTarget }) {
   const stored = useSrc(s => s.open[key]), open = stored ?? bad > 0;
   // (opened because something looks wrong: it stays open once fixed, until folded by hand)
   useEffect(() => { if (stored === undefined && bad > 0) useSrc.setState(s => ({ open: { ...s.open, [key]: true } })); }, [stored, bad > 0]);
-  const [prev, setPrev] = useState<{ title: string; plan: Plan } | null>(null);
+  const [prev, setPrev] = useState<{ title: string; plan: Plan; make: () => Plan; changed?: boolean } | null>(null);
   const toggle = () => useSrc.setState(s => ({ open: { ...s.open, [key]: !open } }));
   if (!rows && !trow) return null;
   return <div className="srcpanel" id="dataSources" data-target={key}>
@@ -80,23 +80,32 @@ function Panel({ target }: { target: SrcTarget }) {
           <div className="srcnote">Its widths, heights, hidden rows, cell edits, versions and the charts reading it move with it.</div>
         </div>}
       </div>
-      <Bulk target={target} onPreview={(title, plan) => setPrev({ title, plan })} />
-      {prev && <Preview title={prev.title} plan={prev.plan} close={() => setPrev(null)} />}
+      <Bulk target={target} onPreview={(title, make) => setPrev({ title, plan: make(), make })} />
+      {prev && <Preview title={prev.title} plan={prev.plan} changed={!!prev.changed} close={() => setPrev(null)}
+        apply={() => {
+          // made again on Apply: what changed meanwhile (another writer, a reload) is never overwritten unseen – the preview
+          // shows the new plan and asks for a second click
+          const fresh = prev.make();
+          if (JSON.stringify(fresh.ops) !== JSON.stringify(prev.plan.ops)) { setPrev({ ...prev, plan: fresh, changed: true }); return; }
+          applyPlan(prev.title, fresh); setPrev(null);
+        }} />}
     </>}
   </div>;
 }
 
-function Bulk({ target, onPreview }: { target: SrcTarget; onPreview: (title: string, p: Plan) => void }) {
+function Bulk({ target, onPreview }: { target: SrcTarget; onPreview: (title: string, make: () => Plan) => void }) {
   const isItem = "item" in target, sheets = targetSheets(target), all = workbookSheets();
   const [scope, setScope] = useState<Scope>("item"), [sheet, setSheet] = useState<string>(sheets[0] || ""), [dr, setDr] = useState("0"), [dc, setDc] = useState("0"), [at, setAt] = useState("");
   const [from, setFrom] = useState(sheets[0] || ""), [to, setTo] = useState(all.find(n => n !== sheets[0]) || "");
   const n = (v: string) => Math.trunc(+v.replace(",", ".") || 0);
+  // (another scope offers other sheets: the choices start again – a stale "every sheet" would preview nothing)
+  useEffect(() => { setSheet(scope === "item" && sheets.length > 1 ? "*" : sheets[0] || ""); setFrom(sheets[0] || ""); }, [scope]);
   const move = () => {
     const rows = n(dr), cols = n(dc), p = at.trim().toUpperCase();
     // (an insertion point: "5" a row, "C" a column – Excel's insert / delete there)
     const s = { dr: rows, dc: cols, ...(/^\d+$/.test(p) ? { row: +p } : /^[A-Z]{1,3}$/.test(p) ? { col: colToNum(p) } : {}) };
     const sh = isItem && scope === "item" ? (sheet === "*" ? null : sheet) : sheet;
-    onPreview(`Move by ${rows} row${Math.abs(rows) === 1 ? "" : "s"}, ${cols} column${Math.abs(cols) === 1 ? "" : "s"}${p ? " at " + p : ""}`, planMove(target, scope, sh, s));
+    onPreview(`Move by ${rows} row${Math.abs(rows) === 1 ? "" : "s"}, ${cols} column${Math.abs(cols) === 1 ? "" : "s"}${p ? " at " + p : ""}`, () => planMove(target, scope, sh, s));
   };
   return <div className="srcbulk" id="srcBulk">
     {isItem && <div className="row"><span className="lbl">For</span><select id="srcScope" value={scope} onChange={e => setScope(e.target.value as Scope)}>
@@ -116,26 +125,27 @@ function Bulk({ target, onPreview }: { target: SrcTarget; onPreview: (title: str
       <div className="row"><span className="lbl">From</span><select id="srcFrom" value={from} onChange={e => setFrom(e.target.value)}>{[...new Set([...sheets, ...(isItem && scope !== "item" ? all : [])])].map(s => <option key={s} value={s}>{s}</option>)}</select></div>
       <div className="row"><span className="lbl">To</span><select id="srcTo" value={to} onChange={e => setTo(e.target.value)}>{all.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
       <div className="srcnote">A renamed or copied sheet: every reference to “{from}” reads “{to}” instead, at the same cells.</div>
-      <button className="btn small" id="srcSheetPrev" disabled={!from || !to || from === to} onClick={() => onPreview(`Change sheet ${from} → ${to}`, planSheetChange(target, scope, from, to))}>Preview…</button>
+      <button className="btn small" id="srcSheetPrev" disabled={!from || !to || from === to} onClick={() => onPreview(`Change sheet ${from} → ${to}`, () => planSheetChange(target, scope, from, to))}>Preview…</button>
     </details>
     <div className="row srcbtns">
-      <button className="btn small" id="srcFind" title="Look for the headers the references were bound to and propose their new addresses" onClick={() => onPreview("Find the block", planFind(target, isItem && scope === "item" ? "item" : "slide"))}>Find the block</button>
+      <button className="btn small" id="srcFind" title="Look for the headers the references were bound to and propose their new addresses" onClick={() => { const sc: Scope = isItem && scope === "item" ? "item" : "slide"; onPreview("Find the block", () => planFind(target, sc)); }}>Find the block</button>
       <button className="btn small" id="srcRemember" title="Remember each reference's header and label as they are now: a block moved later is seen and found again" onClick={() => rememberHeaders(target)}>Remember headers</button>
     </div>
   </div>;
 }
 
-function Preview({ title, plan, close }: { title: string; plan: Plan; close: () => void }) {
+function Preview({ title, plan, close, apply, changed }: { title: string; plan: Plan; close: () => void; apply: () => void; changed: boolean }) {
   const moves = plan.rows.filter(r => r.to !== null && r.to !== r.from), stuck = plan.rows.filter(r => r.to === null);
   return <div className="srcprev" id="srcPreview">
     <div className="srcl"><b>{title}</b><span className="srcnote">{moves.length} reference{moves.length === 1 ? "" : "s"}</span></div>
     {plan.rows.length > 0 && <ol className="srcmoves">{plan.rows.map((r, i) => <li key={i} className={r.to === null ? "stuck" : ""}>
       <span className="what">{r.what}{r.where ? <small> · {r.where}</small> : null}</span>
       <span className="ft"><code>{r.from}</code> → {r.to === null ? <em>stays (it would leave the sheet or be deleted)</em> : <code>{r.to}</code>}</span></li>)}</ol>}
+    {changed && <div className="srcwhy" id="srcChanged">Changed meanwhile (another change or a reload): this is the new preview – Apply again to use it.</div>}
     {plan.notes.map((x, i) => <div key={i} className="srcnote">{x}</div>)}
     {stuck.length > 0 && <div className="srcwhy">{stuck.length} reference{stuck.length > 1 ? "s" : ""} cannot move that far: left as {stuck.length > 1 ? "they are" : "it is"}.</div>}
     <div className="row srcbtns">
-      <button className="btn small primary" id="srcApply" disabled={!plan.ops.length} onClick={() => { applyPlan(title, plan); close(); }}>Apply (one undo step)</button>
+      <button className="btn small primary" id="srcApply" disabled={!plan.ops.length} onClick={apply}>Apply (one undo step)</button>
       <button className="btn small" id="srcCancel" onClick={close}>Cancel</button>
     </div>
   </div>;

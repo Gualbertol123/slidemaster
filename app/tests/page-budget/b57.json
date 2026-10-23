@@ -1,4 +1,4 @@
 {
-  "bytes": 54000,
-  "why": "B57 (Data sources: repoint charts, KPI cards and tables when cells move in Excel; product owner 2026-10-23): by measurement on v4/B57-repoint – the page built from its base (v4/B55-achievement 143c4db, 5,076,328 bytes) is 5,130,312 bytes (+53,984): core model/datarefs.ts (refsOf, the shift maths, fingerprints, checks, find the block), model/repoint.ts (the bulk plans with a table's cell-keyed settings) and render/follow.ts (follow the header where cells are read) in the app's and the workers' bundles; the app's Data sources panel, its Issues lines and the sheet view's preselection; rounded up to the next 500."
+  "bytes": 57500,
+  "why": "B57 (Data sources: repoint charts, KPI cards and tables when cells move in Excel; product owner 2026-10-23): by measurement on v4/B57-repoint – the page built from its base (v4/B55-achievement 143c4db, 5,076,328 bytes) is 5,133,367 bytes (+57,039): core model/datarefs.ts (refsOf, the shift maths, fingerprints, checks, find the block), model/repoint.ts (the bulk plans with a table's cell-keyed settings) and render/follow.ts (follow the header where cells are read) in the app's and the workers' bundles; the app's Data sources panel, its Issues lines and the sheet view's preselection; rounded up to the next 500."
 }

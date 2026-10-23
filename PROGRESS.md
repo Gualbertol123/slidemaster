@@ -259,7 +259,7 @@ numbers measured twice). Measured numbers go into the step's line.
   graphs and tabs will break, i want to be easily able to repoint them without having to rebuild the entire graph"; branch
   `v4/B57-repoint` on v4/B55-achievement 143c4db) — (commit: see the branch; runs: by the orchestrator). Core: every
   reference of an item in one place (model/datarefs.ts refsOf with labels and paths, rewritePatch = one item.patch, the
-  shift maths with Excel's insert / delete, fingerprint, checks, find the block with ambiguity), bulk plans
+  shift maths with Excel's insert / delete, fingerprint with a repeated header's occurrence, checks with the label advisory, find the block refusing an ambiguous header), bulk plans
   (model/repoint.ts: an item, a slide, a sheet; a table with its cell-keyed settings, slide hidden keys, cell edits,
   versions' entries inside it and the items reading it), follow the header where the cells are read (render/follow.ts,
   the resolved address in every cache key; LRU per view), the item's "moved?" issue; presetSheets now lists every

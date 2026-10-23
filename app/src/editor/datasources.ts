@@ -6,12 +6,12 @@
    What a reference was bound to (its header, its first label) comes from its bind (stored by Data sources), else from
    the workbook as it was before the last reload in this window (the page keeps the previous mirror of the same file):
    a block moved in Excel and reloaded is seen either way. */
-import { get, setDialogs, useStore } from "../state/store";
+import { get, setDialogs, toast, useStore } from "../state/store";
 import { change, ctx } from "../state/app";
 import type { DataRef, Item, Op, RefBind, RuntimeSlide, TableDef, TableBind } from "@slide-builder/core/model/types";
 import type { Sheet, Workbook } from "@slide-builder/core/xlsx/types";
 import type { Range } from "@slide-builder/core/xlsx/util";
-import { A1 } from "@slide-builder/core/xlsx/util";
+import { A1, esc } from "@slide-builder/core/xlsx/util";
 import { bindFor, checkRef, findBlock, findHeaderRow, fingerprint, following, fmtA1, movedRef, parseA1, refAt, refSheet, refsOf, rewritePatch, shiftA1, STATUS_TEXT, tableHeader,
   type CheckCtx, type RefCheck, type RefSlot, type RefStatus, type Shift } from "@slide-builder/core/model/datarefs";
 import { planItem, planItems, planSheet, planTable, type Move, type Plan, type PlanRow } from "@slide-builder/core/model/repoint";
@@ -131,7 +131,7 @@ export function applySrcPick(p: SrcPick, sheet: string, range: string) {
   }
   const def = tables().find(t => t.id === (p.target as { table: string }).table); if (!def) return;
   const plan = tableTo(def, sheet, range);
-  if (plan) send("Data sources · table cells", plan.ops);
+  if (plan) { send("Data sources · table cells", plan.ops); const n = plan.notes.find(x => x.startsWith("To another sheet")); if (n) toast(esc(n)); }
 }
 /** a table to these cells: on its sheet its settings move by the top-left's shift; to another sheet with them */
 export function tableTo(def: TableDef, sheet: string, range: string): Plan | null {
@@ -146,6 +146,8 @@ export function tableTo(def: TableDef, sheet: string, range: string): Plan | nul
   const tp = plan.ops.find(o => o.op === "table.patch" && o.id === def.id) as Extract<Op, { op: "table.patch" }> | undefined;
   const extra = { ...(def.kind === "range" ? { range: fmtA1(g, true) } : {}), ...(sheet !== def.sheet ? { sheet } : {}), ...(bind ? { bind } : {}) };
   if (tp) Object.assign(tp.patch, extra); else plan.ops.unshift({ op: "table.patch", id: def.id, patch: extra } as Op);
+  if (sheet !== def.sheet && old && (g.r1 !== old.r1 || g.c1 !== old.c1))
+    plan.notes.push(`To another sheet at other cells: its column widths, row heights, merges, gridlines, borders and hidden rows / columns keep their old coordinates (${A1(old.r1, old.c1)}…) – move them with Move all by… on “${sheet}” if they should follow`);
   return plan;
 }
 /** one change, one undo step; the preview's plan applied */

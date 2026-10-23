@@ -231,8 +231,25 @@ export function fingerprint(S: Sheet, g: Range, want: RefSlot["want"], at: strin
     else for (let k = 1; k <= 5 && !b.l; k++) { const t = textAt(S, g.r1 - k, g.c1); if (t) { b.l = t; b.lr = k; } }
   }
   for (const k of ["hr", "hc", "lr", "lc"] as const) if (!b[k]) delete b[k];
+  // the same header text more than once along its line ("Actual" over 2025 and over 2026): which one
+  if (b.h) { const o = occOf(S, g.r1 - (b.hr || 0), g.c1 - (b.hc || 0), b); if (o.n > 1) { b.ho = o.i; b.hn = o.n; } }
   return b;
 }
+/** the cells along a header's line (its row; a row header's column) showing the header text, in order */
+function occLine(S: Sheet, r: number, c: number, b: RefBind): number[] {
+  const text = norm(b.h || ""), own = !(b.hr || b.hc), col = !!b.hc, out: number[] = [];
+  for (const x of S.cells.values()) {
+    if ((col ? x.c !== c : x.r !== r) || (x.t !== "s" && !own)) continue;
+    if (norm(own ? shownAt(S, x.r, x.c) : String(x.v)) === text) out.push(col ? x.r : x.c);
+  }
+  return out.sort((p, q) => p - q);
+}
+/** the header cell (r, c)'s place among the same texts along its line: i (1-based; 0: not one of them) of n */
+function occOf(S: Sheet, r: number, c: number, b: RefBind): { i: number; n: number } {
+  const line = occLine(S, r, c, b);
+  return { i: line.indexOf(b.hc ? r : c) + 1, n: line.length };
+}
+const ORD = ["", "1st", "2nd", "3rd"], ord = (n: number) => ORD[n] || n + "th";
 /** a bind still about this reference: stored for its address now (one made for another address is stale: the reference
     was pointed elsewhere since, by another panel or another page) */
 export const bindFor = (b: RefBind | null | undefined, at: string): RefBind | null => b && typeof b === "object" && (!b.at || norm(b.at) === norm(at)) ? b : null;
@@ -269,6 +286,8 @@ export function checkRef(slot: Pick<RefSlot, "ref" | "want">, ctx: CheckCtx, bin
     const hr = g.r1 - (b.hr || 0), hc = g.c1 - (b.hc || 0);
     if (b.h && norm(textAt(S, hr, hc) || (b.hr || b.hc ? "" : shownAt(S, hr, hc))) !== norm(b.h))
       return { ...base, status: "moved", why: `${at}: “${b.h}” is no longer at ${A1(hr, hc)}${textAt(S, hr, hc) ? ` (it shows “${textAt(S, hr, hc)}”)` : ""}`, S };
+    // (the same text in place, but another of the repeated headers: the 1st “Actual” where the 2nd was)
+    if (b.h && b.ho) { const o = occOf(S, hr, hc, b); if (o.i !== b.ho || o.n !== b.hn) return { ...base, status: "moved", why: `${at}: the ${ord(b.ho)} “${b.h}” of ${b.hn} was at ${A1(hr, hc)}; it is the ${ord(o.i)} of ${o.n} there now`, S }; }
   }
   if (!any) return { ...base, status: "empty", why: `${at} is empty`, S };
   if (b) {
@@ -296,6 +315,20 @@ export function findBlock(S: Sheet, g: Range, b: RefBind): Found | null {
   const or = g.r1 - ((useH ? b.hr : b.lr) || 0), oc = g.c1 - ((useH ? b.hc : b.lc) || 0);
   const own = useH ? !(b.hr || b.hc) : !(b.lr || b.lc);      // the text is the range's own first cell (number cells too)
   const at = (r: number, c: number) => norm(own ? shownAt(S, r, c) : textAt(S, r, c));
+  // a repeated header (B57 re-review, 1): its occurrence along its line – in place only when it is still the same one; else
+  // the same occurrence on a line with as many of them, when exactly one line has that many
+  if (useH && b.ho && b.hn) {
+    if (at(or, oc) === text) { const o = occOf(S, or, oc, b); if (o.i === b.ho && o.n === b.hn) return { dr: 0, dc: 0 }; }
+    const lines = new Map<number, number[]>();
+    for (const x of S.cells.values()) {
+      if (x.t !== "s" && !own) continue;
+      if (norm(own ? shownAt(S, x.r, x.c) : String(x.v)) !== text) continue;
+      const k = b.hc ? x.c : x.r; if (!lines.has(k)) lines.set(k, occLine(S, x.r, x.c, b));
+    }
+    const cands = [...lines.entries()].filter(([, l]) => l.length === b.hn).map(([k, l]) => b.hc ? { dr: l[b.ho! - 1] - or, dc: k - oc } : { dr: k - or, dc: l[b.ho! - 1] - oc })
+      .filter(d => g.r1 + d.dr >= 1 && g.c1 + d.dc >= 1);
+    return cands.length === 1 ? cands[0] : { ambiguous: Math.max(cands.length, [...lines.values()].reduce((n, l) => n + l.length, 0)) };
+  }
   if (at(or, oc) === text) return { dr: 0, dc: 0 };
   const hits: { dr: number; dc: number }[] = [];
   for (const x of S.cells.values()) {
