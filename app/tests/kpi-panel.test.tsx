@@ -13,8 +13,9 @@ vi.mock("../src/render/wall", async orig => ({ ...(await orig() as object), appl
 import { App } from "../src/ui/App";
 import { get } from "../src/state/store";
 import { gotoSlide, openLocalFile, undo } from "../src/state/app";
-import { itemOf } from "../src/editor/charts";
+import { itemOf, selectItem } from "../src/editor/charts";
 import { insertKpiCards, kpiCardsFromTable, kpiColumns, kpiRefPatch, moveRow, sourcePatch } from "../src/editor/kpi";
+import { paintItem, startPainter, stopPainter } from "../src/editor/painter";
 import type { KpiItem, Op } from "@slide-builder/core/model/types";
 import { applyOps, emptyDoc, inverseOf } from "@slide-builder/core/model/ops";
 import { indexWorkbook } from "@slide-builder/core/xlsx/workbook";
@@ -45,6 +46,32 @@ describe("KPI cards from table (editor/kpi.ts)", () => {
     const f = kpiCardsFromTable("S", "A1:E2", ["Loans", "x", "y", "z", "w"])[0];
     expect([f.head, f.cur, f.rows!.map(r => r.label)]).toEqual([{ sheet: "S", range: "A2" }, { sheet: "S", range: "B2" }, ["vs Bdg", "vs prev. Week", "vs EoM"]]);
     expect(kpiCardsFromTable("S", "A1:E1", IMG16)).toEqual([]);
+  });
+  it("more than 4 rows wrap into a grid of at most 4 a row, every card the same usable size (10 rows, 63 rows)", () => {
+    const ten = kpiCardsFromTable("KPI", "A1:H11", IMG16);
+    expect(ten).toHaveLength(10);
+    expect(new Set(ten.map(c => c.box.y)).size).toBe(3);
+    expect(ten.slice(0, 4).map(c => c.box.y)).toEqual([170, 170, 170, 170]);
+    expect(ten[4].box.y).toBe(170 + ten[0].box.h + 24); expect(ten[4].box.x).toBe(56);
+    expect(ten.every(c => c.box.w === ten[0].box.w && c.box.w > 300)).toBe(true);
+    const many = kpiCardsFromTable("KPI", "A1:H64", IMG16);
+    expect(many).toHaveLength(63); expect(many.every(c => c.box.w > 300 && c.box.h > 0)).toBe(true);
+  });
+  it("a first row of numbers is data, not headers; Current is not Currency; a second column of the same kind is reported", () => {
+    const d = kpiCardsFromTable("S", "A1:C2", ["10", "9,9", ""]);
+    expect(d).toHaveLength(2); expect(d[0].cur).toEqual({ sheet: "S", range: "B1" });
+    expect(kpiColumns(["Product", "Currency", "Current"], 1)).toMatchObject({ current: 3 });
+    const out: { dups?: string[] } = {};
+    const c = kpiCardsFromTable("S", "A1:E2", ["Product", "Current", "Budget_reference", "EoM_reference", "EoM_budget"], out)[0];
+    expect(out.dups).toEqual(["EoM_budget"]);
+    expect(c.rows!.map(r => r.label)).toEqual(["vs Bdg", "vs EoM"]);
+  });
+  it("a row's cell asked for, then the rows reordered: the cell goes to that row, wherever it is now; a row gone gets nothing", () => {
+    const k = kpiCardsFromTable("KPI", "A1:H2", IMG16)[0], src = JSON.stringify(k.rows![0].src);
+    const moved = { ...k, rows: [k.rows![1], k.rows![0], k.rows![2]] };
+    const p = kpiRefPatch(moved, "row:0", { sheet: "KPI", range: "Z9" }, src) as { rows: KpiItem["rows"] };
+    expect(p.rows![1].src).toEqual({ ref: { sheet: "KPI", range: "Z9" }, mode: "pct" }); expect(p.rows![0]).toEqual(k.rows![1]);
+    expect(kpiRefPatch({ ...k, rows: [k.rows![2]] }, "row:0", { sheet: "KPI", range: "Z9" }, src)).toBeNull();
   });
   it("the builders are plain patches undone by their inverse", () => {
     const k = kpiCardsFromTable("KPI", "A1:H2", IMG16)[0];
@@ -125,6 +152,26 @@ describe("KPI cards on the page", () => {
     await act(async () => { fireEvent.click(document.querySelector('#pickCells [data-a="cancel"]')!); });
     // the other cards are untouched
     expect(k(1).head).toEqual({ sheet: "SLIDE_1", range: "C7" });
+  });
+  it("the format painter copies a card's direction to another card; its toast names KPI cards", async () => {
+    await act(async () => { selectItem(ids[0]); startPainter(false); }); await settle();
+    expect(get().selection.painter?.obj?.kind).toBe("kpi");
+    expect(get().ui.toast?.html).toContain("another KPI card"); expect(get().ui.toast?.html).toContain("several KPI cards");
+    const h = history();
+    await act(async () => { expect(paintItem(ids[2], false)).toBe(true); }); await confirmed(h + 1);
+    expect(k(2).good).toBe("down"); expect(k(2).rows).toEqual(k(2).rows);
+    await act(async () => stopPainter());
+    await act(async () => { selectItem(ids[0]); }); await settle();
+  });
+  it("the picker opens on the card's own sheet", async () => {
+    await act(async () => { fireEvent.click(q("#kpiTitleCell")); }); await settle();
+    await vi.waitFor(() => expect(document.getElementById("pkSheet")).toBeTruthy());
+    expect((document.getElementById("pkSheet") as HTMLSelectElement).value).toBe("SLIDE_1");
+    await act(async () => { fireEvent.click(document.querySelector('#pickCells [data-a="cancel"]')!); });
+  });
+  it("clearing the title removes it (not an empty text)", async () => {
+    await step(() => type(q("#kpiTitle"), ""), "KPI card title");
+    expect(k()).not.toHaveProperty("head");
   });
   it("fits a 280 px side panel: no fixed widths, rows wrap", () => {
     const html = panel().outerHTML;

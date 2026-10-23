@@ -32,3 +32,26 @@ export function kpiTone(sign: number, good: KpiGood | undefined): "good" | "bad"
 }
 export const isDataRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string"
   && (typeof (x as { sheet?: unknown }).sheet === "string" || typeof (x as { table?: unknown }).table === "string");
+const GOODS = ["up", "down", "neutral"];
+/** a KPI card as folded (ops.ts item.patch): malformed rows dropped (each needs a source with a cell or a reference
+    cell), a row's malformed label / direction / format and the card's malformed format / direction removed */
+export function kpiClean(it: Record<string, unknown>): void {
+  if ("num" in it && !(typeof it.num === "string" && it.num.trim())) delete it.num;
+  if ("good" in it && !GOODS.includes(it.good as string)) delete it.good;
+  if (!("rows" in it)) return;
+  if (!Array.isArray(it.rows)) { delete it.rows; return; }
+  it.rows = it.rows.flatMap((r: unknown) => {
+    if (!r || typeof r !== "object") return [];
+    const o = r as Record<string, unknown>, s = o.src as Record<string, unknown> | undefined;
+    if (!s || typeof s !== "object") return [];
+    const src = isDataRef(s.cell) ? { cell: s.cell } : isDataRef(s.ref) ? { ref: s.ref, mode: s.mode === "abs" || s.mode === "both" ? s.mode : "pct" } : null;
+    if (!src) return [];
+    return [{ ...o, src, ...(typeof o.label === "string" || o.label === undefined ? {} : { label: undefined }) }].map(x => {
+      const y = x as Record<string, unknown>;
+      if (y.label === undefined) delete y.label;
+      if ("good" in y && !GOODS.includes(y.good as string)) delete y.good;
+      if ("num" in y && !(typeof y.num === "string" && y.num.trim())) delete y.num;
+      return y;
+    });
+  });
+}

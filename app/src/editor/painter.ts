@@ -69,11 +69,13 @@ const OBJ_KEYS: Record<string, string[]> = {
   shape: ["fill", "border", "radius", "fmt"],
   icon: ["fill", "stroke", "border"],
   line: ["style", "fmt"],
+  /* B54: a KPI card's look – its value's good direction (its rows, cells and formats are its data) */
+  kpi: ["good"],
 };
 /** item.patch merges these per entry (core model/ops.ts ITEM_MAPS): a paste sends the source's entries and nulls the rest */
 const MAPS = new Set(["colors", "fmt", "titleFmt"]);
 const objKind = (it: SlideItem) => it.kind === "shape" ? (it.shape === "icon" ? "icon" : "shape") : it.kind;
-const KIND_NAME: Record<string, string> = { chart: "charts", shape: "callouts and shapes", icon: "icons", line: "lines" };
+const KIND_NAME: Record<string, string> = { chart: "charts", shape: "callouts and shapes", icon: "icons", line: "lines", kpi: "KPI cards" };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 function objLook(id: string, it: SlideItem): ObjLook {
   const look: Record<string, unknown> = {}, src = it as unknown as Record<string, unknown>;
@@ -84,7 +86,7 @@ function objLook(id: string, it: SlideItem): ObjLook {
 function objPatch(o: ObjLook, it: SlideItem): Record<string, unknown> | null {
   if (objKind(it) !== o.kind) return null;
   const cur = it as unknown as Record<string, unknown>, p: Record<string, unknown> = {};
-  for (const k of OBJ_KEYS[o.kind]) {
+  for (const k of OBJ_KEYS[o.kind] || []) {
     if (k === "sers" || k === "axes") { const m = (k === "sers" ? sersPatch : axesPatch)(o.look[k] as Entries, cur[k] as Entries); if (m) p[k] = m; continue; }
     const want = o.look[k], now = cur[k];
     if (same(want, now)) continue;
@@ -141,7 +143,7 @@ export function startPainter(sticky = false) {
   if (item && is) {
     const obj = objLook(is.id, item);
     patch("selection", { painter: { pattern: [], sticky, obj } });
-    toast(`Click ${obj.kind === "chart" ? "another chart" : obj.kind === "line" ? "another line" : obj.kind === "icon" ? "another icon" : "another callout or shape"} to give it this look${sticky ? ", as often as you like. Esc stops." : " (Esc cancels)."} Ctrl+click several ${KIND_NAME[obj.kind]}, then let go of Ctrl, to paste onto all of them at once.`);
+    toast(`Click ${obj.kind === "chart" ? "another chart" : obj.kind === "line" ? "another line" : obj.kind === "icon" ? "another icon" : obj.kind === "kpi" ? "another KPI card" : "another callout or shape"} to give it this look${sticky ? ", as often as you like. Esc stops." : " (Esc cancels)."} Ctrl+click several ${KIND_NAME[obj.kind]}, then let go of Ctrl, to paste onto all of them at once.`);
     return;
   }
   const T = selTable(), s = get().selection.sel;

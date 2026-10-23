@@ -1,6 +1,7 @@
 /* Document operations – the ONLY way documents change, and the ONLY implementation of their semantics
    (docs/ARCHITECTURE.md §3; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
    them). Pinned by shared/ops-vectors.json. */
+import { kpiClean } from "./kpi";
 import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
@@ -87,6 +88,7 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
         const it = isObj(cur) ? cur : {};
         for (const k of ITEM_KEYS) if (k in p) { const v = p[k]; if (v === null) delete it[k]; else it[k] = clone(v); }
         for (const k of ITEM_MAPS) if (k in p) mapMerge(it, k, p[k]);
+        if (it.kind === "kpi") kpiClean(it);                                          // B54: malformed rows / formats dropped
         items[o.id] = it;
       }
       if (Object.keys(items).length) s.items = items; else delete s.items;

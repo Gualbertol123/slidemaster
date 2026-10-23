@@ -10,14 +10,14 @@ import { strFromU8, unzipSync } from "fflate";
 import { validate, type DisplayList, type Node } from "../src/dl/types";
 import { readWorkbook } from "../src/xlsx/workbook";
 import { applyOps, emptyDoc, inverseOf, knownOp } from "../src/model/ops";
-import { runtimeSlides } from "../src/model/preset";
+import { itemSheets, presetSheets, runtimeSlides } from "../src/model/preset";
 import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
-import { kpiData } from "../src/render/kpi-dl";
+import { fitText, kpiData, signedShown } from "../src/render/kpi-dl";
 import { targetLook } from "../src/render/chart-targets";
-import { kpiDelta, kpiTone, type KpiItem } from "../src/model/kpi";
+import { kpiClean, kpiDelta, kpiTone, type KpiItem } from "../src/model/kpi";
 import { sceneOf, type El, type SlideSem } from "../src/pptx/scene";
 import { writePptx } from "../src/pptx/writer";
 import { pptxFamily } from "../src/text/resolve";
@@ -113,7 +113,7 @@ describe("KPI card data (image 16)", () => {
   it("abs and both modes, the format override, good down", async () => {
     const { ctx } = await build("excel", {});
     const D = kpiData(card(2, 0, { rows: [{ src: { ref: ref("C2"), mode: "abs" }, num: "0.00", good: "down" }, { src: { ref: ref("D2"), mode: "both" }, label: "x" }, { src: { cell: ref("F2") }, num: "0%" }] }), ctx);
-    expect(D.rows.map(r => [r.text, r.tone])).toEqual([["+0,10", "bad"], ["−2,0% (−0)", "bad"], ["+1%", "good"]]);
+    expect(D.rows.map(r => [r.text, r.tone])).toEqual([["+0,10", "bad"], ["−2,0% (0)", "bad"], ["+1%", "good"]]);
   });
   it("a zero reference shows n/a with an Issues line; a missing or text cell: n/a and an Issues line, never a throw", async () => {
     const { ctx } = await build("excel", {});
@@ -167,7 +167,7 @@ describe("KPI ops", () => {
 });
 
 describe("KPI cards in PowerPoint: native shapes and text boxes, never a picture", () => {
-  for (const d of ["glass", "mckinsey", "excel"] as Design[]) it(d, async () => {
+  for (const d of ["glass", "mckinsey", "excel", "clean"] as Design[]) it(d + ": each text its own box where it is drawn; the header bar a shape of its height, rounded on top only", async () => {
     const { dl } = await build(d, { k: card(3, 40) }, ROWS, true);
     const sem: SlideSem = { type: "content", items: Object.fromEntries(Object.entries(dl.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] };
     expect(sem.items.k).toMatchObject({ kind: "kpi" });
@@ -175,13 +175,68 @@ describe("KPI cards in PowerPoint: native shapes and text boxes, never a picture
     const els = fl(sceneOf(dl.nodes, sem, () => true)), g = els.find(e => e.k === "grp" && e.name === "KPI card");
     expect(g).toBeTruthy();
     const inner = fl((g as Extract<El, { k: "grp" }>).children);
-    const texts = inner.flatMap(e => e.k === "sp" && e.text ? e.text.paras.flatMap(p => p.runs.map(r => r.text)) : []);
-    expect(texts.join("|")).toContain("DEPOSITS");
-    expect(texts.join("|")).toContain("+1,0%");
-    expect(texts.join("|")).toContain("vs prev. Week");
+    const boxes = inner.flatMap(e => e.k === "sp" && e.text ? [{ t: e.text.paras.map(p => p.runs.map(r => r.text).join("")).join("\n"), box: e.box }] : []);
+    // one box per text: the title, the value, three changes, three labels
+    expect(boxes.map(b => b.t)).toEqual(["DEPOSITS", "−10", "+1,0%", "vs Bdg", "−2,0%", "vs prev. Week", "+3,0%", "vs EoM"]);
+    const at = (t: string) => boxes.find(b => b.t === t)!.box;
+    expect(at("DEPOSITS").y).toBeLessThan(120 + 34);
+    expect(at("−10").x + at("−10").w).toBeLessThan(at("+1,0%").x + 1);                  // the value left of the changes
+    expect(at("+1,0%").x + at("+1,0%").w).toBeLessThan(at("vs Bdg").x + 1);               // the change left of its label
+    expect(at("+1,0%").y).toBeLessThan(at("−2,0%").y);                                     // rows one under the other
+    expect(at("−2,0%").y).toBeLessThan(at("+3,0%").y);
+    expect(Math.abs(at("+1,0%").y - at("vs Bdg").y)).toBeLessThan(2);
+    const bar = inner.find(e => e.k === "sp" && !e.text && e.box.y === 120 && Math.abs(e.box.w - 360) < .5 && e.box.h < 50) as Extract<El, { k: "sp" }>;
+    expect(bar).toBeTruthy();
+    expect(bar.box.h).toBeCloseTo(Math.max(16, Math.min(56, 110 * .26)), 1);
+    if (d === "glass" || d === "clean") { expect("path" in bar.geom).toBe(true); }                      // top corners only: a custom outline
     expect(inner.some(e => e.k === "pic" && !(e.name || "").startsWith("Glass"))).toBe(false);
     const bytes = writePptx({ slides: [{ nodes: dl.nodes, sem }], image: () => new Uint8Array(0), face: css => pptxFamily(css) });
     const slide = strFromU8(unzipSync(bytes)["ppt/slides/slide1.xml"]);
     expect(slide).toContain("DEPOSITS"); expect(slide).toContain("vs Bdg"); expect(slide).not.toContain("a:cxnSp");
+  });
+});
+
+describe("B54 review fixes", () => {
+  it("the header bar is one rect of the bar's height, its top corners rounded, no clip", async () => {
+    const { dl } = await build("glass", { k: card(2, 40) });
+    const all = flat(dl.nodes.slice(...dl.items.k.at));
+    const bar = all.find(n => n.t === "rect" && Array.isArray(n.r)) as Extract<Node, { t: "rect" }>;
+    expect(bar.h).toBeCloseTo(28.6, 1); expect((bar.r as number[]).slice(2)).toEqual([0, 0]); expect((bar.r as number[])[0]).toBeGreaterThan(0);
+  });
+  it("a long value shrinks to fit (no ellipsis); below the minimum it is cut and says so", async () => {
+    const rows = ROWS.map(r => [...r]); rows[1][1] = 12000;
+    const { dl } = await build("excel", { k: card(2, 40) }, rows);
+    const v = flat(dl.nodes.slice(...dl.items.k.at)).find(n => n.t === "text" && /^12/.test(n.src)) as Extract<Node, { t: "text" }>;
+    expect(v.src).toBe("12.000"); expect(dl.items.k.issue).toBeNull();
+    const { dl: tiny } = await build("excel", { k: card(2, 40, { box: { x: 40, y: 120, w: 90, h: 60 } }) }, rows);
+    expect(tiny.items.k.issue).toMatch(/cut to fit the card/);
+    expect(fitText(M, "12.000", { family: "Arial", size: 40, weight: 700, italic: false, color: "#000000" }, 100, 10)).toMatchObject({ text: "12.000", cut: false, st: { size: 33 } });
+    expect(fitText(M, "12.000.000", { family: "Arial", size: 40, weight: 700, italic: false, color: "#000000" }, 30, 10)).toMatchObject({ cut: true, st: { size: 10 } });
+  });
+  it("the change column shrinks to fit too; rows that do not fit a tiny card are not drawn (an Issues line); nothing outside the card", async () => {
+    const { dl } = await build("clean", { k: card(2, 40, { rows: [{ src: { ref: ref("C2"), mode: "both" }, label: "vs Bdg" }] }) });
+    const t = flat(dl.nodes.slice(...dl.items.k.at)).find(n => n.t === "text" && n.src.startsWith("+1,0%")) as Extract<Node, { t: "text" }>;
+    expect(t.src).toBe("+1,0% (0)"); expect(dl.items.k.issue).toBeNull();
+    const { dl: tiny } = await build("clean", { k: card(2, 40, { box: { x: 40, y: 120, w: 160, h: 40 } }) });
+    expect(tiny.items.k.issue).toMatch(/too small for its rows/);
+    for (const n of flat(tiny.nodes.slice(...tiny.items.k.at))) if (n.t === "text") { expect(n.y).toBeLessThanOrEqual(160); expect(n.x).toBeGreaterThanOrEqual(40); expect(n.x + n.w!).toBeLessThanOrEqual(200.5); }
+  });
+  it("a near-zero change takes its sign and colour from the number as shown", () => {
+    expect(signedShown(-.00001, "0.0%")).toEqual({ text: "0,0%", sign: 0 });
+    expect(signedShown(-.0004, "0.00%")).toEqual({ text: "−0,04%", sign: -1 });
+  });
+  it("a malformed num never breaks the render; the fold drops malformed rows and formats", async () => {
+    const { dl } = await build("excel", { k: { ...card(2, 40), num: 5 as never, rows: [{ src: { cell: ref("F2") }, num: 7 as never }] } });
+    expect(validate(dl.nodes)).toEqual([]);
+    const it = { kind: "kpi", num: 5, good: "sideways", rows: [null, 3, { src: null }, { src: { cell: ref("F2") }, num: 7, good: "x", label: 4 }, { src: { ref: ref("C2"), mode: "odd" } }, { src: { cell: { sheet: 5 } } }] } as Record<string, unknown>;
+    kpiClean(it);
+    expect(it).toEqual({ kind: "kpi", rows: [{ src: { cell: ref("F2") } }, { src: { ref: ref("C2"), mode: "pct" } }] });
+    const { view } = await build("excel", { k: { ...card(2, 40), num: 5 as never, rows: "x" as never } });
+    expect(view.preset!.slides.find(s => s.id === SLIDE)!.items!.k).not.toHaveProperty("rows");
+  });
+  it("presetSheets / itemSheets name the sheets only a card reads (loaded on a reload, a scenario, Run for each value)", async () => {
+    const { view } = await build("excel", { k: card(2, 40, { head: { sheet: "Titles", range: "A1" }, rows: [{ src: { cell: { sheet: "Deltas", range: "B2" } } }, { src: { ref: { sheet: "Refs", range: "C2" }, mode: "pct" } }] }) });
+    expect(itemSheets(view.preset)).toEqual(expect.arrayContaining(["Titles", "KPI", "Deltas", "Refs"]));
+    expect(presetSheets(view.preset!)).toEqual(expect.arrayContaining(["Titles", "KPI", "Deltas", "Refs"]));
   });
 });

@@ -4,7 +4,7 @@ import { hideFor, hideKey, hideSize, hiddenEntries, type DropMap, type HideSet }
 import { A1, parseRange, uid } from "../xlsx/util";
 import type { Range } from "../xlsx/util";
 import type { Sheet, TableLayout, Workbook } from "../xlsx/types";
-import type { ChartItem, Design, LineItem, Preset, RuntimeSlide, ShapeItem, SlideDef, TableDef, TableSizes } from "./types";
+import type { ChartItem, Design, KpiItem, LineItem, Preset, RuntimeSlide, ShapeItem, SlideDef, TableDef, TableSizes } from "./types";
 
 export const SLIDE_RX = /slide/i;
 export const visibleSheets = (wb: Workbook) => wb.sheets.filter(S => !S.hidden);
@@ -52,7 +52,13 @@ function shapeSheets(it: ShapeItem): string[] {
 function lineSheets(it: LineItem): string[] {
   return textSheets(it.text);
 }
-const ITEM_SHEETS: Record<string, (it: never) => string[]> = { chart: chartSheets, shape: shapeSheets, line: lineSheets };
+/** a KPI card (B54): its title's cell, its value's, each row's cell or reference */
+export function kpiSheets(it: KpiItem): string[] {
+  const rows = Array.isArray(it.rows) ? it.rows : [];
+  const refs = [it.head, it.cur, ...rows.flatMap(r => r && typeof r === "object" && r.src && typeof r.src === "object" ? [(r.src as { cell?: unknown }).cell, (r.src as { ref?: unknown }).ref] : [])];
+  return [...new Set(refs.flatMap(refSheet))];
+}
+const ITEM_SHEETS: Record<string, (it: never) => string[]> = { chart: chartSheets, shape: shapeSheets, line: lineSheets, kpi: kpiSheets };
 /** a cell quoted in a callout's text: {Sheet!C7}, {'Sheet name'!C7}, {[Peers.xlsx]Peer!F7} (07 §3) */
 export const CELL_TOKEN = /\{((?:'[^']+'|[^{}!]+))!\$?([A-Z]{1,3})\$?([0-9]{1,7})\}/g;
 /** the sheet id of a token's sheet part ('quoted' names unquoted) */

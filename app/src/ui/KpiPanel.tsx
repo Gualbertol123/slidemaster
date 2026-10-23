@@ -28,12 +28,12 @@ export function KpiPanel() {
   if (!itemSel || !it || it.kind !== "kpi" || !R) return null;
   const k = it as KpiItem, id = itemSel.id;
   const set = (label: string, p: ItemPatch | null) => { if (p) itemPatch(label, id, p); };
-  const pick = (what: "head" | "cur" | `row:${number}`) => setDialogs({ pick: { kind: "kpi-ref", id, what } });
+  const pick = (what: "head" | "cur" | `row:${number}`) => setDialogs({ pick: { kind: "kpi-ref", id, what, ...(what.startsWith("row:") ? { src: JSON.stringify(k.rows?.[+what.slice(4)]?.src) } : {}) } });
   return <div className="chartpanel kpipanel" id="kpiPanel" data-item={id} style={{ maxWidth: "100%", minWidth: 0 }}>
     <h4>KPI card</h4>
     <div className="row"><span className="lbl">Title</span>
       <Field id="kpiTitle" style={{ flex: "1 1 80px" }} title="The card's title (Enter to apply); or pick a cell" value={typeof k.head === "string" ? k.head : ""}
-        placeholder={k.head && typeof k.head === "object" ? refName(k.head) : "Title"} onCommit={v => set("KPI card title", { head: v })} />
+        placeholder={k.head && typeof k.head === "object" ? refName(k.head) : "Title"} onCommit={v => set("KPI card title", { head: v.trim() ? v : null })} />
       <button className="btn small" id="kpiTitleCell" title="The title from a cell" onClick={() => pick("head")}>Cell…</button></div>
     <div className="row"><span className="lbl">Value</span>
       <button className="btn small" id="kpiCur" title="The current value's cell" onClick={() => pick("cur")}><code>{refName(k.cur)}</code></button>
@@ -57,7 +57,7 @@ export function KpiPanel() {
         </div>
         <div style={ST.line}>
           <Good id={String(i)} v={r.good} on={g => set("KPI row direction", setRow(k, i, { good: g }))} />
-          <Field data-a="num" style={{ flex: "1 1 60px", minWidth: 0 }} placeholder="format" title="The number format (e.g. 0.0%); empty = the cell's (computed %: 0.0%)" value={r.num || ""} onCommit={v => set("KPI row format", setRow(k, i, { num: v.trim() || undefined }))} />
+          <Field data-a="num" style={{ flex: "1 1 60px", minWidth: 0 }} placeholder="format" title={mode === "both" ? "The format of the difference (the % shows 0.0%); empty = the value cell's" : mode === "abs" ? "The difference's number format; empty = the value cell's" : "The number format (e.g. 0.0%); empty = the cell's (computed %: 0.0%)"} value={r.num || ""} onCommit={v => set("KPI row format", setRow(k, i, { num: v.trim() || undefined }))} />
         </div>
       </div>;
     })}</div>

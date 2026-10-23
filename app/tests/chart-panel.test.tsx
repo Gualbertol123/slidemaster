@@ -388,7 +388,9 @@ describe("the chart panel on the page (CT-08)", () => {
     expect(p95).toBeLessThan(50);
     // (the 40 changes confirmed before the next test reads the history: the last could land in its count)
     await confirmed(h0 + 40);
-  });
+    // (40 changes, each confirmed: seconds on a loaded machine – the default 5 s timed out in full runs and left its acts
+    // running into the next test, whose console guard then failed; the measured p95 above is unchanged)
+  }, 30_000);
 
   it("colours (owner Q3, 2026-10-21: \"have default colours, then allow to change\"): a series starts in the design's palette; a colour set here stays in every design; ↺ gives the design's back", async () => {
     const sw = (sid: string) => (q(`[data-ser="${sid}"] .serhd input[type="color"]`) as HTMLInputElement).value.toUpperCase();

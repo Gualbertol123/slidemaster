@@ -27,7 +27,9 @@ export function PickCellsDialog() {
   const one = req.kind === "cell" || req.kind === "kpi-ref" || oneCell(ref), table = req.kind === "table" || req.kind === "kpi", kpi = req.kind === "kpi";
   // the sheet shown first: the chart's own (changing its cells), else the first of the list
   const start = () => {
-    const it = req.kind === "chart-cells" || req.kind === "chart-ref" ? itemOf(req.id) : null, v = it?.kind === "chart" ? it.values : null;
+    const it = req.kind === "chart-cells" || req.kind === "chart-ref" || req.kind === "kpi-ref" ? itemOf(req.id) : null;
+    // (a KPI card: the sheet of its value's cell)
+    const v = it?.kind === "chart" ? it.values : it?.kind === "kpi" ? (it as KpiItem).cur ?? null : null;
     const s = !v ? null : "sheet" in v ? v.sheet : get().doc.view?.preset?.tables.find(t => t.id === v.table)?.sheet ?? null;
     return s && sheets.includes(s) ? s : sheets[0] || "";
   };
@@ -66,7 +68,7 @@ export function PickCellsDialog() {
   const use = (r: string | null) => {
     if (!r) return;
     if (req.kind === "chart-ref") { applyRef(req.id, req.ref, { sheet, range: one ? r.split(":")[0] : r }); close(); return; }
-    if (req.kind === "kpi-ref") { const k = itemOf(req.id); const p = k?.kind === "kpi" ? kpiRefPatch(k as KpiItem, req.what, { sheet, range: r }) : null; if (p) itemPatch("KPI card cell", req.id, p); close(); return; }
+    if (req.kind === "kpi-ref") { const k = itemOf(req.id); const p = k?.kind === "kpi" ? kpiRefPatch(k as KpiItem, req.what, { sheet, range: r }, req.src) : null; if (p) itemPatch("KPI card cell", req.id, p); close(); return; }
     if (kpi) { void insertKpiCards(sheet, r); close(); return; }
     if (one) { if (req.kind === "cell") quoteCell(req.id, sheet, r.split(":")[0]); close(); return; }
     if (table) { addRangeTable(sheet, r); close(); return; }

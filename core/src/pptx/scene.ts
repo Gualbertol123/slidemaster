@@ -200,6 +200,9 @@ class Walker {
     // a line (S15.3): its own shape from its geometry, its label (background and text box) walked alone
     if (it.kind === "line" && it.line) { this.prims.push(...lineEls(it.line, assemble(this.sub(() => this.walk(it.line!.label, c)))).map(el => ({ p: "el" as const, el }))); return; }
     const prims = this.sub(() => this.walk(nodes, c));
+    // a KPI card (B54): each text its own text box where it is drawn (title, value, each change and label), never one
+    // box reflowing them all under the card's hit
+    if (it.kind === "kpi") for (const p of prims) if (p.p === "text") p.owner = null;
     // (a line's member without its geometry – S14.P's – : its nodes' shapes, grouped)
     const els = it.kind === "line" ? group(assemble(prims), "Line") : it.kind === "kpi" ? group(assemble(prims), "KPI card") : callout(assemble(prims), it);
     this.prims.push(...els.map(el => ({ p: "el" as const, el })));

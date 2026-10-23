@@ -5,6 +5,7 @@
 import type { DataRef, KpiItem, Op } from "@slide-builder/core/model/types";
 import type { KpiRow } from "@slide-builder/core/model/kpi";
 import { A1, parseRange } from "@slide-builder/core/xlsx/util";
+import { isNumText } from "@slide-builder/core/render/context";
 import { get, toast } from "../state/store";
 import { change, core } from "../state/app";
 import { curSlide } from "./edit";
@@ -16,10 +17,11 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const refKind = (h: string): RefKind | null => /budget|bdg/.test(h) ? "bdg" : /prev|week|wow/.test(h) ? "prev" : /eom|month/.test(h) ? "eom" : null;
 /** the columns of a KPI table by header name: product, current, the references and the deltas (column numbers); null
     when the headers name neither a product nor a current column (then the column order is used) */
-export function kpiColumns(headers: string[], c0: number): { product: number; current: number; rows: { kind: RefKind | null; label: string; ref?: number; delta?: number }[] } | null {
+export function kpiColumns(headers: string[], c0: number): { product: number; current: number; rows: { kind: RefKind | null; label: string; ref?: number; delta?: number }[]; dups: string[] } | null {
   const H = headers.map(norm);
   const find = (re: RegExp) => { const i = H.findIndex(h => re.test(h)); return i < 0 ? -1 : c0 + i; };
-  const product = find(/^(product|name|kpi|item|title)/), current = find(/^(current|actual|value|now|cur)/);
+  const product = find(/^(product|name|kpi|item|title)/), current = find(/^(current|actual|value|now)(?!cy)|^cur$/);
+  const dups: string[] = [];
   if (product < 0 && current < 0) return null;
   const rows: { kind: RefKind | null; label: string; ref?: number; delta?: number }[] = [];
   H.forEach((h, i) => {
@@ -27,29 +29,38 @@ export function kpiColumns(headers: string[], c0: number): { product: number; cu
     const delta = /^(delta|var|chg|change)/.test(h), k = refKind(h.replace(/^(delta|var|chg|change)/, ""));
     let row = rows.find(r => k && r.kind === k);
     if (!row) { if (!k && !delta && !/ref|prev|budget/.test(h)) return; row = { kind: k, label: k ? LABEL[k] : headers[i].trim() }; rows.push(row); }
-    if (delta) row.delta ??= c; else row.ref ??= c;
+    const key = delta ? "delta" : "ref";
+    if (row[key] !== undefined) dups.push(headers[i].trim()); else row[key] = c;
   });
-  return { product: product < 0 ? c0 : product, current: current < 0 ? c0 + 1 : current, rows };
+  return { product: product < 0 ? c0 : product, current: current < 0 ? c0 + 1 : current, rows, dups };
 }
-/** the cards of a KPI table: one per data row, laid out evenly across the slide width */
-export function kpiCardsFromTable(sheet: string, range: string, headers: string[]): KpiItem[] {
+/** a first row of numbers only (or blanks) is data, not a header row */
+export const isHeaderRow = (headers: string[]) => headers.some(h => h.trim() && !isNumText(h));
+/** the most cards in one row of the slide; more go in further rows below */
+export const KPI_PER_ROW = 4;
+/** the cards of a KPI table: one per data row, evenly across the slide width, at most KPI_PER_ROW a row (then rows below);
+    `dups`: the columns left out because another of the same kind came first */
+export function kpiCardsFromTable(sheet: string, range: string, headers: string[], out: { dups?: string[] } = {}): KpiItem[] {
   const g = parseRange(range), ref = (r: number, c: number): DataRef => ({ sheet, range: A1(r, c) });
-  const cols = kpiColumns(headers, g.c1);
+  const head = isHeaderRow(headers), cols = head ? kpiColumns(headers, g.c1) : null;
+  out.dups = cols?.dups ?? [];
   // the column order: product, current, then the references (labelled as the owner's picture: Bdg, prev. Week, EoM)
   type Cols = NonNullable<ReturnType<typeof kpiColumns>>;
-  const map: Cols = cols ?? { product: g.c1, current: g.c1 + 1, rows: (["bdg", "prev", "eom"] as RefKind[]).slice(0, Math.max(0, g.c2 - g.c1 - 1)).map((k, i) => ({ kind: k, label: LABEL[k], ref: g.c1 + 2 + i })) };
-  const first = g.r1 + 1, n = Math.max(0, g.r2 - first + 1);
+  const map: Cols = cols ?? { product: g.c1, current: g.c1 + 1, dups: [], rows: (["bdg", "prev", "eom"] as RefKind[]).slice(0, Math.max(0, g.c2 - g.c1 - 1)).map((k, i) => ({ kind: k, label: LABEL[k], ref: g.c1 + 2 + i })) };
+  const first = head ? g.r1 + 1 : g.r1, n = Math.max(0, g.r2 - first + 1);
   if (!n) return [];
-  const M = 56, GAP = 24, W = (1600 - 2 * M - (n - 1) * GAP) / n, H = Math.round(Math.max(90, Math.min(160, W * .32)));
+  const per = Math.min(n, KPI_PER_ROW), M = 56, GAP = 24, W = (1600 - 2 * M - (per - 1) * GAP) / per, H = Math.round(Math.max(90, Math.min(160, W * .32)));
   return Array.from({ length: n }, (_, i) => {
     const r = first + i;
     const rows: KpiRow[] = map.rows.map(x => ({ src: x.ref !== undefined ? { ref: ref(r, x.ref), mode: "pct" as const } : { cell: ref(r, x.delta!) }, label: x.label, good: "up" as const }));
-    return { kind: "kpi", head: ref(r, map.product), cur: ref(r, map.current), rows, box: { x: Math.round(M + i * (W + GAP)), y: 170, w: Math.round(W), h: H } };
+    return { kind: "kpi", head: ref(r, map.product), cur: ref(r, map.current), rows, box: { x: Math.round(M + (i % per) * (W + GAP)), y: 170 + Math.floor(i / per) * (H + GAP), w: Math.round(W), h: H } };
   });
 }
 /** KPI cards from table (the sheet view's range): its header row read from the workbook, the cards inserted at once */
 export async function insertKpiCards(sheet: string, range: string): Promise<string[]> {
+  // (the slide is the one shown when the cells were chosen: another one shown meanwhile does not get the cards)
   const R = curSlide(), wb = get().deck.wb; if (!R || !wb) return [];
+  const slide = R.id;
   const g = parseRange(range);
   if (g.r2 <= g.r1) { toast("Choose the header row and at least one row of data."); return []; }
   let headers: string[] = [];
@@ -57,11 +68,12 @@ export async function insertKpiCards(sheet: string, range: string): Promise<stri
     const w = await core().call("getSheetWindow", { book: wb.book, sheet, r0: g.r1, r1: g.r1, c0: g.c1, c1: g.c2 });
     headers = Array.from({ length: g.c2 - g.c1 + 1 }, (_, i) => w?.cells.find(x => x.r === g.r1 && x.c === g.c1 + i)?.text ?? "");
   } catch { headers = []; }
-  const cards = kpiCardsFromTable(sheet, range, headers);
+  const out: { dups?: string[] } = {}, cards = kpiCardsFromTable(sheet, range, headers, out);
   const ids = cards.map(() => newItemId());
-  const S = curSlide(); if (!S || !cards.length) return [];
-  change(cards.length > 1 ? `Insert ${cards.length} KPI cards` : "Insert KPI card", cards.map((it, i) => ({ op: "item.patch", slide: S.id, id: ids[i], patch: it }) as Op));
-  selectItem(ids[0]);
+  if (!cards.length || !get().deck.slides.some(x => x.id === slide)) return [];
+  change(cards.length > 1 ? `Insert ${cards.length} KPI cards` : "Insert KPI card", cards.map((it, i) => ({ op: "item.patch", slide, id: ids[i], patch: it }) as Op));
+  if (curSlide()?.id === slide) selectItem(ids[0]);
+  if (out.dups?.length) toast(`Left out (another column of the same kind came first): ${out.dups.join(", ")}`);
   return ids;
 }
 /* ---- the panel's builders ---- */
@@ -85,11 +97,15 @@ export function sourcePatch(k: KpiItem, i: number, mode: "cell" | "pct" | "abs" 
 }
 /** what the KPI panel picks in the sheet view: the title's cell, the value's, a row's */
 export type KpiPick = "head" | "cur" | `row:${number}`;
-export function kpiRefPatch(k: KpiItem, what: KpiPick, ref: DataRef) {
+/** `src`: the row's source when the cell was asked for (JSON) – the row is found by it, so a row moved meanwhile still
+    gets its cell; a row gone meanwhile gets nothing */
+export function kpiRefPatch(k: KpiItem, what: KpiPick, ref: DataRef, src?: string) {
   const one = { ...ref, range: ref.range.split(":")[0] } as DataRef;
   if (what === "head") return { head: one };
   if (what === "cur") return { cur: one };
-  const i = +what.slice(4), r = k.rows?.[i]; if (!r) return null;
+  let i = +what.slice(4);
+  if (src !== undefined && JSON.stringify(k.rows?.[i]?.src) !== src) i = (k.rows || []).findIndex(x => JSON.stringify(x.src) === src);
+  const r = k.rows?.[i]; if (!r) return null;
   return setRow(k, i, { src: "cell" in r.src ? { cell: one } : { ref: one, mode: r.src.mode } });
 }
 export const refName = (ref: DataRef | undefined) => !ref ? "–" : ("sheet" in ref ? ref.sheet : get().doc.view?.preset?.tables.find(t => t.id === ref.table)?.sheet ?? "?") + "!" + ref.range;
