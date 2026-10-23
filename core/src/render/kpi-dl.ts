@@ -65,7 +65,8 @@ export function kpiData(it: KpiItem, ctx: RenderCtx): { title: string; value: st
 }
 /** the design's header bar colour: dark (the accent when it is dark, else a navy) */
 export function kpiHeadColor(ctx: RenderCtx): string {
-  if (isConsult(ctx.style.design)) { const C = specOf(ctx); return lum(C.accent) < .45 ? C.accent : ctx.style.design === "bain" ? "#1F1F1F" : "#051C2C"; }
+  // the consulting designs: their dark header band's colour (Navy's ink navy, Red's charcoal), as the slide's own band
+  if (isConsult(ctx.style.design)) return ctx.style.design === "bain" ? "#1F1F1F" : "#051C2C";
   const a = palette(ctx.style).head;
   return lum(a) < .45 ? a.toUpperCase() : "#13293D";
 }
