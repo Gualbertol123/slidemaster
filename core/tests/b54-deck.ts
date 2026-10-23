@@ -1,4 +1,4 @@
-/* B54 (4.13): the owner's target slide (image 15 of 2026-10-23) as operations on the workbook tests/fixtures/B54.xlsx –
+/* B54 (4.13): the owner's target slide (image 15 of 2026-10-23) as operations on the workbook app/tests/fixtures/B54.xlsx –
    a headline and two (the KPI cards are v4/B54-kpi-item's) chart cards on the long Volumes table, filtered by product: Loans and Deposits, each with the
    EoM budget line from a cell, the stats row (latest volume, EoM budget, gap to budget), a corner tag, a separator and
    the momentum row (vs the first period, since the trough, week on week). Used by core/tests/chart-card.test.ts and the

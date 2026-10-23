@@ -1,4 +1,4 @@
-/* B54 (4.13; ADR-015 / ADR-019 amendments of 2026-10-23): chart cards on the owner's workbook (tests/fixtures/B54.xlsx,
+/* B54 (4.13; ADR-015 / ADR-019 amendments of 2026-10-23): chart cards on the owner's workbook (app/tests/fixtures/B54.xlsx,
    images 16 and 17) – the delta maths (a negative base by |base|, a zero base "n/a"), the good-direction colours, the momentum chips (first, trough, previous), the long-table
    filter, the plot's room, reload / scenario, every design, the PowerPoint shapes (no picture), format 9 (needsV9,
    docNeedsV9, inverses, knownOp). B54_PPTX_OUT=<folder> writes the slide's PowerPoint file per design (pptxcheck). */
@@ -17,7 +17,7 @@ import { slideToDisplayList, type SlideDL } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
 import { seriesData } from "../src/render/chart-data";
 import { seriesLayout, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
-import { changeOf, changeText, goodColor } from "../src/render/deltas";
+import { changeOf, changeText, goodColor, shownSign } from "../src/render/deltas";
 import { writePptx } from "../src/pptx/writer";
 import type { SlideSem } from "../src/pptx/scene";
 import { pptxFamily } from "../src/text/resolve";
@@ -30,7 +30,7 @@ import { b54Ops, volumeCard } from "./b54-deck";
 import { loadVectors } from "./vectors";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const BOOK = path.join(here, "../../tests/fixtures/B54.xlsx");
+const BOOK = path.join(here, "../../app/tests/fixtures/B54.xlsx");
 const ab = (f: string) => { const b = fs.readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
 const M: Metrics = {
   run: (t, font) => { const size = parseFloat(/([\d.]+)px/.exec(font)![1]); return { w: [...t].length * size * .5, asc: size * .8, desc: size * .2 }; },
@@ -48,11 +48,11 @@ function withCell(S: Sheet, r: number, c: number, v: number): Sheet {
 }
 async function deck(design: Design, opts: { ops?: Op[]; sheet?: (n: string, S: Sheet | null) => Sheet | null; forExport?: boolean } = {}) {
   const wb = await readWorkbook(ab(BOOK));
-  const { doc: view, skipped } = applyOps(emptyDoc("KPI.xlsx"), opts.ops || b54Ops());
+  const { doc: view, skipped } = applyOps(emptyDoc("B54.xlsx"), opts.ops || b54Ops());
   expect(skipped).toEqual([]);
-  const style = resolveStyle({}, { ...view.style, design }), slides = runtimeSlides(wb, view.preset, "KPI.xlsx", design);
+  const style = resolveStyle({}, { ...view.style, design }), slides = runtimeSlides(wb, view.preset, "B54.xlsx", design);
   const own = (n: string) => wb.sheets.find(s => s.name === n) || null;
-  const ctx: RenderCtx = { style, edits: {}, slides, preset: view.preset || null, workbook: "KPI.xlsx", logoSrc: "", sheet: n => opts.sheet ? opts.sheet(n, own(n)) : own(n), version: null, forExport: opts.forExport ?? true };
+  const ctx: RenderCtx = { style, edits: {}, slides, preset: view.preset || null, workbook: "B54.xlsx", logoSrc: "", sheet: n => opts.sheet ? opts.sheet(n, own(n)) : own(n), version: null, forExport: opts.forExport ?? true };
   const lists = slides.map((R, i) => slideToDisplayList(R, i, ctx, R.tables.map(L => excelToDisplayList(L, ctx, M)), computeLayout(R, ctx).boxes, { wall: null, logo: null }, M, "23 October 2026", { sem: true }));
   const item = (id: string) => { const l = lists[0]; return { info: l.items[id], nodes: l.nodes.slice(l.items[id].at[0], l.items[id].at[1]) }; };
   const it = <T>(id: string) => view.preset!.slides[0].items![id] as unknown as T;
@@ -68,6 +68,13 @@ describe("B54 · delta maths", () => {
     expect(changeText(changeOf(5, 0), "both", "0")).toBe("+5 (n/a)");
     expect(changeText(changeOf(7000, 8420), "both", "#,##0")).toBe(NEG + "1.420 (" + NEG + "16,9%)");
     expect(changeText(changeOf(7000, 8420), "pct", "#,##0")).toBe(NEG + "16,9%");
+  });
+  it("a change that shows as zero (rounded too) reads +0 (+0.0%) and takes the zero colour – never −0", () => {
+    expect(changeText(changeOf(7000, 7000), "both", "#,##0")).toBe("+0 (+0,0%)");
+    const c = changeOf(6999.6, 7000);
+    expect(changeText(c, "both", "#,##0")).toBe("+0 (+0,0%)");
+    expect([shownSign(c, "both", "#,##0"), shownSign(c, "abs", "#,##0.0"), shownSign(c, "pct", "#,##0")]).toEqual([0, c.d, 0]);
+    expect(changeText(c, "abs", "#,##0.0")).toBe(NEG + "0,4");
   });
   it("good direction: up, down, neutral; zero grey", () => {
     const L = { pos: "#00AA00", neg: "#AA0000", zero: "#888888" };
@@ -123,7 +130,7 @@ describe("B54 · chart cards", () => {
     const b = await deck("excel", { ops });
     expect(b.item("cd").info.issue).toBe("stat 'Cell': no number in Volumes!B2");
   });
-  it("every design draws the slide; the PowerPoint file holds native charts, KPI shapes and text boxes, no picture of them", async () => {
+  it("every design draws the slide; the PowerPoint file holds the native charts and the card's text boxes, no picture of them", async () => {
     const out = process.env.B54_PPTX_OUT;
     for (const d of DESIGNS) {
       const { lists, item } = await deck(d as Design);
@@ -138,6 +145,45 @@ describe("B54 · chart cards", () => {
       if (d !== "glass") expect(slide).not.toContain("<p:pic>");
     }
   });
+
+  it("review: a long title keeps clear of the corner tag (cut with …) on the slide and in PowerPoint's title", async () => {
+    const ops = b54Ops();
+    (ops[2] as { patch: ChartItem }).patch.title = "DEPOSITS · WEEKLY VOLUME OF THE WHOLE NETWORK AGAINST THE BUDGET OF THE END OF THE MONTH";
+    const { item } = await deck("excel", { ops });
+    const T = texts(item("cd").nodes), tag = T.find(t => t.src === "ILLUSTRATIVE")!, title = T.find(t => t.src.startsWith("DEPOSITS"))!;
+    expect(title.src.endsWith("…")).toBe(true);
+    expect(title.x + [...title.src].length * title.size * .5).toBeLessThan(tag.x);
+    const sem = item("cd").info.pptx;
+    expect(sem?.kind === "chart" && sem.chart.title).toBe(title.src);
+  });
+  it("review: a tag whose cell is empty takes no line; too many chips and a box too small are named, nothing overlaps", async () => {
+    const { ctx, it } = await deck("glass");
+    const F = { x: 100, y: 100, w: 700, h: 500 }, lay = (c: ChartItem, f = F) => seriesLayout(c, f, ctx, M, STY, "x") as SeriesLayout;
+    const base = { ...it<ChartItem>("cd"), title: "" };
+    const empty = lay({ ...base, tag: { text: { sheet: "Volumes", range: "E2" } } }), none = lay({ ...base, tag: undefined });
+    expect(empty.plot.y).toBe(none.plot.y);
+    const five = lay({ ...base, stats: { ...base.stats, s4: { n: 4, src: "max" }, s5: { n: 5, src: "min" } } });
+    expect(five.issue).toMatch(/the stats row draws 4 chips: 1 more not drawn/);
+    const tiny = lay(base, { x: 0, y: 0, w: 300, h: 150 });
+    expect(tiny.issue).toMatch(/too small for its momentum row/);
+    expect(tiny.card.some(n => n.t === "text" && n.src === "MOMENTUM")).toBe(false);
+    const ys = tiny.card.filter(n => n.t === "text").map(n => (n as TextNode).y);
+    for (const y of ys) expect(y).toBeLessThan(tiny.plot.y);
+  });
+  it("review: the filter's empty value keeps no row (named), a typed number is text, a scatter chart refuses it", async () => {
+    const { ctx, it } = await deck("glass");
+    const c = it<ChartItem>("cd"), by = { sheet: "Volumes", range: "A2:A9" };
+    const e = seriesData({ ...c, filter: { by, eq: "" } }, ctx);
+    expect(e.ok).toBe(false);
+    const D = seriesData({ ...c, filter: { by: { sheet: "Volumes", range: "B2:B9" }, eq: 39 as unknown as string } }, ctx);
+    expect(D.ok).toBe(false);                                                     // ("39" is no period: no row – not every row)
+    const W = seriesData({ ...c, filter: { by: { sheet: "Volumes", range: "B2:B9" }, eq: "W39" } }, ctx);
+    expect(W.ok && W.series[0].vals).toEqual([12000, 7000]);
+    const S = seriesData({ ...c, type: "scatter", filter: { by, eq: "Deposits" } }, ctx);
+    expect(S.ok && S.issues).toContain("a scatter chart takes no filter: every row is drawn");
+    const P = seriesData({ ...c, sers: { vol: { ...c.sers!.vol, points: { "1": { color: "#FF0000" } } } } }, ctx);
+    expect(P.ok && P.issues.join()).toMatch(/follow the position among the filtered rows/);
+  });
 });
 
 describe("B54 · format 9", () => {
@@ -148,6 +194,11 @@ describe("B54 · format 9", () => {
     for (const k of ["stats", "moms", "tag", "sep", "filter", "momLabel"]) expect(needsV9(add({ [k]: k === "momLabel" ? "M" : { a: { n: 1 } } })), k).toBe(true);
     expect(needsV9(add({ deltas: { d1: { n: 1 } } }))).toBe(true);                      // (any later key)
     expect(needsV9(add({ stats: null }))).toBe(false);
+    // (review) a plain key's {} is content: `sep: {}` draws the hairline – format 9 by item.patch, slide.add, on a document
+    expect(needsV9(add({ sep: {} }))).toBe(true);
+    expect(needsV9(add({ sep: null }))).toBe(false);
+    expect(needsV9({ op: "slide.add", slide: { id: "x", type: "content", tables: [], items: { c: { kind: "chart", type: "line", sep: {}, box: { x: 0, y: 0, w: 1, h: 1 } } } }, after: null } as unknown as Op)).toBe(true);
+    expect(docNeedsV9({ preset: { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: { c: { kind: "chart", type: "line", sep: {}, box: { x: 0, y: 0, w: 1, h: 1 } } } }] }, edits: {} } as unknown as WorkbookDoc)).toBe(true);
     expect(needsV9(add({ stats: { s1: null } }))).toBe(false);
     expect(needsV9({ op: "item.patch", slide: "s", id: "i", patch: null })).toBe(false);
     expect(needsV9(add({ kind: "chart", type: "line", values: { sheet: "A", range: "A1" }, box: { x: 0, y: 0, w: 1, h: 1 } }))).toBe(false);

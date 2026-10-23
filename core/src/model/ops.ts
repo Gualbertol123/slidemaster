@@ -395,10 +395,12 @@ const V412_ITEM = ["kind", "type", "values", "labels", "series", "title", "legen
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
   "colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge"];
 const V412_ITEM_KINDS = ["chart", "shape", "line"];
-/** an item (or an item.patch) holding what 4.12.0 does not apply whole: a later kind, or a later key set (not null, not
-    an empty or all-null map) */
+/** an item (or an item.patch) holding what 4.12.0 does not apply whole: a later kind, or a later key set – not null, and
+    for a MAP key (merged per entry: stats, moms) not an empty or all-null map (a removal). A plain key's {} is content
+    (`sep: {}` draws the design's hairline) */
 const itemV9 = (p: unknown) => isObj(p) && ((typeof p.kind === "string" && !V412_ITEM_KINDS.includes(p.kind))
-  || Object.keys(p).some(k => !V412_ITEM.includes(k) && p[k] !== null && p[k] !== undefined && !(isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))));
+  || Object.keys(p).some(k => !V412_ITEM.includes(k) && p[k] !== null && p[k] !== undefined
+    && !((ITEM_MAPS as readonly string[]).includes(k) && isObj(p[k]) && Object.values(p[k] as object).every(x => x === null))));
 const itemsV9 = (items: unknown) => some(items, itemV9);
 /** an op 4.12.0 does not apply whole: the deck must be format 9 before it is appended – an item.patch creating a KPI card
     or writing a B54 key, a slide.add or preset.set carrying one. Removing it (null) is not: 4.12 applies that whole

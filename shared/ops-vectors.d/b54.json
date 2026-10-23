@@ -727,5 +727,189 @@
    "docNeedsV8": false,
    "docNeedsV9": false
   }
+ },
+ {
+  "name": "B54 item.patch / slide.add: the separator alone (sep: {} – the design's hairline) is format 9; sep: null is not",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b54",
+      "type": "content",
+      "title": "Deposits are below the EoM budget (102%) and declined week on week",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "b54",
+    "id": "c",
+    "patch": {
+     "sep": {}
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b54",
+    "id": "c",
+    "patch": {
+     "sep": null
+    }
+   },
+   {
+    "op": "slide.add",
+    "slide": {
+     "id": "s2",
+     "type": "content",
+     "tables": [],
+     "items": {
+      "c2": {
+       "kind": "chart",
+       "type": "line",
+       "values": {
+        "sheet": "Volumes",
+        "range": "C2:C9"
+       },
+       "box": {
+        "x": 0,
+        "y": 0,
+        "w": 600,
+        "h": 400
+       },
+       "sep": {
+        "w": 2
+       }
+      }
+     }
+    },
+    "after": "b54"
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b54",
+      "type": "content",
+      "title": "Deposits are below the EoM budget (102%) and declined week on week",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        }
+       }
+      }
+     },
+     {
+      "id": "s2",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "c2": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "sep": {
+         "w": 2
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "b54",
+     "id": "c",
+     "patch": {
+      "sep": null
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b54",
+     "id": "c",
+     "patch": {
+      "sep": {}
+     }
+    },
+    {
+     "op": "slide.remove",
+     "id": "s2"
+    }
+   ],
+   "needsV8": [
+    false,
+    false,
+    true
+   ],
+   "needsV9": [
+    true,
+    false,
+    true
+   ],
+   "knownOp": [
+    true,
+    true,
+    true
+   ],
+   "docNeedsV8": true,
+   "docNeedsV9": true
+  }
  }
 ]

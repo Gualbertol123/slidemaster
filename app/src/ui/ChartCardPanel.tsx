@@ -10,6 +10,7 @@ import type { ChartItem, ChartMom, ChartStat, ItemPatch } from "@slide-builder/c
 import { refText } from "../editor/charts";
 import type { ChartRefWhat } from "../editor/chart-panel";
 import { addMomPatch, addStatPatch, cardPresetPatch, filterPatch, momPatch, removeMomPatch, removeStatPatch, statPatch, tagPatch } from "../editor/chart-card";
+import { MAX_MOMS, MAX_STATS } from "@slide-builder/core/render/chart-card";
 import { Input } from "./Input";
 import { Field } from "./Field";
 
@@ -64,7 +65,7 @@ export function ChartCard({ c, id, set }: { c: ChartItem; id: string; set: Set }
         {good(k.good, v => set("Stat direction", statPatch(c, sid, { good: v })))}
         <Field className="num" data-a="snum" title="Its number format (empty = the cells')" placeholder="as the cells" value={k.num || ""} onCommit={v => set("Stat format", statPatch(c, sid, { num: v.trim() || null }))} /></div>
     </div>)}
-    <div className="row"><button className="btn small" id="chartAddStat" disabled={stats.filter(([, k]) => !k.off).length >= 4} title="A chip of the stats row (up to 4)" onClick={() => set("Add stat", addStatPatch(c))}>+ Stat</button>
+    <div className="row"><button className="btn small" id="chartAddStat" disabled={stats.filter(([, k]) => !k.off).length >= MAX_STATS} title="A chip of the stats row (up to 4)" onClick={() => set("Add stat", addStatPatch(c))}>+ Stat</button>
       <label className="chk"><Input type="checkbox" id="chartSep" checked={!!c.sep} onCommit={e => set((e.target as HTMLInputElement).checked ? "Chart separator" : "No chart separator", { sep: (e.target as HTMLInputElement).checked ? {} : null })} />Separator</label></div>
 
     <b className="sub">Momentum row</b>
@@ -81,6 +82,6 @@ export function ChartCard({ c, id, set }: { c: ChartItem; id: string; set: Set }
       <div className="row wrap"><Field className="nm" data-a="mcap" title="The caption under it (Enter to apply; empty = automatic: vs Q3, since trough …)" placeholder="automatic" value={typeof k.caption === "string" ? k.caption : ""} onCommit={v => set("Momentum caption", momPatch(c, mid, { caption: v.trim() || null }))} />
         <Field className="num" data-a="mnum" title="Its number format (empty = the cells')" placeholder="as the cells" value={k.num || ""} onCommit={v => set("Momentum format", momPatch(c, mid, { num: v.trim() || null }))} /></div>
     </div>)}
-    <div className="row"><button className="btn small" id="chartAddMom" title="A chip of the momentum row: the last value's change" onClick={() => set("Add momentum chip", addMomPatch(c, moms.length ? "prev" : "first"))}>+ Momentum</button></div>
+    <div className="row"><button className="btn small" id="chartAddMom" disabled={moms.filter(([, k]) => !k.off).length >= MAX_MOMS} title="A chip of the momentum row: the last value's change (up to 6)" onClick={() => set("Add momentum chip", addMomPatch(c, moms.length ? "prev" : "first"))}>+ Momentum</button></div>
   </details>;
 }

@@ -22,7 +22,7 @@ import { refTarget } from "./chart-data";
 import { cellOf, isGeneral, refValues, signed, targetLook } from "./chart-targets";
 import { tickText } from "./chart-axes";
 import { ellipsis, font, lineH, textNode, type St } from "./chart-font";
-import { changeOf, changeText, goodColor, goodOf } from "./deltas";
+import { changeOf, changeText, goodColor, goodOf, shownSign, shownZero } from "./deltas";
 import { lineStyleOf, lineStroke } from "./chart-lines";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -33,13 +33,23 @@ function onEntries<T extends { n: number; off?: boolean }>(m: Record<string, T> 
   return Object.entries(isObj(m) ? m : {}).filter(([, x]) => isObj(x) && !x.off)
     .sort(([a, p], [b, q]) => (Number.isFinite(+p.n) ? +p.n : 0) - (Number.isFinite(+q.n) ? +q.n : 0) || (a < b ? -1 : a > b ? 1 : 0)) as [string, T][];
 }
-export const statsOf = (it: ChartItem) => onEntries<ChartStat>(it.stats).slice(0, 4);
-export const momsOf = (it: ChartItem) => onEntries<ChartMom>(it.moms).slice(0, 6);
+/** the most chips a row draws (the panel adds no more; more on – another writer's – are named in the Issues panel) */
+export const MAX_STATS = 4, MAX_MOMS = 6;
+export const statsOf = (it: ChartItem) => onEntries<ChartStat>(it.stats).slice(0, MAX_STATS);
+export const momsOf = (it: ChartItem) => onEntries<ChartMom>(it.moms).slice(0, MAX_MOMS);
 const sepOf = (it: ChartItem): LineStyle | null => isObj(it.sep) ? it.sep as LineStyle : null;
 const tagOf = (it: ChartItem) => isObj(it.tag) && (typeof it.tag.text === "string" ? !!it.tag.text.trim() : isObj(it.tag.text)) ? it.tag : null;
 /** whether the chart has a card part (else it draws exactly as before 4.13) */
 export const hasCard = (it: ChartItem) => statsOf(it).length > 0 || momsOf(it).length > 0 || !!sepOf(it) || !!tagOf(it);
 
+/** the tag's text: its own, or its cell's (""; `issue` when its cell is not found) */
+export function tagText(it: ChartItem, ctx: RenderCtx): { text: string; issue?: string } {
+  const tag = tagOf(it);
+  if (!tag) return { text: "" };
+  if (typeof tag.text === "string") return { text: tag.text.trim().toUpperCase() };
+  const c = cellOf(tag.text, ctx);
+  return c ? { text: c.text.trim().toUpperCase() } : { text: "", issue: `the tag's cell ${refTarget(tag.text, ctx).source} not found` };
+}
 /** the card's text styles, from the chart's label style */
 export interface CardStyles { label: St; value: St; tag: St; momVal: St; momCap: St; momHead: St }
 export function cardStyles(lab: St, ink: string, muted: string): CardStyles {
@@ -56,10 +66,11 @@ export function cardStyles(lab: St, ink: string, muted: string): CardStyles {
 /** the room the card's parts take: above the plot (a tag's own line when there is no title; the stats row and the
     separator) and below it (the momentum row), px */
 export interface CardRoom { tagLine: number; top: number; bottom: number }
-export function cardRoom(it: ChartItem, lab: St, hasTitle: boolean): CardRoom {
+export function cardRoom(it: ChartItem, lab: St, hasTitle: boolean, ctx: RenderCtx): CardRoom {
   if (!hasCard(it)) return { tagLine: 0, top: 0, bottom: 0 };
   const S = cardStyles(lab, "#000000", "#000000"), sep = sepOf(it), stats = statsOf(it).length, moms = momsOf(it);
-  const tagLine = tagOf(it) && !hasTitle ? lineH(S.tag) + 6 : 0;
+  // (a tag whose text is empty – an empty cell – takes no line)
+  const tagLine = tagOf(it) && !hasTitle && tagText(it, ctx).text ? lineH(S.tag) + 6 : 0;
   let top = stats ? 2 + lineH(S.label) + 2 + lineH(S.value) + 10 : 0;
   if (sep) top += Math.max(.5, +(sep.w ?? 1) || 1) + 12;
   const caps = moms.some(([, k]) => capOf(k, null) !== "");
@@ -77,6 +88,7 @@ export interface CardFrame {
   frame: { x: number; y: number; w: number; h: number };
   /** the title line's height (0: no title) and its top */ titleH: number;
   /** where the stats row starts (under the title and its rule) and where the momentum row starts */ top: number; bottom: number;
+  /** the rows left out for want of room (a box too small: seriesLayout) */ skip?: { stats?: boolean; sep?: boolean; moms?: boolean };
   series: SerData[]; cats: string[]; /** the value axis's number format (a General cell's fallback) */ num: string;
   lab: St; ink: string; sepColor: string;
 }
@@ -88,20 +100,24 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   // the corner tag: in the title's line, at its right; else on a line of its own
   const tag = tagOf(it);
   if (tag) {
-    let text = "";
-    if (typeof tag.text === "string") text = tag.text.trim();
-    else { const c = cellOf(tag.text, ctx); if (c) text = c.text; else issues.push(`the tag's cell ${refTarget(tag.text, ctx).source} not found`); }
+    const T = tagText(it, ctx);
+    if (T.issue) issues.push(T.issue);
     const st = { ...S.tag, color: HEX.test(tag.color || "") ? tag.color!.toUpperCase() : look.muted };
     const lh = lineH(st), y = F.titleH ? Y0 + (F.titleH - lh) / 2 : Y0;
-    if (text) out.push(textNode(m, ellipsis(m, text.toUpperCase(), st, W0 * .45), X0 + W0, y, st, "right"));
+    if (T.text) out.push(textNode(m, ellipsis(m, T.text, st, W0 * .45), X0 + W0, y, st, "right"));
   }
+  const on = (x: unknown) => Object.values(isObj(x) ? x : {}).filter(v => isObj(v) && !v.off).length;
+  if (on(it.stats) > MAX_STATS) issues.push(`the stats row draws ${MAX_STATS} chips: ${on(it.stats) - MAX_STATS} more not drawn`);
+  if (on(it.moms) > MAX_MOMS) issues.push(`the momentum row draws ${MAX_MOMS} chips: ${on(it.moms) - MAX_MOMS} more not drawn`);
+  if (F.skip?.moms) issues.push("the chart is too small for its momentum row: not drawn");
+  if (F.skip?.stats) issues.push("the chart is too small for its stats row: not drawn");
   // the series a chip reads (its own, else the first) and its values
   const serOf = (sid: string | undefined) => (sid ? F.series.find(s => s.id === sid) : null) || F.series[0] || null;
   const fmtOf = (s: SerData | null, num?: string) => typeof num === "string" && num.trim() ? num : s && !isGeneral(s.fmt) ? s.fmt : F.num || "General";
   const pts = (s: SerData | null) => s ? s.vals.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => typeof p.v === "number" && Number.isFinite(p.v)) : [];
   const refs = (it.stats || it.moms) ? refValues(it, ctx, F.num) : [];
   // the stats row
-  const stats = statsOf(it);
+  const stats = F.skip?.stats ? [] : statsOf(it);
   let y = F.top;
   if (stats.length) {
     const slot = W0 / Math.max(3, stats.length), lhL = lineH(S.label);
@@ -134,28 +150,28 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
           if (!last) { issues.push(`stat '${label(k, sid)}': no value in the series`); break; }
           const c = changeOf(last.v, R.v);
           d = c.d;
-          if (k.src === "gap") text = c.d < 0 ? MINUS + tickText(-c.d, fmt) : tickText(c.d, fmt);
+          if (k.src === "gap") { if (shownZero(c.d, fmt)) { d = 0; text = tickText(0, fmt); } else text = c.d < 0 ? MINUS + tickText(-c.d, fmt) : tickText(c.d, fmt); }
           else if (c.pct === null) { text = "n/a"; issues.push(`stat '${label(k, sid)}': the reference line is 0 – no %`); }
-          else text = signed(c.pct, typeof k.num === "string" && k.num.trim() ? k.num : "0.0%");
+          else { const f = typeof k.num === "string" && k.num.trim() ? k.num : "0.0%"; if (shownZero(c.pct, f)) { d = 0; text = tickText(0, f); } else text = signed(c.pct, f); }
           break;
         }
       }
       const bySign = typeof k.signs === "boolean" ? k.signs : k.src === "gap" || k.src === "gapPct";
       if (bySign && d !== null) col = goodColor(d, goodOf(k.good), look, F.ink);
-      const x = X0 + j * slot, w = slot - 12;
+      const x = X0 + j * slot, w = Math.max(1, slot - 12);
       out.push(textNode(m, ellipsis(m, label(k, sid).toUpperCase(), S.label, w), x, y + 2, S.label));
       out.push(textNode(m, ellipsis(m, text, { ...S.value, color: col }, w), x, y + 2 + lhL + 2, { ...S.value, color: col }));
     });
     y += 2 + lhL + 2 + lineH(S.value) + 10;
   }
   // the separator
-  const sep = sepOf(it);
+  const sep = F.skip?.sep ? null : sepOf(it);
   if (sep) {
     const L = lineStyleOf(sep, F.sepColor, 1), yy = Math.round(y + 6) + L.w / 2;
     out.push({ t: "line", x1: X0, y1: yy, x2: X0 + W0, y2: yy, stroke: lineStroke(L, "butt") });
   }
   // the momentum row
-  const moms = momsOf(it);
+  const moms = F.skip?.moms ? [] : momsOf(it);
   if (moms.length) {
     const head = typeof it.momLabel === "string" ? it.momLabel.trim() : "MOMENTUM", y0 = F.bottom + 14;
     let x0 = X0;
@@ -168,8 +184,8 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
       switch (k.vs) {
         case "first": if (P[0]) { base = P[0].v; auto = "vs " + name(P[0].i); } break;
         case "prev": { const p = P[P.length - 2]; if (p) { base = p.v; auto = "vs " + name(p.i); } break; }
-        case "trough": if (P.length) { base = Math.min(...P.map(p => p.v)); auto = "since trough"; } break;
-        case "peak": if (P.length) { base = Math.max(...P.map(p => p.v)); auto = "since peak"; } break;
+        case "trough": if (P.length) { base = P.reduce((a, p) => Math.min(a, p.v), Infinity); auto = "since trough"; } break;
+        case "peak": if (P.length) { base = P.reduce((a, p) => Math.max(a, p.v), -Infinity); auto = "since peak"; } break;
         case "cell": {
           if (!k.cell) break;
           const c = cellOf(k.cell, ctx);
@@ -185,9 +201,9 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
         const c = changeOf(last.v, base);
         text = changeText(c, show, fmt);
         if (c.pct === null && show !== "abs") issues.push(`momentum '${mid}': the value compared with is 0 – no %`);
-        col = goodColor(c.d, goodOf(k.good), look, F.ink);
+        col = goodColor(shownSign(c, show, fmt), goodOf(k.good), look, F.ink);
       }
-      const x = x0 + j * slot, w = slot - 10, cap = capOf(k, auto);
+      const x = x0 + j * slot, w = Math.max(1, slot - 10), cap = capOf(k, auto);
       out.push(textNode(m, ellipsis(m, text, { ...S.momVal, color: col }, w), x, y0, { ...S.momVal, color: col }));
       if (cap) out.push(textNode(m, ellipsis(m, cap, S.momCap, w), x, y0 + lineH(S.momVal) + 2, S.momCap));
     });

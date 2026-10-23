@@ -30,7 +30,8 @@ export function statPatch(it: ChartItem, id: string, p: Partial<Record<keyof Cha
   return { stats: { [id]: withKeys(cur, p) } };
 }
 export const removeStatPatch = (id: string): ItemPatch => ({ stats: { [id]: null } });
-export function addMomPatch(it: ChartItem, vs: ChartMom["vs"] = "prev"): ItemPatch {
+export function addMomPatch(it: ChartItem, vs: ChartMom["vs"] = "prev"): ItemPatch | null {
+  if (Object.values(it.moms || {}).filter(m => m && !m.off).length >= 6) return null;
   return { moms: { [newId(it.moms, "m")]: { n: nextN(it.moms), vs } } };
 }
 export function momPatch(it: ChartItem, id: string, p: Partial<Record<keyof ChartMom, unknown>>): ItemPatch | null {

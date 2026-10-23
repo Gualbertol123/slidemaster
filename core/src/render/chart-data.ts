@@ -183,24 +183,33 @@ function readRefs(refs: unknown, ctx: RenderCtx, it: ChartItem, keep?: Keep | nu
     filter's value; `pick` keeps them of a list read the same way */
 export interface Keep { at: number[]; n: number; pick<T>(xs: T[]): T[] }
 const isRef = (x: unknown): x is DataRef => !!x && typeof x === "object" && typeof (x as DataRef).range === "string";
-/** the filter's value: its text, or its cell's text (trimmed); null when the cell is not found */
+/** the filter's value: its text (a number typed into a shared document: as text), or its cell's text (trimmed); null when
+    the cell is not found */
 export function filterValue(f: NonNullable<ChartItem["filter"]>, ctx: RenderCtx): string | null {
-  if (typeof f.eq === "string") return f.eq.trim();
-  if (!isRef(f.eq)) return "";
-  const T = refTarget(f.eq, ctx);
+  const eq = f.eq as unknown;
+  if (typeof eq === "string") return eq.trim();
+  if (typeof eq === "number" && Number.isFinite(eq)) return String(eq);
+  if (!isRef(eq)) return "";
+  const T = refTarget(eq, ctx);
   return T.S && T.g ? shown(T.S, T.g.r1, T.g.c1, ctx).trim() : null;
 }
-/** the rows a chart keeps (null: no filter, or one that cannot be read – said in `issues`) */
+/** the rows a chart keeps (null: no filter, or one that cannot be read – said in `issues`). An empty value keeps no row
+    (and says so); a scatter chart takes no filter (its x values are read apart: said) */
 export function filterKeep(it: ChartItem, ctx: RenderCtx, issues: string[]): Keep | null {
   const f = it.filter;
   if (!f || typeof f !== "object" || !isRef(f.by)) return null;
+  if (it.type === "scatter") { issues.push("a scatter chart takes no filter: every row is drawn"); return null; }
   const T = refTarget(f.by, ctx), eq = filterValue(f, ctx);
   if (!T.S || !T.g) { issues.push(`filter column ${T.source} not found`); return null; }
-  if (eq === null) { issues.push(`filter value's cell ${refTarget(f.eq as DataRef, ctx).source} not found`); return null; }
+  if (eq === null) { issues.push(`filter value's cell ${refTarget(f.eq as DataRef, ctx).source} not found`); return { at: [], n: 0, pick: () => [] }; }
   const S = T.S, removed = removedOf(ctx, S), want = eq.toLowerCase();
   const texts = cellsOf(S, T.g, chartHide(it, ctx, S, T.g, f.by)).map(([r, c]) => removed(r, c) ? "" : shown(S, r, c, ctx).trim().toLowerCase());
-  const at = texts.flatMap((t, k) => t === want ? [k] : []);
-  if (!at.length) issues.push(`no row of ${T.source} shows “${eq}”`);
+  const at = want ? texts.flatMap((t, k) => t === want ? [k] : []) : [];
+  if (!want) issues.push(`the filter has no value: no row of ${T.source} is drawn`);
+  else if (!at.length) issues.push(`no row of ${T.source} shows “${eq}”`);
+  // (a point's own settings and a dragged value label are kept by position among the rows drawn: another value, another point)
+  const perPoint = Object.values(it.sers || {}).some(x => x && x.points && Object.keys(x.points).length) || Object.keys(it.nudge || {}).some(k => k.startsWith("v:"));
+  if (perPoint && at.length) issues.push("per-point settings and moved value labels follow the position among the filtered rows, not the category");
   return { at, n: texts.length, pick: <T>(xs: T[]) => at.filter(k => k < xs.length).map(k => xs[k]) };
 }
 /** a category list: a DataRef's texts (hidden rows / columns skipped; a removed cell is an empty name) or given names */
@@ -273,7 +282,7 @@ function resolveSeries(it: ChartItem, ctx: RenderCtx, key: string): SeriesData {
   // (B54) a long table: the rows of one value of a column
   const keep = filterKeep(it, ctx, issues);
   const read = list.map(([id, s], k) => ({ id, s, k, r: readRefs(s.vals, ctx, it, keep), t: s.target ? readRefs(s.target, ctx, it, keep) : null }));
-  if (keep) for (const x of read) if (!x.r.missing && x.r.count !== keep.n) issues.push(`the filter column has ${keep.n} cells for ${x.r.count} values`);
+  if (keep && keep.n) for (const x of read) if (!x.r.missing && x.r.count !== keep.n) issues.push(`the filter column has ${keep.n} cells for ${x.r.count} values`);
   if (!read.length || read.every(x => x.r.missing && !x.r.vals.length)) return { ok: false, source: read[0]?.r.source || "?", why: "missing", key };
   // the category groups, in their order; without groups one, named by the labels range or the first series' headers
   // (a scatter chart has no categories: its points stand on a numeric x axis, S14.4 – groups are not read)

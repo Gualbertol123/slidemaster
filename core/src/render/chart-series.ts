@@ -40,7 +40,7 @@ import { scatterLine, scatterMarker, xAxisOf } from "./chart-scatter";
 import { STEP_NAMES, connectorLine, connectors, waterfallColors, waterfallSem, waterfallSteps, type Step, type StepKind } from "./chart-waterfall";
 import { legendAtOf, legendNodes, shownEntries, type LegendEntry, type LegendOut } from "./chart-legend";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
-import { cardParts, cardRoom } from "./chart-card";
+import { cardParts, cardRoom, cardStyles, tagText } from "./chart-card";
 import { isConsult } from "../model/designs";
 import { specOf } from "./consult-spec";
 import { fontStack } from "../model/fonts";
@@ -176,8 +176,14 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   const { x: X0, y: Y0, w: W0, h: H0 } = frame;
   let area: Box = { x: X0, y: Y0, w: W0, h: H0 };
   // the title: the item's ("" = none), else the series' name when there is one series (as Excel); its rule below it
-  const title = (typeof it.title === "string" ? it.title : ser.length === 1 ? ser[0].name : "").trim();
+  let title = (typeof it.title === "string" ? it.title : ser.length === 1 ? ser[0].name : "").trim();
   const titleSt = withFmt(sty.ttl, it.titleFmt);
+  // (B54) a corner tag shares the title's line: the title keeps clear of it (cut with "…" – on the slide and in PowerPoint)
+  const tagT = tagText(it, ctx).text;
+  if (title && tagT) {
+    const tw0 = Math.min(W0 * .45, m.run(tagT, font(cardStyles(sty.lab, "#000000", "#000000").tag)).w), room0 = Math.max(10, W0 - tw0 - 16);
+    if (m.run(title, font(titleSt)).w > room0) title = ellipsis(m, title, titleSt, room0);
+  }
   let titleBox: Box | null = null, rule: SeriesLayout["rule"] = null;
   const titleNudge = title ? nudge("title") : { x: 0, y: 0 };
   if (title) {
@@ -190,8 +196,13 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   }
   // (B54) the chart card: a tag's own line (no title), the stats row and its separator above the plot, the momentum row
   // below it – the plot shrinks to make room (a chart without them: no room, as before)
-  const room = cardRoom(it, sty.lab, !!title), titleH = title ? lineH(titleSt) : 0;
+  const room = cardRoom(it, sty.lab, !!title, ctx), titleH = title ? lineH(titleSt) : 0;
   if (room.tagLine) area = { ...area, y: area.y + room.tagLine, h: Math.max(10, area.h - room.tagLine) };
+  // (a box too small for its rows: the momentum row goes first, then the stats row and its separator – the plot keeps
+  // 60 px at least, no row over another; named in the Issues panel)
+  const cardSkip: { stats?: boolean; sep?: boolean; moms?: boolean } = {};
+  if (room.top + room.bottom > area.h - 60 && room.bottom) { cardSkip.moms = true; room.bottom = 0; }
+  if (room.top > area.h - 60 && room.top) { cardSkip.stats = true; cardSkip.sep = true; room.top = 0; }
   const cardTop = area.y, cardBottom = Y0 + H0 - room.bottom;
   if (room.top || room.bottom) area = { ...area, y: area.y + room.top, h: Math.max(10, area.h - room.top - room.bottom) };
   // the legend
@@ -604,7 +615,7 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
   // (B53 review) an axis's own max not above its min (typed, or a max below the automatic minimum): autoScale dropped it
   for (const [nm, ax, S] of [["value", A.y, scale], ["right", A.y2, y2?.scale]] as const)
     if (ax && S && typeof ax.max === "number" && Number.isFinite(ax.max) && ax.max !== S.max) axIssues.push(`the ${nm} axis's max (${ax.max}) is not above its min (${S.min}): automatic instead`);
-  const card = cardParts(it, { frame, titleH, top: cardTop, bottom: cardBottom, series: ser, cats: data.cats, num, lab: sty.lab, ink: sty.ink, sepColor: look.card.line }, ctx, m);
+  const card = cardParts(it, { frame, titleH, top: cardTop, bottom: cardBottom, skip: cardSkip, series: ser, cats: data.cats, num, lab: sty.lab, ink: sty.ink, sepColor: look.card.line }, ctx, m);
   const issues = [...data.issues, ...extra, ...axIssues, ...drawOrderIssues(ser.map(s => s.name), axes, bars, traces), ...refIssues, ...mk.issues, ...card.issues];
   const issue = issues.length ? issues.join("; ") : null;
   return { data, dir, mode, gap, overlap, title, titleSt, titleBox, plot, scale, num, valSt, catSt, valShow, catShow, skip, look,
