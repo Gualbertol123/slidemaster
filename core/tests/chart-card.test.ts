@@ -126,7 +126,7 @@ describe("B54 · chart cards", () => {
     const { item } = await deck("excel", { sheet: (n, S) => n === "Volumes" && S ? withCell(S, 9, 3, 6500) : S });
     expect(texts(item("cd").nodes).map(t => t.src)).toEqual(expect.arrayContaining(["6.500", NEG + "2.200", NEG + "2.500 (" + NEG + "27,8%)"]));
     const ops = b54Ops();
-    (ops[2] as { patch: ChartItem }).patch.stats!.s4 = { n: 4, label: "Cell", src: "cell", cell: { sheet: "Volumes", range: "B2" } };
+    (ops[6] as { patch: ChartItem }).patch.stats!.s4 = { n: 4, label: "Cell", src: "cell", cell: { sheet: "Volumes", range: "B2" } };
     const b = await deck("excel", { ops });
     expect(b.item("cd").info.issue).toBe("stat 'Cell': no number in Volumes!B2");
   });
@@ -135,12 +135,13 @@ describe("B54 · chart cards", () => {
     for (const d of DESIGNS) {
       const { lists, item } = await deck(d as Design);
       expect(validate(lists[0].nodes)).toEqual([]);
-      for (const id of ["cl", "cd"]) expect(item(id).info.issue, d + " " + id).toBeNull();
+      for (const id of ["k1", "k2", "k3", "k4", "cl", "cd"]) expect(item(id).info.issue, d + " " + id).toBeNull();
       const bytes = await pptxOf(lists), z = unzipSync(bytes);
       if (out) { fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, `b54-${d}.pptx`), bytes); }
       const slide = strFromU8(z["ppt/slides/slide1.xml"]);
       expect(Object.keys(z).filter(n => /^ppt\/charts\/chart\d+\.xml$/.test(n))).toHaveLength(2);
-      for (const s of ["ILLUSTRATIVE", "LATEST VOLUME", "MOMENTUM", "since trough", "GAP TO BUDGET"]) expect(slide, d + " " + s).toContain(s);
+      for (const s of ["ILLUSTRATIVE", "LATEST VOLUME", "MOMENTUM", "since trough", "GAP TO BUDGET", "DEPOSITS", "CERTIFICATES", "vs prev. Week"]) expect(slide, d + " " + s).toContain(s);
+      expect(slide).toContain('name="KPI card ');
       expect(slide).not.toContain("<p:cxnSp");
       if (d !== "glass") expect(slide).not.toContain("<p:pic>");
     }
@@ -148,7 +149,7 @@ describe("B54 · chart cards", () => {
 
   it("review: a long title keeps clear of the corner tag (cut with …) on the slide and in PowerPoint's title", async () => {
     const ops = b54Ops();
-    (ops[2] as { patch: ChartItem }).patch.title = "DEPOSITS · WEEKLY VOLUME OF THE WHOLE NETWORK AGAINST THE BUDGET OF THE END OF THE MONTH";
+    (ops[6] as { patch: ChartItem }).patch.title = "DEPOSITS · WEEKLY VOLUME OF THE WHOLE NETWORK AGAINST THE BUDGET OF THE END OF THE MONTH";
     const { item } = await deck("excel", { ops });
     const T = texts(item("cd").nodes), tag = T.find(t => t.src === "ILLUSTRATIVE")!, title = T.find(t => t.src.startsWith("DEPOSITS"))!;
     expect(title.src.endsWith("…")).toBe(true);
@@ -186,6 +187,25 @@ describe("B54 · chart cards", () => {
   });
 });
 
+describe("B54 · the owner's slide (image 15) on the fixture's KPI sheet", () => {
+  it("four KPI cards: the name, the value by sign, +1.0 % / −2.0 % / +3.0 % from the reference levels (negative ones by |ref|)", async () => {
+    for (const d of ["glass", "mckinsey", "excel"] as Design[]) {
+      const { item } = await deck(d);
+      ["LOANS", "DEPOSITS", "WM", "CERTIFICATES"].forEach((name, k) => {
+        const T = texts(item("k" + (k + 1)).nodes).map(t => t.src);
+        expect(T, d + " " + name).toEqual(expect.arrayContaining([name, k % 2 ? NEG + "10" : "10", "+1,0%", NEG + "2,0%", "+3,0%", "vs Bdg", "vs prev. Week", "vs EoM"]));
+      });
+      const col = (id: string, src: string) => JSON.stringify(texts(item(id).nodes).find(t => t.src === src)!.fill);
+      expect(col("k1", "10")).not.toBe(col("k2", NEG + "10"));                  // green 10, red −10
+      expect(col("k2", "+1,0%")).toBe(col("k1", "+1,0%"));
+    }
+  });
+  it("a cell edited and reloaded: the card follows (Deposits' current −10 → −9: +10.9 % vs Bdg)", async () => {
+    const { item } = await deck("glass", { sheet: (n, S) => n === "KPI" && S ? withCell(S, 3, 2, -9) : S });
+    expect(texts(item("k2").nodes).map(t => t.src)).toEqual(expect.arrayContaining([NEG + "9", "+10,9%"]));
+  });
+});
+
 describe("B54 · format 9", () => {
   const add = (patch: object): Op => ({ op: "item.patch", slide: "s", id: "i", patch } as Op);
   it("needsV9: a KPI card, a chart's B54 key; not a removal, not a plain chart; slide.add / preset.set carrying one", () => {
@@ -215,7 +235,7 @@ describe("B54 · format 9", () => {
     const ops = b54Ops();
     for (const o of ops) expect(knownOp(o)).toBe(true);
     const { doc } = applyOps(emptyDoc("W"), ops.slice(0, 1));
-    const create = ops[1] as Extract<Op, { op: "item.patch" }>;
+    const create = ops.find(o => o.op === "item.patch" && o.id === "cl") as Extract<Op, { op: "item.patch" }>;
     expect(inverseOf(doc, create)).toEqual({ op: "item.patch", slide: "b54", id: "cl", patch: null });
     const { doc: d2 } = applyOps(doc, [create]);
     expect(d2.preset!.slides[0].items!.cl).toEqual(create.patch);

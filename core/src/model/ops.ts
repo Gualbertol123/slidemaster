@@ -1,6 +1,7 @@
 /* Document operations – the ONLY way documents change, and the ONLY implementation of their semantics
    (docs/ARCHITECTURE.md §3; since 4.0 the helper applies none: it stores records of them, model/fold.ts folds
    them). Pinned by shared/ops-vectors.json. */
+import { kpiClean } from "./kpi";
 import type { CellEdit, Op, SlideDef, TableDef, WorkbookDoc, StylePatch } from "./types";
 
 const SLIDE_KEYS = ["title", "subtitle", "date", "note", "logo", "layout", "align", "scale", "valign", "subs"] as const;
@@ -17,10 +18,10 @@ const ITEM_KEYS = ["kind", "type", "values", "labels", "series", "title", "legen
   "shape", "icon", "text", "fill", "border", "radius", "tail",
   "stack", "gap", "overlap", "legendAt", "frame", "titleRule", "plot",
   "route", "a", "b", "mid", "bend", "ends", "style", "stroke",
-  /* 4.13 (B54): the chart card's filter, tag, separator and momentum label */
-  "filter", "tag", "sep", "momLabel"] as const;
+  /* 4.13 (B54): the chart card's filter, tag, separator and momentum label; a KPI card's keys (model/kpi.ts) */
+  "filter", "tag", "sep", "momLabel", "head", "cur", "rows", "good", "num"] as const;
 const ITEM_MAPS = ["colors", "fmt", "sers", "groups", "axes", "marks", "legendHide", "titleFmt", "nudge", /* 4.13 (B54) */ "stats", "moms"] as const;
-const ITEM_KINDS = ["chart", "shape", "line"];
+const ITEM_KINDS = ["chart", "shape", "line", /* 4.13 (B54) */ "kpi"];
 /* a chart's marks (an entry of `marks`, kept whole): the kinds and keys this page draws – 4.10 (B52) adds the reference
    line, the gap arrow and the change pills and their keys (value … off); a later page's kind or key is not known */
 const MARK_KINDS = ["arrow", "line", "band", "icon", "text", "ref", "gap", "change"];
@@ -88,6 +89,7 @@ export function applyOp(doc: Doc, op: Op | Record<string, unknown>): boolean {
         const it = isObj(cur) ? cur : {};
         for (const k of ITEM_KEYS) if (k in p) { const v = p[k]; if (v === null) delete it[k]; else it[k] = clone(v); }
         for (const k of ITEM_MAPS) if (k in p) mapMerge(it, k, p[k]);
+        if (it.kind === "kpi") kpiClean(it);                                          // B54: malformed rows / formats dropped
         items[o.id] = it;
       }
       if (Object.keys(items).length) s.items = items; else delete s.items;

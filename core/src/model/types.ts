@@ -44,7 +44,7 @@ export interface Note { text: string; font?: string; size?: number; /** line spa
 export type DataRef = { sheet: string; range: string } | { table: string; range: string };
 /** a rectangle in slide px (1600 × 900) */
 export interface Box { x: number; y: number; w: number; h: number }
-export type ItemKind = "chart" | "shape" | "line";
+export type ItemKind = "chart" | "shape" | "line" | "kpi";
 /* ---- charts with series (4.7, M14; docs/next/09 §2.2, ADR-015 amendment). Every field optional: a chart without `sers`
    draws exactly as before (values / labels / series / legend / colors keep their meaning; a pie stays a pie) ---- */
 export type ChartType = "pie" | "donut" | "bar" | "column" | "line" | "area" | "scatter" | "waterfall" | "combo";
@@ -198,7 +198,9 @@ export interface ShapeItem { kind: "shape"; shape: ShapeKind;
   /** unset = the design's material; "none" = no fill */ fill?: string; border?: { color: string; w: number; dash?: "solid" | "dashed" | "dotted" } | null; radius?: number;
   fmt?: TextFmt & { valign?: "top" | "middle" | "bottom"; pad?: number }; /** bubble tail tip, slide px */ tail?: { x: number; y: number };
   box: Box; attach?: { table: string; side: Side } }
-export type Item = ChartItem | ShapeItem | LineItem;
+/** a KPI card (B54, 4.13): model/kpi.ts */
+export type KpiItem = import("./kpi").KpiItem;
+export type Item = ChartItem | ShapeItem | LineItem | KpiItem;
 /** free layout of one design of a slide (4.4, B18; docs/next/07 §5.1, ADR-017): with `on`, the slide's tables, text boxes and
     items sit at these boxes (slide px) – keys "t:<tableId>", "n:<noteKey>", "i:<itemId>"; a table's `scale` is its drawn
     scale (its box's width and height follow from it); `on: false` keeps the boxes for the next switch-on. The slide's notes
@@ -270,7 +272,7 @@ export interface Prefs { lastFile?: string | null; pdfMode?: "exact" | "vector" 
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 type ItemMaps = "colors" | "fmt" | "sers" | "groups" | "axes" | "marks" | "legendHide" | "titleFmt" | "nudge" | "stats" | "moms";
-type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach">;
+type ItemFields = Omit<ChartItem, "kind" | ItemMaps> & Omit<ShapeItem, "kind" | "fmt"> & Omit<LineItem, "kind" | "fmt" | "attach"> & Omit<KpiItem, "kind" | "box" | "attach">;
 /** an item.patch: plain keys replaced whole (null deletes), maps merged per entry (null deletes an entry, or the map) */
 export type ItemPatch = Nullable<Partial<ItemFields>> & { kind?: ItemKind; colors?: Record<string, string | null> | null; fmt?: Record<string, unknown> | null;
   sers?: Record<string, ChartSeries | null> | null; groups?: Record<string, ChartGroup | null> | null;

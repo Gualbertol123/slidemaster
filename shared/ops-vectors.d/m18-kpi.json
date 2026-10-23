@@ -1,0 +1,291 @@
+[
+ {
+  "name": "item.patch (B54) creates a KPI card: kind kpi with its keys head, cur, rows, box",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": []
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "kind": "kpi",
+     "head": {
+      "sheet": "KPI",
+      "range": "A2"
+     },
+     "cur": {
+      "sheet": "KPI",
+      "range": "B2"
+     },
+     "rows": [
+      {
+       "src": {
+        "ref": {
+         "sheet": "KPI",
+         "range": "C2"
+        },
+        "mode": "pct"
+       },
+       "label": "vs Bdg",
+       "good": "up"
+      },
+      {
+       "src": {
+        "cell": {
+         "sheet": "KPI",
+         "range": "H2"
+        }
+       },
+       "label": "vs EoM",
+       "good": "down",
+       "num": "0.0%"
+      }
+     ],
+     "box": {
+      "x": 40,
+      "y": 120,
+      "w": 360,
+      "h": 110
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg",
+          "good": "up"
+         },
+         {
+          "src": {
+           "cell": {
+            "sheet": "KPI",
+            "range": "H2"
+           }
+          },
+          "label": "vs EoM",
+          "good": "down",
+          "num": "0.0%"
+         }
+        ],
+        "box": {
+         "x": 40,
+         "y": 120,
+         "w": 360,
+         "h": 110
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": []
+  }
+ },
+ {
+  "name": "item.patch (B54) on a KPI card: rows replaced whole (a reorder), good and num set, head deleted by null",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "head": {
+         "sheet": "KPI",
+         "range": "A2"
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg",
+          "good": "up"
+         },
+         {
+          "src": {
+           "cell": {
+            "sheet": "KPI",
+            "range": "H2"
+           }
+          },
+          "label": "vs EoM",
+          "good": "down",
+          "num": "0.0%"
+         }
+        ],
+        "box": {
+         "x": 40,
+         "y": 120,
+         "w": 360,
+         "h": 110
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "s1",
+    "id": "k1",
+    "patch": {
+     "rows": [
+      {
+       "src": {
+        "cell": {
+         "sheet": "KPI",
+         "range": "H2"
+        }
+       },
+       "label": "vs EoM",
+       "good": "down",
+       "num": "0.0%"
+      },
+      {
+       "src": {
+        "ref": {
+         "sheet": "KPI",
+         "range": "C2"
+        },
+        "mode": "pct"
+       },
+       "label": "vs Bdg",
+       "good": "up"
+      }
+     ],
+     "good": "down",
+     "num": "0.0",
+     "head": null
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "S"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "s1",
+      "type": "content",
+      "tables": [],
+      "items": {
+       "k1": {
+        "kind": "kpi",
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "cell": {
+            "sheet": "KPI",
+            "range": "H2"
+           }
+          },
+          "label": "vs EoM",
+          "good": "down",
+          "num": "0.0%"
+         },
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          },
+          "label": "vs Bdg",
+          "good": "up"
+         }
+        ],
+        "box": {
+         "x": 40,
+         "y": 120,
+         "w": 360,
+         "h": 110
+        },
+        "good": "down",
+        "num": "0.0"
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 1,
+   "skipped": []
+  }
+ }
+]

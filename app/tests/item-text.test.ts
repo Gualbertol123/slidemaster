@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ITEM_TEXT, kindText, knownKind } from "../src/editor/item-text";
 import { CHART_TEXT } from "../src/editor/chart-text";
 import { SHAPE_TEXT } from "../src/editor/shape-text";
+import { KPI_TEXT } from "../src/editor/kpi-text";
 import { LINE_TEXT } from "../src/editor/line-text";
 import { notReadIssues, slideIssues } from "../src/editor/issues";
 import type { Item } from "@slide-builder/core/model/types";
@@ -17,9 +18,9 @@ const line = { kind: "line", route: "straight", a: { x: 0, y: 1 }, b: { x: 9, y:
 const later = { kind: "sticker", box } as unknown as Item;
 
 describe("item words per kind (S14.P)", () => {
-  it("one entry per kind, chart (M14) before shape and line (M15)", () => {
-    expect(ITEM_TEXT).toEqual({ chart: CHART_TEXT, shape: SHAPE_TEXT, line: LINE_TEXT });
-    expect(Object.keys(ITEM_TEXT)).toEqual(["chart", "shape", "line"]);
+  it("one entry per kind, chart (M14) before shape and line (M15), then the KPI card (B54)", () => {
+    expect(ITEM_TEXT).toEqual({ chart: CHART_TEXT, shape: SHAPE_TEXT, line: LINE_TEXT, kpi: KPI_TEXT });
+    expect(Object.keys(ITEM_TEXT)).toEqual(["chart", "shape", "line", "kpi"]);
     expect([knownKind("chart"), knownKind("line"), knownKind("sticker"), knownKind(undefined)]).toEqual([true, true, false, false]);
   });
   it("the words 4.6 showed for charts and callouts, unchanged; a line is a line, not a chart or a shape", () => {

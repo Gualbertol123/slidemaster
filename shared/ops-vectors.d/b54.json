@@ -394,7 +394,7 @@
   }
  },
  {
-  "name": "B54 item.patch: removing a chart card's parts (null) is not format 9; a KPI card (kind \"kpi\") is, by its kind alone, and skipped by this page",
+  "name": "B54 item.patch: removing a chart card's parts (null) is not format 9; a KPI card (kind \"kpi\") is, by its kind alone",
   "doc": {
    "preset": {
     "sheets": [
@@ -645,6 +645,15 @@
         "titleFmt": {
          "align": "left"
         }
+       },
+       "k1": {
+        "kind": "kpi",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 300,
+         "h": 120
+        }
        }
       }
      }
@@ -652,10 +661,8 @@
    },
    "style": {},
    "edits": {},
-   "applied": 1,
-   "skipped": [
-    1
-   ],
+   "applied": 2,
+   "skipped": [],
    "inverses": [
     {
      "op": "item.patch",
@@ -710,7 +717,12 @@
       }
      }
     },
-    null
+    {
+     "op": "item.patch",
+     "slide": "b54",
+     "id": "k1",
+     "patch": null
+    }
    ],
    "needsV8": [
     false,
@@ -722,10 +734,10 @@
    ],
    "knownOp": [
     true,
-    false
+    true
    ],
    "docNeedsV8": false,
-   "docNeedsV9": false
+   "docNeedsV9": true
   }
  },
  {

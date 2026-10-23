@@ -13,6 +13,7 @@ function ChartMenu({ close }: { close: () => void }) {
   return <div className="chartmenu">
     <button data-a="chart-sel" disabled={!sel} title={sel ? "" : "Select the cells of a table first"} onClick={() => { close(); insertChartFromSelection(); }}>From the selected cells<small>the numbers, and their names in the first column; beside the table</small></button>
     <button data-a="chart-pick" onClick={() => { close(); setDialogs({ pick: { kind: "chart" } }); }}>Choose the cells…<small>of any sheet: drag across the numbers, then their names</small></button>
+    <button data-a="kpi-pick" onClick={() => { close(); setDialogs({ pick: { kind: "kpi" } }); }}>KPI cards from table…<small>a header row and one row per product: one card each, across the slide</small></button>
   </div>;
 }
 export function ChartInsert() {
