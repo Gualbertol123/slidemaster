@@ -20,8 +20,9 @@ import type { Metrics } from "./excel-dl";
 import type { RenderCtx } from "./context";
 import type { BarsSem, BarSerSem, LineSem } from "../pptx/chart-sem";
 import { cardParts, cardRoom, cardStyles, tagText } from "./chart-card";
-import { catsOf, cellsOf, chartHide, genOf, labelsFor, numberAt, readRefs, refTarget, removedOf, shown, type Val } from "./chart-data";
+import { catsOf, cellsOf, chartHide, genOf, slideOf, labelsFor, numberAt, readRefs, refTarget, removedOf, shown, type Val } from "./chart-data";
 import { tickText } from "./chart-axes";
+import { A1 } from "../xlsx/util";
 import { ellipsis, font, lineH, lum, textNode, type St } from "./chart-font";
 import { axisLook, fontSem, withFmt, type SeriesStyle } from "./chart-series";
 import { isGeneral, targetLook } from "./chart-targets";
@@ -64,7 +65,9 @@ const CACHE = new Map<string, ProgressData>();
 export function progressData(it: ChartItem, ctx: RenderCtx): ProgressData {
   const P = progressOf(it), sheets = progressSheets(it, ctx);
   const key = JSON.stringify(["progress", P.vals ?? null, P.targets ?? null, P.cats ?? null, P.table ?? null, it.labels ?? null,
-    sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null]);
+    sheets.map(n => [n, genOf(ctx.sheet?.(n) ?? null), ctx.edits[ctx.sheet?.(n)?.name ?? n] || null]), ctx.version, ctx.preset?.tables || null,
+    // (the rows and columns its slide hides on a table it reads: chartHide – as seriesData's key)
+    slideOf(it, ctx)?.cfg.hidden ?? null]);
   const hit = CACHE.get(key); if (hit) return hit;
   const out = isObj(P.table) ? fromTable(it, P.table as NonNullable<ChartProgress["table"]>, ctx, key) : fromCells(it, P, ctx, key);
   if (CACHE.size > 200) CACHE.clear();
@@ -122,20 +125,28 @@ function fromTable(it: ChartItem, tb: NonNullable<ChartProgress["table"]>, ctx: 
   if (!B || !V) { const ref = !B ? tb.by : tb.val; return { ok: false, why: "missing", source: isRef(ref) ? refTarget(ref, ctx).source : !B ? "the group column" : "the value column", key }; }
   if (V.cells.length !== B.cells.length) issues.push(`the value column ${V.source} has ${V.cells.length} cells for ${B.cells.length} in ${B.source}`);
   if (T && T.cells.length !== B.cells.length) issues.push(`the target column ${T.source} has ${T.cells.length} cells for ${B.cells.length} in ${B.source}`);
-  const groups = new Map<string, { name: string; last: number }>();
+  const groups = new Map<string, { name: string; last: number; both: number }>();
   B.cells.forEach(([r, c], k) => {
     const name = B.removed(r, c) ? "" : shown(B.S, r, c, ctx).trim();
     if (!name) return;
-    const g = groups.get(name.toLowerCase()) || { name, last: -1 };
+    const g = groups.get(name.toLowerCase()) || { name, last: -1, both: -1 };
     groups.set(name.toLowerCase(), g);
     const vc = V.cells[k];
-    if (vc && numberAt(V.S, vc[0], vc[1], V.removed) !== null) g.last = k;
+    if (vc && numberAt(V.S, vc[0], vc[1], V.removed) !== null) {
+      g.last = k;
+      const tc = T?.cells[k];
+      if (T && tc && numberAt(T.S, tc[0], tc[1], T.removed) !== null) g.both = k;
+    }
   });
   if (!groups.size) return { ok: false, why: "empty", source: B.source, key };
   const rows = [...groups.values()].map((g): ProgressRow => {
     if (g.last < 0) return { cat: g.name, v: null, t: null, fmt: "General", ratio: null };
-    const [vr, vcc] = V.cells[g.last], x = V.S.get(vr, vcc), v = numberAt(V.S, vr, vcc, V.removed);
-    const tc = T?.cells[g.last], t = T && tc ? numberAt(T.S, tc[0], tc[1], T.removed) : null;
+    // (the latest row: the last sheet row with a value; its target blank – the budget not yet typed –: the group's latest
+    // row with both, said in the Issues panel)
+    let at = g.last;
+    if (g.both >= 0 && g.both !== g.last) { at = g.both; const tc = T!.cells[g.last]; issues.push(`'${g.name}': no target in its latest row (${T!.S.name}!${A1(tc[0], tc[1])}): the latest row with both is used`); }
+    const [vr, vcc] = V.cells[at], x = V.S.get(vr, vcc), v = numberAt(V.S, vr, vcc, V.removed);
+    const tc = T?.cells[at], t = T && tc ? numberAt(T.S, tc[0], tc[1], T.removed) : null;
     return { cat: g.name, v, t, fmt: x?.fmt || "General", ratio: ratioOf(v, t) };
   });
   // (a group whose value column holds no number at all: said once, its bar empty)
@@ -157,7 +168,9 @@ function finish(rows: ProgressRow[], issues: string[], name: string, source: str
 
 /* ---- the words ---- */
 /** the % above a bar: value / target in the chart's format (default 0.0 %); "n/a" without one */
-export const pctText = (r: ProgressRow, num?: string) => r.ratio === null ? (r.v === null ? "–" : "n/a") : tickText(r.ratio, typeof num === "string" && num.trim() ? num : "0.0%");
+export const pctText = (r: ProgressRow, num?: string) => r.ratio === null ? (r.v === null ? "–" : "n/a")
+  // (a value below zero: deltas.ts's minus "−"; one that shows as zero never "−0")
+  : ((t: string) => /[1-9]/.test(t) ? t.replace(/^-/, "−") : t.replace(/^-/, ""))(tickText(r.ratio, typeof num === "string" && num.trim() ? num : "0.0%"));
 /** the gap's number format: the chart's own, else the value cell's, else #,##0 (B54's General) */
 export const gapFmt = (r: ProgressRow, num?: string) => typeof num === "string" && num.trim() ? num : !isGeneral(r.fmt) ? r.fmt : "#,##0";
 /** the gap in words: value − target, in a format, with the words of the side it is on. Sign "over" (the owner's
@@ -222,7 +235,7 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   const skip = room.top > area.h - 60 ? { stats: true, sep: true } : {};
   const cardTop = area.y;
   if (!skip.stats) area = { ...area, y: area.y + room.top, h: Math.max(10, area.h - room.top) };
-  else if (room.top) issues.push("the chart is too small for its subtitle and separator: not drawn");
+  else if (room.top && cardIt.sep) issues.push("the chart is too small for its separator: not drawn");
   const card = cardParts(cardIt, { frame, titleH, top: cardTop, bottom: Y0 + H0, skip, series: [], cats: [], num: "General", lab: sty.lab, ink: sty.ink, sepColor: axisLook(ctx).card.line }, ctx, m);
   issues.push(...card.issues);
   // the texts' styles: the % large, bold, in the design's accent; the name bold in capitals; the gap small and grey
@@ -252,10 +265,13 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   });
   // the texts: the % centred above each track (shrunk to its slot), the name and the gap under it
   const pct: Node[] = [], under: Node[] = [], pctTexts: string[] = [], cut: string[] = [];
+  // (the % shrunk to its slot – one size for every bar, the widest's – and the PowerPoint labels at that size too)
+  const wmax = Math.max(8, slot - 4), texts = data.rows.map(r => pctText(r, P.pct?.num));
+  const pctFit = pctOn ? Math.min(pctSt.size, ...texts.map(t => fitText(m, t, pctSt, wmax, Math.min(pctSt.size, 9)).st.size)) : pctSt.size, pctUse = { ...pctSt, size: pctFit };
   data.rows.forEach((r, i) => {
-    const cx = plot.x + (i + .5) * slot, wmax = Math.max(8, slot - 4), t = pctText(r, P.pct?.num);
+    const cx = plot.x + (i + .5) * slot, t = texts[i];
     pctTexts.push(t);
-    if (pctOn) { const f = fitText(m, t, pctSt, wmax, Math.min(pctSt.size, 9)); if (f.cut) cut.push("a %"); pct.push(textNode(m, f.text, cx, plot.y - 6 - lineH(f.st), f.st, "center")); }
+    if (pctOn) { const f = fitText(m, t, pctUse, wmax, pctFit); if (f.cut) cut.push("a %"); pct.push(textNode(m, f.text, cx, plot.y - 6 - lineH(f.st), f.st, "center")); }
     let y = plot.y + plot.h + 8;
     if (catOn) { const name = P.cat?.caps === false ? r.cat : r.cat.toUpperCase(); under.push(textNode(m, ellipsis(m, name, catSt, wmax), cx, y, catSt, "center")); y += lineH(catSt) + 2; }
     if (capOn && r.v !== null && r.t !== null) under.push(textNode(m, ellipsis(m, gapText(r.v - r.t, gapFmt(r, P.gap?.num), P.gap), capSt, wmax), cx, catOn ? y : plot.y + plot.h + 8, capSt, "center"));
@@ -264,7 +280,7 @@ export function progressLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Met
   // the value axis (off unless asked): its labels at the left, gridlines across
   const grid: LineSem | null = gridOn ? axisLook(ctx).grid || { color: "#D9D9D9", w: 1 } : null, axNodes: Node[] = [];
   if (axShow) for (const t of ticks) axNodes.push(textNode(m, t.text, plot.x - 6, plot.y + plot.h - t.v * plot.h - lineH(axisSt) / 2, axisSt, "right"));
-  return { title, titleSt, titleBox, plot, slot, barW, gap, rows: data.rows, bars, name: data.name, colors, st: { pct: pctSt, cat: catSt, cap: capSt, axis: axisSt },
+  return { title, titleSt, titleBox, plot, slot, barW, gap, rows: data.rows, bars, name: data.name, colors, st: { pct: pctUse, cat: catSt, cap: capSt, axis: axisSt },
     pct, under, pctTexts, axis: { show: axShow, grid, num: axNum, ticks, nodes: axNodes }, card: card.nodes, issue: issues.length ? [...new Set(issues)].join("; ") : null, frame };
 }
 const gridStroke = (l: LineSem) => ({ w: l.w, paint: solid(l.color), ...(l.dash === "sysDot" ? { dash: [2, 3] } : l.dash === "dash" ? { dash: [6, 4] } : {}) });

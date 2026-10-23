@@ -526,5 +526,719 @@
    "docNeedsV9": true,
    "docNeedsV10": true
   }
+ },
+ {
+  "name": "B55 item.patch: a later key or value INSIDE a format-9 chart is format 10 (a series' label key, a label place, a point key, an axis key, a mark key, a stat source, a text-format key); 4.13.1's own keys and removals are not",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b55",
+      "type": "content",
+      "title": "Budget",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "sers": {
+         "s1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "C2:C9"
+           }
+          ]
+         }
+        },
+        "stats": {
+         "s1": {
+          "n": 1,
+          "src": "last"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "sers": {
+      "s1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        }
+       ],
+       "labels": {
+        "show": [
+         "value"
+        ],
+        "later": 1
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "sers": {
+      "s1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        }
+       ],
+       "labels": {
+        "show": [
+         "value"
+        ],
+        "pos": "outside"
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "sers": {
+      "s1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        }
+       ],
+       "points": {
+        "0": {
+         "glow": true
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "axes": {
+      "y": {
+       "later": 1
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "marks": {
+      "m": {
+       "kind": "ref",
+       "value": {
+        "sheet": "Volumes",
+        "range": "D6"
+       },
+       "later": 1
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "stats": {
+      "s1": {
+       "n": 1,
+       "src": "median"
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "titleFmt": {
+      "later": 1
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "sers": {
+      "s1": {
+       "n": 1,
+       "vals": [
+        {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        }
+       ],
+       "labels": {
+        "show": [
+         "value"
+        ],
+        "pos": "auto"
+       }
+      }
+     },
+     "axes": {
+      "y": {
+       "show": true
+      }
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "axes": {
+      "y": {
+       "later": null
+      }
+     },
+     "stats": {
+      "s1": null
+     }
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b55",
+      "type": "content",
+      "title": "Budget",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "sers": {
+         "s1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "C2:C9"
+           }
+          ],
+          "labels": {
+           "show": [
+            "value"
+           ],
+           "pos": "auto"
+          }
+         }
+        },
+        "axes": {
+         "y": {
+          "later": null
+         }
+        },
+        "marks": {
+         "m": {
+          "kind": "ref",
+          "value": {
+           "sheet": "Volumes",
+           "range": "D6"
+          },
+          "later": 1
+         }
+        },
+        "titleFmt": {
+         "later": 1
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 9,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "sers": {
+       "s1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Volumes",
+          "range": "C2:C9"
+         }
+        ]
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "sers": {
+       "s1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Volumes",
+          "range": "C2:C9"
+         }
+        ],
+        "labels": {
+         "show": [
+          "value"
+         ],
+         "later": 1
+        }
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "sers": {
+       "s1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Volumes",
+          "range": "C2:C9"
+         }
+        ],
+        "labels": {
+         "show": [
+          "value"
+         ],
+         "pos": "outside"
+        }
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "axes": {
+       "y": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "marks": {
+       "m": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "stats": {
+       "s1": {
+        "n": 1,
+        "src": "last"
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "titleFmt": {
+       "later": null
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "sers": {
+       "s1": {
+        "n": 1,
+        "vals": [
+         {
+          "sheet": "Volumes",
+          "range": "C2:C9"
+         }
+        ],
+        "points": {
+         "0": {
+          "glow": true
+         }
+        }
+       }
+      },
+      "axes": {
+       "y": {
+        "later": 1
+       }
+      }
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "axes": {
+       "y": {
+        "show": true
+       }
+      },
+      "stats": {
+       "s1": {
+        "n": 1,
+        "src": "median"
+       }
+      }
+     }
+    }
+   ],
+   "needsV9": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    false,
+    false,
+    false
+   ],
+   "needsV10": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false
+   ],
+   "knownOp": [
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true
+   ],
+   "docNeedsV9": false,
+   "docNeedsV10": true
+  }
+ },
+ {
+  "name": "B55 item.patch: progress {} and progress {fill: null} are content (a plain key, not a map): format 10; KPI rows with a later source mode too",
+  "doc": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b55",
+      "type": "content",
+      "title": "Budget",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "sers": {
+         "s1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "C2:C9"
+           }
+          ]
+         }
+        },
+        "stats": {
+         "s1": {
+          "n": 1,
+          "src": "last"
+         }
+        }
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {}
+  },
+  "ops": [
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "progress": {}
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "c",
+    "patch": {
+     "progress": {
+      "fill": null
+     }
+    }
+   },
+   {
+    "op": "item.patch",
+    "slide": "b55",
+    "id": "k",
+    "patch": {
+     "kind": "kpi",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 300,
+      "h": 120
+     },
+     "cur": {
+      "sheet": "KPI",
+      "range": "B2"
+     },
+     "rows": [
+      {
+       "src": {
+        "ref": {
+         "sheet": "KPI",
+         "range": "C2"
+        },
+        "mode": "ratio"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "preset": {
+    "sheets": [
+     "KPI",
+     "Volumes"
+    ],
+    "tables": [],
+    "slides": [
+     {
+      "id": "b55",
+      "type": "content",
+      "title": "Budget",
+      "tables": [],
+      "items": {
+       "c": {
+        "kind": "chart",
+        "type": "line",
+        "values": {
+         "sheet": "Volumes",
+         "range": "C2:C9"
+        },
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 600,
+         "h": 400
+        },
+        "sers": {
+         "s1": {
+          "n": 1,
+          "vals": [
+           {
+            "sheet": "Volumes",
+            "range": "C2:C9"
+           }
+          ]
+         }
+        },
+        "stats": {
+         "s1": {
+          "n": 1,
+          "src": "last"
+         }
+        },
+        "progress": {
+         "fill": null
+        }
+       },
+       "k": {
+        "kind": "kpi",
+        "box": {
+         "x": 0,
+         "y": 0,
+         "w": 300,
+         "h": 120
+        },
+        "cur": {
+         "sheet": "KPI",
+         "range": "B2"
+        },
+        "rows": [
+         {
+          "src": {
+           "ref": {
+            "sheet": "KPI",
+            "range": "C2"
+           },
+           "mode": "pct"
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "style": {},
+   "edits": {},
+   "applied": 3,
+   "skipped": [],
+   "inverses": [
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "progress": null
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "c",
+     "patch": {
+      "progress": {}
+     }
+    },
+    {
+     "op": "item.patch",
+     "slide": "b55",
+     "id": "k",
+     "patch": null
+    }
+   ],
+   "needsV9": [
+    true,
+    true,
+    true
+   ],
+   "needsV10": [
+    true,
+    true,
+    true
+   ],
+   "knownOp": [
+    true,
+    true,
+    true
+   ],
+   "docNeedsV9": true,
+   "docNeedsV10": true
+  }
  }
 ]

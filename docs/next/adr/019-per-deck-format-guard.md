@@ -214,7 +214,14 @@ keys it lists (both keys vanish from its fold, its compaction would lose them) a
 FROZEN lists – its item keys and maps, item kinds chart / shape / line / kpi, git show 87f0951:core/src/model/ops.ts, and
 its chart types pie … combo, types.ts ChartType): an `item.patch` with a later kind, a later chart type (`type:
 "progress"` by its value alone – a type switch is format 10) or a later key set (not null, not an empty or all-null map),
-a `slide.add` or `preset.set` carrying one. Marker **`incident-format-10.json`** (an incident to every 4.0–4.13 helper:
+a `slide.add` or `preset.set` carrying one. **Deep gating** (review of 175a2ff, so that B56, shipping in the same 4.14.0,
+can rely on it): format 10 also reaches INSIDE an item – any key or value 4.13.1 does not know inside its axes, series
+(their labels and points), groups, marks (kinds and keys, labelSide / from / capPos included), stats and momentum chips,
+KPI rows and their sources, the tag, filter, separator, title format and text format, each checked against 4.13.1's
+FROZEN contents (ops.ts V4131_INSIDE: a schema of keys and enum values from git show 87f0951:core/src/model/{ops,types,
+kpi}.ts) – so a new nested key or value of 4.14 needs format 10 with no list to remember. A removal (null) never counts;
+the empty-object exemption is for MAP keys only (`progress: {}` and `progress: {fill: null}` are content). The 4.14
+list of the budget-achievement chart's own keys (V414_PROGRESS) is there for the next format to freeze. Marker **`incident-format-10.json`** (an incident to every 4.0–4.13 helper:
 4.13's `_is_incident` excepts the format-5 to format-9 markers only, its `READ_FORMATS` is (4, 5, 6, 7, 8, 9)), the 23 s
 wait, tail, CAS to `format: 10`, the Lamport jump, never lowered; `POST …/format10`; `X-SB-Deck-Formats`
 `4,5,6,7,8,9,10`; the helper refuses a format-10 deck to a page that does not send 10 (409 "reload") and a compaction

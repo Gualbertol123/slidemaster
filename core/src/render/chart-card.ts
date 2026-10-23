@@ -131,7 +131,8 @@ export function cardParts(it: ChartItem, F: CardFrame, ctx: RenderCtx, m: Metric
   if (on(it.stats) > MAX_STATS) issues.push(`the stats row draws ${MAX_STATS} chips: ${on(it.stats) - MAX_STATS} more not drawn`);
   if (on(it.moms) > MAX_MOMS) issues.push(`the momentum row draws ${MAX_MOMS} chips: ${on(it.moms) - MAX_MOMS} more not drawn`);
   if (F.skip?.moms) issues.push("the chart is too small for its momentum row: not drawn");
-  if (F.skip?.stats) issues.push("the chart is too small for its stats row: not drawn");
+  // ((B55) the subtitle goes with the stats row: named too)
+  if (F.skip?.stats) { const gone = [subOf(it) ? "subtitle" : "", statsOf(it).length ? "stats row" : ""].filter(Boolean); if (gone.length) issues.push(`the chart is too small for its ${gone.join(" and ")}: not drawn`); }
   // the series a chip reads (its own, else the first) and its values
   const serOf = (sid: string | undefined) => (sid ? F.series.find(s => s.id === sid) : null) || F.series[0] || null;
   const fmtOf = (s: SerData | null, num?: string) => typeof num === "string" && num.trim() ? num : s && !isGeneral(s.fmt) ? s.fmt : F.num || "General";

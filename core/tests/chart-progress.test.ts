@@ -17,7 +17,7 @@ import { resolveStyle } from "../src/model/style";
 import { excelToDisplayList, type Metrics } from "../src/render/excel-dl";
 import { slideToDisplayList, type SlideDL } from "../src/render/slide-dl";
 import { computeLayout } from "../src/render/layout";
-import { accentOf, gapText, progressData, progressLayout, progressTexts, type ProgressLayout } from "../src/render/chart-progress";
+import { accentOf, gapText, progressData, progressLayout, progressSem, progressTexts, type ProgressLayout } from "../src/render/chart-progress";
 import { seriesLayout, type SeriesLayout, type SeriesStyle } from "../src/render/chart-series";
 import { writePptx } from "../src/pptx/writer";
 import type { SlideSem } from "../src/pptx/scene";
@@ -69,6 +69,7 @@ async function deck(design: Design, opts: { ops?: Op[]; sheet?: (n: string, S: S
 }
 const pptxOf = (lists: SlideDL[]) => writePptx({ slides: lists.map(l => ({ nodes: l.nodes, sem: { type: "content" as const, items: Object.fromEntries(Object.entries(l.items).flatMap(([id, it]) => it.pptx ? [[id, it.pptx]] : [])), palette: [] } as SlideSem })), image: () => PNG, face: css => pptxFamily(css) });
 const F = { x: 100, y: 100, w: 260, h: 640 };
+const progressSemFont = (L: ProgressLayout) => progressSem(L).series[0].labels!.font.size;
 const lay = (c: ChartItem, ctx: RenderCtx, f = F) => progressLayout(c, f, ctx, M, STY) as ProgressLayout;
 
 describe("B55 · the maths", () => {
@@ -275,6 +276,75 @@ describe("B55 · format 10", () => {
     expect(inv).toEqual({ op: "item.patch", slide: "b54", id: "ba", patch: { type: "progress", subtitle: "Latest volume / EoM budget", progress: (create.patch as ChartItem).progress, gap: null } });
     const { doc: d3 } = applyOps(d2, [e, inv]);
     expect(d3.preset!.slides[0].items!.ba).toEqual(create.patch);
+  });
+});
+describe("B55 · review", () => {
+  it("a negative % reads with deltas.ts's minus; a % shrunk to its slot: one size for every bar, the PowerPoint labels too", async () => {
+    const { ctx } = await deck("excel", { sheet: (n, S) => n === "Volumes" && S ? withCells(S, [[5, 3, -600]]) : S });
+    const t = progressTexts(achievementCells(F), ctx);
+    expect(t[0]).toEqual({ cat: "Loans", pct: NEG + "5,1%", gap: "12.390 to go" });
+    const narrow = lay(achievementCard(F), ctx, { x: 0, y: 0, w: 120, h: 600 });
+    const sizes = narrow.pct.map(n => (n as TextNode).size);
+    expect(new Set(sizes).size).toBe(1);
+    expect(sizes[0]).toBeLessThan(27);
+    expect(narrow.st.pct.size).toBe(sizes[0]);
+    expect(progressSemFont(narrow)).toBe(sizes[0]);
+  });
+  it("a subtitle dropped with the stats row is named; a separator dropped on the progress chart too", async () => {
+    const { ctx } = await deck("glass", { ops: b54Ops() });
+    const c = { ...volumeCard("Deposits", "D6", { x: 0, y: 0, w: 300, h: 150 }, { text: "" }), subtitle: "Weekly" } as ChartItem;
+    const L = seriesLayout(c, { x: 0, y: 0, w: 300, h: 150 }, ctx, M, STY, "x") as SeriesLayout;
+    expect(L.issue).toMatch(/too small for its subtitle and stats row: not drawn/);
+    const P = lay({ ...achievementCard(F), sep: {} }, ctx, { x: 0, y: 0, w: 200, h: 90 });
+    expect(P.issue).toMatch(/too small for its subtitle: not drawn/);
+    expect(P.issue).toMatch(/too small for its separator: not drawn/);
+  });
+  it("the long table: a latest row whose target is blank falls back to the group's latest row with both, named", async () => {
+    const { ctx } = await deck("glass", { sheet: (n, S) => n === "Volumes" && S ? withCells(S, [[5, 4, null]]) : S });
+    const d = progressData(achievementCard(F), ctx);
+    expect(d.ok && d.rows[0]).toMatchObject({ cat: "Loans", v: 13000, t: 11790 });
+    expect(d.ok && d.issues).toEqual(["'Loans': no target in its latest row (Volumes!D5): the latest row with both is used"]);
+  });
+});
+describe("B55 · format 10 reaches inside an item (4.13.1's frozen contents)", () => {
+  const P = (patch: Record<string, unknown>): Op => ({ op: "item.patch", slide: "s", id: "c", patch } as unknown as Op);
+  const R = { sheet: "S", range: "A1" };
+  const later: [string, Record<string, unknown>][] = [
+    ["an axis key", { axes: { y: { later: 1 } } }], ["an axis's cells key", { axes: { y: { cells: { later: R } } } }], ["an axis's line dash", { axes: { y: { line: { dash: "wavy" } } } }],
+    ["a series key", { sers: { s1: { n: 1, vals: [R], later: true } } }], ["a series' labels key", { sers: { s1: { n: 1, vals: [R], labels: { show: ["value"], later: 1 } } } }],
+    ["a label place", { sers: { s1: { n: 1, vals: [R], labels: { show: ["value"], pos: "outside" } } } }], ["a label kind", { sers: { s1: { n: 1, vals: [R], labels: { show: ["delta"] } } } }],
+    ["a point key", { sers: { s1: { n: 1, vals: [R], points: { "0": { glow: true } } } } }], ["a series type", { sers: { s1: { n: 1, vals: [R], type: "bubble" } } }],
+    ["a mark kind", { marks: { m: { kind: "bracket" } } }], ["a mark key", { marks: { m: { kind: "ref", value: R, later: 1 } } }], ["a mark place", { marks: { m: { kind: "ref", value: R, pos: "middle" } } }],
+    ["a mark's style key", { marks: { m: { kind: "arrow", style: { glow: 1 } } } }],
+    ["a stat key", { stats: { s1: { n: 1, src: "last", later: 1 } } }], ["a stat source", { stats: { s1: { n: 1, src: "median" } } }], ["a momentum basis", { moms: { m1: { n: 1, vs: "budget" } } }],
+    ["a KPI row key", { rows: [{ src: { cell: R }, later: 1 }] }], ["a KPI source mode", { rows: [{ src: { ref: R, mode: "ratio" } }] }], ["a KPI src key", { rows: [{ src: { cell: R, later: 1 } }] }],
+    ["a tag key", { tag: { text: "A", later: 1 } }], ["a filter key", { filter: { by: R, eq: "x", later: 1 } }], ["a separator key", { sep: { w: 1, later: 1 } }],
+    ["a title format key", { titleFmt: { size: 12, later: 1 } }], ["a text format key", { fmt: { later: 1 } }], ["an alignment", { fmt: { align: "justify" } }],
+    ["a group key", { groups: { g: { n: 1, cats: R, later: 1 } } }], ["a DataRef key", { tag: { text: { sheet: "S", range: "A1", later: 1 } } }],
+    ["progress {}", { progress: {} }], ["progress {fill: null}", { progress: { fill: null } }],
+  ];
+  it("a later key or value inside an item is format 10 – by item.patch, slide.add, preset.set and on a document", () => {
+    for (const [what, patch] of later) {
+      expect(needsV10(P(patch)), what).toBe(true);
+      const item = { kind: "chart", type: "line", values: R, box: { x: 0, y: 0, w: 1, h: 1 }, ...patch };
+      expect(needsV10({ op: "slide.add", slide: { id: "x", type: "content", tables: [], items: { c: item } }, after: null } as unknown as Op), what).toBe(true);
+      const preset = { sheets: [], tables: [], slides: [{ id: "s", type: "content", tables: [], items: { c: item } }] };
+      expect(needsV10({ op: "preset.set", preset } as unknown as Op), what).toBe(true);
+      expect(docNeedsV10({ preset, edits: {} } as unknown as WorkbookDoc), what).toBe(true);
+    }
+  });
+  it("4.13.1's own contents are not; removals (null) never are", () => {
+    for (const o of b54Ops()) expect(needsV10(o)).toBe(false);
+    const known: Record<string, unknown>[] = [
+      { axes: { y: { show: true, grid: false, num: "0", fmt: { size: 9 }, line: "none", cells: { max: R } }, x: { title: "T" } } },
+      { sers: { s1: { n: 1, vals: [R], name: "A", labels: { show: ["value", "ofTarget"], pos: "auto", num: "0" }, points: { "1": { color: "#FF0000", pos: "above", label: null } }, marker: { shape: "none" }, line: { dash: "dashed" } } } },
+      { marks: { m: { kind: "gap", a: { s: "s1", i: -1 }, ref: "r", labelSide: "left", from: "point", capPos: "above", signs: "fixed", style: { heads: { b: "stealth", size: "l" } } } } },
+      { marks: { m: { kind: "line", a: { x: "Q3", y: 1 }, b: "floor" } } },
+      { rows: [{ src: { ref: R, mode: "both" }, label: "vs Bdg", good: "down", num: "0.0%" }], head: "Loans", cur: R, good: "neutral" },
+      { groups: { g: { n: 1, cats: ["a", "b"], divider: { dash: "dotted" }, label: "G" } }, tag: { text: R, color: "#000000" }, filter: { by: R, eq: R }, sep: {}, titleFmt: { align: "left" } },
+      { axes: { y: { later: null } }, sers: { s1: null }, marks: { m: null }, stats: { s1: null }, rows: null, tag: { text: "A", later: null }, subtitle: null, progress: null },
+    ];
+    for (const p of known) expect(needsV10(P(p)), JSON.stringify(p)).toBe(false);
   });
 });
 describe("B55 · vectors (shared/ops-vectors.d/b55.json)", () => {

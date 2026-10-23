@@ -1035,6 +1035,23 @@ describe("DocSync v4: format 10 for 4.14 budget-achievement charts and chart sub
     b.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { subtitle: null, progress: null } } as unknown as Op]); await b.flush();
     expect(d2.log).toEqual(["append"]); expect(d2.snap.format).toBe(9);
   });
+  it("B55 review: a key INSIDE a format-9 chart (a series' label key, an axis key) raises it to 10 first; 4.13.1's own nested keys and removals do not", async () => {
+    const deck = new FakeDeck(), a = u(deck, "anna");
+    a.apply([preset]); await a.flush(); a.apply([chart]); await a.flush();
+    expect(deck.snap.format).toBe(9);
+    deck.log.length = 0;
+    a.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { sers: { s1: { n: 1, vals: [{ sheet: "S", range: "B1:B2" }], labels: { show: ["value"], pos: "auto" } } }, axes: { y: { show: true, later: null } } } } as unknown as Op]); await a.flush();
+    expect(deck.log).toEqual(["append"]); expect(deck.snap.format).toBe(9);
+    deck.log.length = 0;
+    a.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { sers: { s1: { n: 1, vals: [{ sheet: "S", range: "B1:B2" }], labels: { show: ["value"], later: 1 } } } } } as unknown as Op]); await a.flush();
+    expect(deck.log).toEqual(["format10", "tail", "compact:10", "append"]);
+    expect(deck.snap.format).toBe(10);
+    const d2 = new FakeDeck(), b = u(d2, "bea");
+    b.apply([preset]); await b.flush(); b.apply([chart]); await b.flush();
+    d2.log.length = 0;
+    b.apply([{ op: "item.patch", slide: "s1", id: "c1", patch: { axes: { y: { later: 1 } } } } as unknown as Op]); await b.flush();
+    expect(d2.log).toEqual(["format10", "tail", "compact:10", "append"]);
+  });
   it("a page opening a deck whose journal holds a 4.14 page's chart of type \"progress\" (by its type alone) raises it to 10", async () => {
     const deck = new FakeDeck(), a = u(deck, "anna");
     a.apply([preset]); await a.flush();
