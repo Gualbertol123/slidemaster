@@ -13,6 +13,7 @@ import { addMomPatch, addStatPatch, cardPresetPatch, filterPatch, momPatch, remo
 import { MAX_MOMS, MAX_STATS } from "@slide-builder/core/render/chart-card";
 import { Input } from "./Input";
 import { Field } from "./Field";
+import { subtitlePatch } from "../editor/chart-progress";
 
 type Set = (label: string, p: ItemPatch | null) => void;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -26,7 +27,7 @@ const byN = <T extends { n: number }>(m: Record<string, T> | undefined) => Objec
 export function ChartCard({ c, id, set }: { c: ChartItem; id: string; set: Set }) {
   const stats = byN(c.stats), moms = byN(c.moms), refs = Object.entries(c.marks || {}).filter(([, k]) => k && k.kind === "ref").map(([rid, k]) => [rid, typeof k.name === "string" && k.name ? k.name : rid] as const);
   const sers = Object.entries(c.sers || {}).filter(([, s]) => s && !s.hide);
-  const any = stats.length > 0 || moms.length > 0 || !!c.tag || !!c.sep || !!c.filter;
+  const any = stats.length > 0 || moms.length > 0 || !!c.tag || !!c.sep || !!c.filter || !!c.subtitle;
   const on = (k: { off?: boolean }, what: string, p: (on: boolean) => ItemPatch | null) => <label className="chk" title="Shown (off: kept, not drawn)"><Input type="checkbox" data-a="on" checked={!k.off} onCommit={e => set(((e.target as HTMLInputElement).checked ? "Show " : "Hide ") + what, p((e.target as HTMLInputElement).checked))} /></label>;
   const serSel = (cur: string | undefined, f: (v: string | null) => void) => sers.length > 1 ? <select data-a="ser" title="The series it reads" value={cur || ""} onChange={e => f((e.target as HTMLSelectElement).value || null)}>
     <option value="">First series</option>{sers.map(([sid, s]) => <option key={sid} value={sid}>{typeof s.name === "string" && s.name ? s.name : sid}</option>)}</select> : null;
@@ -44,6 +45,11 @@ export function ChartCard({ c, id, set }: { c: ChartItem; id: string; set: Set }
       <Field className="nm" id="chartFilterEq" title="The value to keep (Enter to apply)" placeholder={typeof c.filter.eq === "object" ? "From " + refText(c.filter.eq) : "e.g. Deposits"} value={typeof c.filter.eq === "string" ? c.filter.eq : ""}
         onCommit={v => set("Chart filter value", filterPatch(c, { eq: v.trim() }))} />
       <button className="btn small" data-a="filtereq" title="The value from a cell: a scenario or Run for each value can change it" onClick={() => pick(id, { what: "filter-eq" })}>Cell…</button></div>}
+
+    <b className="sub">Subtitle</b>
+    <div className="row wrap"><Field className="nm" id="chartSubtitle" title="The grey line under the title (Enter to apply; empty = none)" placeholder={c.subtitle && typeof c.subtitle === "object" ? "From " + refText(c.subtitle) : "e.g. Latest volume / EoM budget"}
+      value={typeof c.subtitle === "string" ? c.subtitle : ""} onCommit={v => set("Chart subtitle", subtitlePatch(v))} />
+      <button className="btn small" data-a="subtitle-cell" title="The subtitle from a cell" onClick={() => pick(id, { what: "subtitle-cell" })}>Cell…</button></div>
 
     <b className="sub">Tag</b>
     <div className="row wrap"><Field className="nm" id="chartTag" title="The small text in the title line's corner (Enter to apply; empty = none)" placeholder={c.tag && typeof c.tag.text === "object" ? "From " + refText(c.tag.text) : "e.g. Illustrative"}

@@ -65,3 +65,10 @@
 .chartpanel #chartCard .stat,.chartpanel #chartCard .mom{border-left:2px solid var(--line,#e3e5ea);padding:2px 0 4px 6px;margin:2px 0}
 .chartpanel #chartCard .hid .row>*:not(.chk){opacity:.55}
 .chartpanel #chartCard .num[data-a=snum],.chartpanel #chartCard .num[data-a=mnum]{width:88px;flex:none}
+/* (B55) the budget-achievement chart's panel: rows wrap at 280 px */
+.chartpanel #chartProgress .row.wrap{flex-wrap:wrap}
+.chartpanel #chartProgress .swrow{display:inline-flex;align-items:center;gap:2px}
+.chartpanel #chartProgress .hint{font-size:11px;color:#5B6274;margin:2px 0}
+.chartpanel #chartProgress .num{width:72px;flex:none}
+.chartpanel #chartProgress select{flex:1 1 110px;min-width:0}
+.chartpanel #chartProgress code{min-width:0;overflow:hidden;text-overflow:ellipsis}
