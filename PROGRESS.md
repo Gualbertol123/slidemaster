@@ -241,6 +241,20 @@ numbers measured twice). Measured numbers go into the step's line.
   `docsync.test.ts` format 7, helper `Format7Tests` / `DeckFormatHttpTests` / `test_update`, app
   `chart-targets-panel.test.tsx`, e2e B52-01; page budget `page-budget/b52.json`. Versions 4.10.0 (CHANGELOG dated 2026-10-22).
 
+- [x] B56 · Text, sizing and positioning (product owner 2026-10-23, image 20: "make fonts on all of this slide, including
+  tables and graphs, editable, as well as sizing and positioning. for instance, i may want to centre the 10 in its
+  section of the tab."; branch `v4/B56-text-layout` on main 87f0951 = 4.13.1, B55 merged) — (commit: see the branch;
+  runs: by the orchestrator). One text shape (TextFmt + `caps`) per part: three new item maps (model/textparts.ts) –
+  `texts` (KPI head / value / delta / label; chart legend, stat label / value, tag, momentum value / caption / label,
+  subtitle), `lay` (KPI: value valign, split %, divider, header bar and height, rows block and gap, padding; chart card:
+  stats / momentum rows left / centre / spread and chip widths, tag place, spacing, plot margins), `offs` (dragged
+  parts: kv, kr, st:<id>, mo:<id>, tag, mh); the existing titleFmt / fmt / axes.fmt / labels.fmt / marks.fmt reused.
+  PowerPoint: the legend's c:txPr, a KPI card's aligned text as a box of its section (kbox owners). Panels: the Text
+  control (TextFmtBox) in the KPI panel, the chart panel's sections and Table text ▾ (cell formats of the whole table,
+  header, body or totals); KPI and card Layout; drags and Reset; the painter. Format 10 by B55's guard (needsV10 per
+  key). Vectors `m19-text.json`. Tests: core `text-layout.test.ts`, app `b56-text-panels.test.tsx`, e2e B56-01
+  (B56.xlsx), pptxcheck PASS. Page budget `page-budget/b56.json` (+27,834 measured).
+
 - [x] B55 · Budget achievement (product owner 2026-10-23, image 19: "how do i make these ones?" – BUDGET ACHIEVEMENT, Latest
   volume / EoM budget, one tall bar per product; branch `v4/B55-achievement` on main 87f0951 = 4.13.1) — (commit: see the
   branch; runs: by the orchestrator). A chart type `progress` with its spec in one key (ADR-015 amendment: not a column
