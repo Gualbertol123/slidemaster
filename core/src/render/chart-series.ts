@@ -484,13 +484,15 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
             : q === "l" ? { x: p.x - rr - 2 - w, y: y - lh / 2, w, h: lh, x0: p.x - rr - 2, align: "right" } : q === "r" ? { x: p.x + rr + 2, y: y - lh / 2, w, h: lh, x0: p.x + rr + 2, align: "left" }
               : { x: p.x - w / 2, y: y - lh / 2, w, h: lh, x0: p.x, align: "center" };
         };
-        // (4.13.1) a line's label stays inside the plot: never past its bottom, over the category labels (any place, the
-        // user's own too); an "auto" one never past the room above it either (the frame's top: the title, the stats, the
-        // card's header). "Auto" first takes the other side when its own would cross and the other fits (a dip on the
-        // axis's floor: above; a peak under the frame's top: below) – else the side with more room – then is held inside.
-        // Half a px over is inside (labelRoomAbove's own tolerance). A dragged label's offset (nudge) is added after, as set.
-        const floor = plot.y + plot.h, ceil = auto ? roomTop : -Infinity;
-        if (auto && (want === "t" || want === "b")) {
+        // (4.13.1) a line's label stays inside the plot: never past its bottom (over the category labels) nor past the
+        // room above it (the frame's top: the title, the stats, the card's header). "Auto" first takes the other side when
+        // its own would cross and the other fits (a dip on the axis's floor: above; a peak under the frame's top: below) –
+        // else the side with more room – then is held inside; a place the user chose keeps its side and is held inside.
+        // Half a px over is inside (labelRoomAbove's own tolerance). A dragged label (nudge: an offset from where 4.13.0
+        // put it) is neither flipped nor held: it stands exactly where it was dropped, on the slide and in PowerPoint.
+        const key = `v:${s.id}:${i - s.start}`, o = nudge(key), keep = o.x !== 0 || o.y !== 0;
+        const floor = keep ? Infinity : plot.y + plot.h, ceil = keep ? -Infinity : roomTop;
+        if (auto && !keep && (want === "t" || want === "b")) {
           const room = (q: "t" | "b") => { const r = rawAt(q); return Math.min(r.y - ceil, floor - (r.y + r.h)); };
           const f = FLIP[want];
           if (room(want) < -.5 && room(f) > room(want)) want = f;
@@ -529,7 +531,6 @@ export function seriesLayout(it: ChartItem, frame: Box, ctx: RenderCtx, m: Metri
         if (!q) { pts.push({ i, hide: true }); return; }
         placed.push(b);
         // (B53) a dragged label: where it was dropped, from where the layout puts it
-        const key = `v:${s.id}:${i - s.start}`, o = nudge(key);
         labs.push({ s: k, i, text, x: b.x0 + o.x, top: b.y + o.y, st, align: b.align, inside: false });
         hitOf(key, { x: b.x + o.x, y: b.y + o.y, w: b.w, h: b.h });
         // (4.13.1) a label held inside the plot: PowerPoint's place moved by as much (the dLbl's manualLayout, with a nudge)
