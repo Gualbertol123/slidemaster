@@ -20,7 +20,7 @@ export function volumeCard(product: "Loans" | "Deposits", budget: string, box: C
   return { kind: "chart", type: "line", title: product.toUpperCase() + " · WEEKLY VOLUME", titleFmt: { align: "left" }, values: V("C2:C9"), labels: V("B2:B9"), legendAt: "none", box,
     filter: { by: V("A2:A9"), eq: product },
     axes: { y: { num: "#,##0" } },
-    sers: { vol: { n: 1, name: product, vals: [V("C2:C9")], color: "#2F55F4", line: { w: 3 }, marker: { shape: "circle", size: 9 }, labels: { show: ["value"], pos: "above", fmt: { b: true } } } },
+    sers: { vol: { n: 1, name: product, vals: [V("C2:C9")], color: "#2F55F4", line: { w: 3 }, marker: { shape: "circle", size: 9 }, labels: { show: ["value"], pos: "auto", fmt: { b: true }, num: "#,##0" } } },
     marks: { r1: { kind: "ref", value: V(budget), name: "Budget", style: { dash: "solid", w: 1.5 } } },
     stats: { s1: { n: 1, label: "Latest volume", src: "last" }, s2: { n: 2, label: "EoM budget", src: "ref", ref: "r1" }, s3: { n: 3, label: "Gap to budget", src: "gap", ref: "r1" } },
     tag, sep: {},
