@@ -18,6 +18,14 @@ What users notice
 Details
 - 4.13.1 · chart-series.ts: in "auto", a line point's label above / below takes the other side when its own crosses the plot's bottom (the category labels) or the room above the plot (the area's top: title, stats, legend, card header) and the other fits, else the side with more room; every place is then held inside (half a px tolerance); the collision order after it (other side, then right / left) is unchanged. A place the user set (series or point) keeps its side and is held inside the same way (tested against its own line where its place would put it). A dragged label (nudge) is neither flipped nor held: its place plus its offset is exactly 4.13.0's, on the slide and in PowerPoint (the nudge is an offset from that place). PowerPoint: the flipped side is the dLbl's dLblPos; a held label's shift goes into its manualLayout (with a nudge, as B53's). labelRoomAbove repeats (up to 4 passes, the first pass's tick count kept) while a label above a peak under a typed or cell max lacks more than half a px. No format change. Tests: core/tests/label-floor.test.ts.
 
+Under the hood
+* e2e RZ-01 (responsive.spec.ts) failed now and then (CI on PR #42): it read a toolbar's `data-has-more` right after
+  `setViewportSize`, before the page's `resize` event (where OverflowBar measures again) had run – the marks of the
+  previous window size – then waited 90 s on a More ▾ button the new size had hidden. The app was right; the spec now
+  resizes through `resize()` (one animation frame: Chromium dispatches `resize` before it) and checks a bar's
+  `data-has-more` and its More button in one read. New RZ-04: right after `resize()` the marks are the new width's
+  (fails 5 of 5 without the wait).
+
 ## 4.13.0 - 2026-10-23
 
 What users notice
