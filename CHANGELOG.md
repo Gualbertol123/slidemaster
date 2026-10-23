@@ -3,6 +3,27 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## 4.13.0 - unreleased
+
+What users notice
+* **Chart cards** (the owner's request of 2026-10-23): a line, column, bar, area or combo chart can carry its own numbers
+  inside its box – the chart panel's new **Card** section:
+  * a **stats row** under the title: up to 4 chips, each a small label over a big number – the latest value, the first,
+    the previous, the lowest or the highest, a cell of any sheet, the reference line's value (e.g. the EoM budget) or
+    the **gap to it** (−1,700 in red, 210 in green; % too). *+ Stats and momentum* sets up the usual card in one step;
+  * a **tag** in the title line's corner ("ILLUSTRATIVE" in red, "ACTUAL LOANS" in grey) – typed or from a cell;
+  * a **separator** under the stats row;
+  * a **momentum row** at the bottom: the latest value's change against the first period ("−1,420 (−16.9%) vs Q3"),
+    since the trough or the peak, against the previous period ("WoW") or a cell – absolute, %, or both, green / red by
+    sign, and *Down is good* for numbers that should fall (costs, outflows);
+  * the plot makes room for them; every number follows the workbook, a reload, a scenario and Run for each value.
+* **A chart from a long table**: *Filter* in the Card section picks the column (e.g. Product) and the value to keep
+  (e.g. Deposits) – typed, or from a cell, so Run for each value can draw each product in turn. The periods become the
+  chart's categories.
+* PowerPoint: the card's numbers are text boxes and a line over the native chart (editable), never pictures.
+* Decks that use a KPI card or a chart card open only in Slide Builder 4.13 or later (older versions show them
+  read-only); `Update Slide Builder` names those decks before going back to an older version.
+
 ## 4.12.0 - 2026-10-22
 
 What users notice
