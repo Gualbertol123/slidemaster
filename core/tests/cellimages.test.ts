@@ -2,9 +2,13 @@
    metadata and rich values into Drawing.cells, laid out inside their cell (layout.ts cellPicBox) as the table's `pics` –
    which every design and export draws – and the cell's #VALUE! not shown. */
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { indexWorkbook } from "../src/xlsx/workbook";
 import { cellPicBox } from "../src/xlsx/layout";
-import { imageSize } from "../src/xlsx/cellimages";
+import { imageSize, metaBlocksBin } from "../src/xlsx/cellimages";
 import { picNodes, type Metrics } from "../src/render/excel-dl";
 import { makeZip } from "./zipbuild";
 import type { CellPic } from "../src/xlsx/types";
@@ -130,4 +134,45 @@ describe("pictures in cells", () => {
     expect(imageSize(webp)).toEqual({ w: 16, h: 8 });
     expect(imageSize(Uint8Array.from([1, 2, 3]))).toBeNull();
   });
+});
+
+/* Functions.xlsx / .xlsb (tests/corpus, saved by Excel): five dynamic array formulas E135:E139 whose values are rich
+   values of another kind (_error: vm 1, 1, 2, 3, 1) – never pictures; and the same files with those rich values made a
+   placed picture each, to read pictures in cells from files Excel wrote, .xlsb included */
+const RECALC = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../tests/corpus/workbooks/recalc");
+const real = (f: string) => new Uint8Array(fs.readFileSync(path.join(RECALC, f)));
+const ab = (u: Uint8Array) => u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
+/** the workbook with its rich values replaced by placed pictures: values 0 and 2 the 40 × 20 picture, 1 the 200 × 100 one */
+function withPictures(f: string): ArrayBuffer {
+  const z = unzipSync(real(f)), put = (p: string, x: string | Uint8Array) => { z[p] = typeof x === "string" ? Uint8Array.from(strToU8(x)) : x; };
+  put("xl/richData/rdrichvaluestructure.xml", `<?xml version="1.0"?><rvStructures xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="1"><s t="_localImage"><k n="_rvRel:LocalImageIdentifier" t="i"/><k n="CalcOrigin" t="i"/></s></rvStructures>`);
+  put("xl/richData/rdrichvalue.xml", `<?xml version="1.0"?><rvData xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="3"><rv s="0"><v>0</v><v>5</v></rv><rv s="0"><v>1</v><v>5</v></rv><rv s="0"><v>0</v><v>5</v></rv></rvData>`);
+  put("xl/richData/richValueRel.xml", `<?xml version="1.0"?><richValueRels xmlns="http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel" xmlns:r="${REL}"><rel r:id="rId1"/><rel r:id="rId2"/></richValueRels>`);
+  put("xl/richData/_rels/richValueRel.xml.rels", RELS(`<Relationship Id="rId1" Type="${REL}/image" Target="../media/image1.png"/><Relationship Id="rId2" Type="${REL}/image" Target="../media/image2.png"/>`));
+  put("xl/media/image1.png", png(40, 20)); put("xl/media/image2.png", png(200, 100));
+  return ab(zipSync(z));
+}
+
+describe("pictures in cells: real Excel files", () => {
+  it("metadata.bin gives the value metadata blocks metadata.xml gives", () => {
+    expect(metaBlocksBin(unzipSync(real("xlsb/Functions.xlsb"))["xl/metadata.bin"])).toEqual([0, 1, 2]);
+    expect(strFromU8(unzipSync(real("Functions.xlsx"))["xl/metadata.xml"])).toMatch(/<valueMetadata count="3">/);
+  });
+
+  for (const f of ["Functions.xlsx", "xlsb/Functions.xlsb"]) {
+    it(f + ": rich values that are not pictures are left as they were", async () => {
+      const wb = await indexWorkbook(ab(real(f))), [S] = await wb.ensure([wb.meta[0].name]);
+      expect(S.drawing.cells).toBeUndefined();
+      expect(S.drawing.unsupported).toEqual([]);
+      expect(S.get(135, 5)!.t).toBe("e");
+    });
+
+    it(f + ": with placed pictures, each cell has its picture (the cells' vm read from the sheet)", async () => {
+      const wb = await indexWorkbook(withPictures(f)), [S] = await wb.ensure([wb.meta[0].name]);
+      expect(S.drawing.cells!.map(q => [q.r, q.c, q.iw, q.ih, q.sizing])).toEqual([
+        [135, 5, 40, 20, 0], [136, 5, 40, 20, 0], [137, 5, 200, 100, 0], [138, 5, 40, 20, 0], [139, 5, 40, 20, 0],
+      ]);
+      expect(S.drawing.cells!.every(q => q.src?.startsWith("data:image/png;base64,") && !q.unsupported)).toBe(true);
+    });
+  }
 });

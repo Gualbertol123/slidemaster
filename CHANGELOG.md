@@ -10,7 +10,7 @@ Releases are made with `docs/next/release-checklist.md`.
   cell (a merged cell's whole area) keeping its proportions, and it follows the cell's alignment. Resizing the row or
   column resizes it. An `IMAGE` picture set to its own size or a custom size is cut at the cell's edges. All designs, the
   PDF, PNG and PowerPoint draw it like the workbook's other pictures. A picture the workbook did not keep (an `IMAGE`
-  result never saved) is named in the Issues panel. Not read yet: pictures in cells of an `.xlsb`.
+  result never saved) is named in the Issues panel. Read from `.xlsx`, `.xlsm` and `.xlsb` workbooks.
 
 ## 4.14.0 - 2026-10-23
 

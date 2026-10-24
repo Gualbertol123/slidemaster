@@ -395,7 +395,7 @@ export async function parseSheetBin(zip: Zip, sh: SheetMeta, bytes: Uint8Array, 
   if (!tick) rd.run();
   else { const pace = pacer(); while (!rd.run(20000)) { tick(Math.min(.95, rd.progress)); const w = pace(); if (w) await w; } }
   const b = rd.finish();
-  const S = await finishSheet(zip, sh, ctx, b.store, b.rows, b);
+  const S = await finishSheet(zip, sh, ctx, b.store, b.rows, b, b.vms);
   if (rd.unreadable) S.unreadableFormulas = rd.unreadable;
   // (4.10.1) what could not be read and was skipped: the Issues panel names it
   const notRead = [...b.notRead, ...(bs?.notRead.length ? ["the workbook's formats that could not be read (default ones used): " + bs.notRead.join(", ")] : [])];

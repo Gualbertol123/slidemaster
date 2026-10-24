@@ -63,6 +63,8 @@ export interface BinSheet {
   defColW: number; defRowH: number; zeroH: boolean;
   /** (4.10.1) what could not be read and was skipped, in words for the Issues panel */
   notRead: string[];
+  /** the cells with value metadata (pictures in cells, xlsx/cellimages.ts): [row, column, vm] */
+  vms: [number, number, number][];
 }
 
 /** the records of a conditional format and its parts */
@@ -91,6 +93,9 @@ export class BinSheetReader {
   private cfPart: "scale" | "bar" | "icons" | null = null;
   private cfBase = { r: 1, c: 1 };
   private seen = false;
+  /** the BrtValueMeta before the next cell record (0: none), and the cells that had one */
+  private vm = 0;
+  private readonly vms: [number, number, number][] = [];
   /* formulas (S7.1): a cell whose formula is a PtgExp waits for the BrtShrFmla / BrtArrFmla record that follows its
      master; the masters' texts, by "r,c", shift to the children */
   private pending: { r: number; c: number } | null = null;
@@ -182,7 +187,9 @@ export class BinSheetReader {
         const short = r.type >= Rt.ShortBlank && r.type <= Rt.ShortIsst;
         const c0 = short ? this.col + 1 : r.u32(), x = B.xf(r.u32() & 0xffffff), rw = this.row, c = c0 + 1;
         this.col = c0;
+        const vm = this.vm; this.vm = 0;
         if (c > 65535 || rw < 1) return;
+        if (vm) this.vms.push([rw, c, vm]);
         switch (r.type) {
           case Rt.CellBlank: case Rt.ShortBlank: B.blank(rw, c, x); return;
           case Rt.CellRk: case Rt.ShortRk: B.num(rw, c, x, r.rk()); return;
@@ -230,6 +237,7 @@ export class BinSheetReader {
         return;
       }
       case Rt.MergeCell: this.merges.push(readRfx(r)); return;
+      case Rt.ValueMeta: this.vm = r.u32(); return;
       case Rt.BeginConditionalFormatting: {
         r.u32(); r.u32();
         const n = r.u32(), ranges: Range[] = [];
@@ -295,6 +303,6 @@ export class BinSheetReader {
     // (S16.4 review) the 2010 look of a data bar (gradient, border, axis, negative colours: the x14 future records) is
     // not read from an .xlsb: its bars are drawn as Excel 2007's – named, as the same workbook saved as .xlsx differs
     if (this.cfRules.some(r => r.bar)) this.unsupportedCF.add(XLSB_BAR_LOOK);
-    return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH, notRead: this.notRead() };
+    return { store, rows, colRanges: this.colRanges, merges: this.merges, cfRules: this.cfRules, unsupportedCF: this.unsupportedCF, defColW: this.defColW, defRowH: this.defRowH, zeroH: this.zeroH, notRead: this.notRead(), vms: this.vms };
   }
 }

@@ -8,13 +8,14 @@
        <blip r:id> is the picture Excel kept (its <address> the URL it came from), with ImageSizing, ImageHeight,
        ImageWidth;
      both with Text, the picture's alternative text.
-   The parts are read once per workbook. An .xlsb keeps them in binary parts: not read (its pictures in cells show
-   their error value, as before). Laid out in their cells by layout.ts (cellPicBox). */
+   The parts are read once per workbook. An .xlsb has the same rich value parts (XML) with its value metadata in
+   metadata.bin (metaBlocksBin) and a cell's vm in the BrtValueMeta record before it (xlsb/sheet.ts). Laid out in their cells by layout.ts (cellPicBox). */
 import type { Zip } from "./zip";
 import { pictureSrc } from "./drawing";
 import { A1, all, kid, kids, parseXml, readRels, resolvePath, zget, NS_R, type Rel } from "./util";
 import type { CellPic } from "./types";
-import type { XmlElement } from "../platform";
+import type { XmlDocument, XmlElement } from "../platform";
+import { Records, XlsbError } from "./xlsb/records";
 
 /** a picture of the workbook's rich values: as CellPic without its cell */
 type RichPic = Omit<CellPic, "r" | "c" | "name"> & { alt: string };
@@ -49,16 +50,9 @@ async function readRichPics(zip: Zip): Promise<(RichPic | null)[]> {
   const wb = await workbookPath(zip), wbRels = Object.values(await readRels(zip, wb));
   /** a workbook part by its relationship type, else where Excel writes it */
   const part = (type: RegExp, path: string) => wbRels.find(x => type.test(x.type))?.target ?? resolvePath(wb, path);
-  const meta = await xmlOf(zip, part(/\/sheetMetadata$/, "metadata.xml"));
-  if (!meta) return [];
-  // value metadata blocks → rich value indexes
-  const types = kids(kid(meta.documentElement, "metadataTypes"), "metadataType").map(t => t.getAttribute("name") || "");
-  const future = kids(meta.documentElement, "futureMetadata").find(f => f.getAttribute("name") === "XLRICHVALUE");
-  const rvOf = kids(future, "bk").map(bk => { const i = all(bk, "rvb")[0]?.getAttribute("i"); return i == null ? -1 : +i; });
-  const blocks = kids(kid(meta.documentElement, "valueMetadata"), "bk").map(bk => {
-    const rc = kid(bk, "rc"); if (!rc) return -1;
-    return types[+(rc.getAttribute("t") || 0) - 1] === "XLRICHVALUE" ? rvOf[+(rc.getAttribute("v") || 0)] ?? -1 : -1;
-  });
+  const metaPath = part(/\/sheetMetadata$/, /\.bin$/i.test(wb) ? "metadata.bin" : "metadata.xml"), metaFile = zget(zip, metaPath);
+  if (!metaFile) return [];
+  const blocks = /\.bin$/i.test(metaPath) ? metaBlocksBin(zip.bytes(metaFile)) : metaBlocks(parseXml(await metaFile.async("string")));
   if (!blocks.some(i => i >= 0)) return [];
   const [values, structs, relX, webX] = await Promise.all([
     xmlOf(zip, part(/\/rdRichValue$/, "richData/rdrichvalue.xml")),
@@ -96,6 +90,46 @@ async function readRichPics(zip: Zip): Promise<(RichPic | null)[]> {
     return { ...base, src, iw: size?.w || 0, ih: size?.h || 0 };
   }
   return Promise.all(blocks.map(i => i >= 0 ? picOf(i) : null));
+}
+
+/** metadata.xml: per value metadata block, the index of its rich value (-1: another kind of metadata) */
+function metaBlocks(meta: XmlDocument): number[] {
+  const types = kids(kid(meta.documentElement, "metadataTypes"), "metadataType").map(t => t.getAttribute("name") || "");
+  const future = kids(meta.documentElement, "futureMetadata").find(f => f.getAttribute("name") === "XLRICHVALUE");
+  const rvOf = kids(future, "bk").map(bk => { const i = all(bk, "rvb")[0]?.getAttribute("i"); return i == null ? -1 : +i; });
+  return kids(kid(meta.documentElement, "valueMetadata"), "bk").map(bk => {
+    const rc = kid(bk, "rc"); if (!rc) return -1;
+    return types[+(rc.getAttribute("t") || 0) - 1] === "XLRICHVALUE" ? rvOf[+(rc.getAttribute("v") || 0)] ?? -1 : -1;
+  });
+}
+/** metadata.bin of an .xlsb (MS-XLSB 2.1.7.34), the same: BrtMdtinfo (335: flags, version, name) per metadata type;
+    BrtBeginEsfmd (339: count, name) then a block per future metadata, an XLRICHVALUE one holding record 5003 (two
+    32-bit numbers, the second the rich value's index, as <xlrd:rvb i>); BrtBeginEsmdb (337: count, fCellMeta) then a
+    BrtMdb (51: count, then type 1-based and index per entry) per block – the value metadata are those with fCellMeta 0 */
+export function metaBlocksBin(bytes: Uint8Array): number[] {
+  const r = new Records(bytes), types: string[] = [], rvOf: number[] = [], out: number[] = [];
+  let fmd = "", values = false;
+  try {
+    while (r.rec()) {
+      switch (r.type) {
+        case 335: r.u32(); r.u32(); types.push(r.wstr()); break;
+        case 339: r.u32(); fmd = r.wstr(); break;
+        case 340: fmd = ""; break;
+        case 52: if (fmd === "XLRICHVALUE") rvOf.push(-1); break;
+        case 5003: if (fmd === "XLRICHVALUE" && rvOf.length) { r.u32(); rvOf[rvOf.length - 1] = r.u32(); } break;
+        case 337: r.u32(); values = r.u32() === 0; break;
+        case 338: values = false; break;
+        case 51: {
+          if (!values) break;
+          const n = r.u32(); let rv = -1;
+          if (n > 0) { const t = r.u32(), v = r.u32(); if (types[t - 1] === "XLRICHVALUE") rv = rvOf[v] ?? -1; }
+          out.push(rv);
+          break;
+        }
+      }
+    }
+  } catch (e) { if (!(e instanceof XlsbError)) throw e; }
+  return out;
 }
 
 /** a data URL's bytes (a converted picture is PNG) */

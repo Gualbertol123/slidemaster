@@ -19,6 +19,8 @@ export const enum Rt {
   /* formulas (PLAN S7.1): shared and array formulas after their master cell; the workbook's names and supporting
      books / sheet table for 3D references; the sheet names of an external link part */
   ArrFmla = 426, ShrFmla = 427, Name = 39,
+  /** the value metadata of the cell record that follows (a picture in the cell, xlsx/cellimages.ts) */
+  ValueMeta = 50,
   BeginExternals = 353, EndExternals = 354, SupBookSrc = 355, SupSelf = 357, SupSame = 358, SupTabs = 359, BeginSupBook = 360, ExternSheet = 362, SupAddin = 667,
 }
 
@@ -30,7 +32,7 @@ const NAMES: Record<number, string> = {
   8: "BrtFmlaString", 9: "BrtFmlaNum", 10: "BrtFmlaBool", 11: "BrtFmlaError", 12: "BrtShortBlank", 13: "BrtShortRk", 14: "BrtShortError",
   15: "BrtShortBool", 16: "BrtShortReal", 17: "BrtShortSt", 18: "BrtShortIsst", 19: "BrtSSTItem", 39: "BrtName", 43: "BrtFont", 44: "BrtFmt",
   45: "BrtFill", 46: "BrtBorder", 47: "BrtXF", 60: "BrtColInfo", 62: "BrtCellRString", 156: "BrtBundleSh", 176: "BrtMergeCell",
-  355: "BrtSupBookSrc", 359: "BrtSupTabs", 362: "BrtExternSheet", 426: "BrtArrFmla", 427: "BrtShrFmla", 461: "BrtBeginConditionalFormatting",
+  50: "BrtValueMeta", 355: "BrtSupBookSrc", 359: "BrtSupTabs", 362: "BrtExternSheet", 426: "BrtArrFmla", 427: "BrtShrFmla", 461: "BrtBeginConditionalFormatting",
   463: "BrtBeginCFRule", 465: "BrtBeginIconSet", 467: "BrtBeginDatabar", 469: "BrtBeginColorScale", 471: "BrtCFVO", 485: "BrtWsFmtInfo",
   507: "BrtDXF", 564: "BrtColor",
 };
