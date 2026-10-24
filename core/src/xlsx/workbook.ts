@@ -6,6 +6,7 @@
 import { BUILTIN, formatValue } from "./numfmt";
 import { hex6, makeColor } from "./color";
 import { readDrawing, analyzeImages } from "./drawing";
+import { readCellPics } from "./cellimages";
 import { findRegions } from "./layout";
 import { all, kid, kids, parseRange, parseXml, readRels, resolvePath, zget, fmtMB, nextFrame, pacer, WorkbookError, NS_R } from "./util";
 import { Zip, type ZipEntry } from "./zip";
@@ -297,7 +298,7 @@ async function ensureSheets(wb: Workbook, names: string[], progress?: Progress):
   const order = new Map(wb.meta.map((m, i) => [m.name, i]));
   wb.sheets.sort((a, b) => order.get(a.name)! - order.get(b.name)!);
   if (progress) progress("Preparing pictures…", 1);
-  await analyzeImages(added.flatMap(S => S.drawing.anchors.flatMap(A => A.objects.map(o => o.kind === "pic" ? o.src : null))));
+  await analyzeImages(added.flatMap(S => [...S.drawing.anchors.flatMap(A => A.objects.map(o => o.kind === "pic" ? o.src : null)), ...(S.drawing.cells || []).map(p => p.src)]));
   return added;
 }
 
@@ -429,14 +430,20 @@ export async function parseSheet(zip: Zip, sh: SheetMeta, bytes: Uint8Array, ctx
   const { cells: store, rows } = scan.finish();
   const merges: Range[] = []; { const re = /<(?:\w+:)?mergeCell\b[^>]*?\bref="([^"]+)"/g; let q: RegExpExecArray | null; while ((q = re.exec(xml))) merges.push(parseRange(q[1])); }
   const { cfRules, unsupportedCF } = readCFXml(xml, ctx);
-  return finishSheet(zip, sh, ctx, store, rows, { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH });
+  return finishSheet(zip, sh, ctx, store, rows, { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH }, scan.valueMeta());
 }
-/** the parts both formats share: drawings (XML in both), the Sheet facade, its title and table regions */
+/** the parts both formats share: drawings (XML in both), the Sheet facade, its title and table regions; `vms`: the
+    cells with value metadata (pictures in cells, xlsx/cellimages.ts) */
 async function finishSheet(zip: Zip, sh: SheetMeta, ctx: Shared, store: SheetColumns, rows: RowColumns,
-  p: Pick<Sheet, "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "defColW" | "defRowH" | "zeroH">): Promise<Sheet> {
+  p: Pick<Sheet, "colRanges" | "merges" | "cfRules" | "unsupportedCF" | "defColW" | "defRowH" | "zeroH">, vms: [number, number, number][] = []): Promise<Sheet> {
   const { colRanges, merges, cfRules, unsupportedCF, defColW, defRowH, zeroH } = p;
   const cells = new CellMap(store, ctx), rowInfo = new RowMap(rows);
   const drawing = await readDrawing(zip, sh.path, ctx);
+  const cellPics = await readCellPics(zip, vms);
+  if (cellPics.length) {
+    drawing.cells = cellPics;
+    for (const q of cellPics) if (q.unsupported) drawing.unsupported.push(`${q.name} (${q.unsupported.toLowerCase()})`);
+  }
   const S = makeSheet({ name: sh.name, cells, rowInfo, colRanges, merges, cfRules, unsupportedCF, drawing, defColW, defRowH, zeroH, ctx }, store);
   S.cols = { cells: store, rows };
   S.title = textOf(S, 1, 1);

@@ -1,5 +1,5 @@
 /* Drawings: pictures, groups, text boxes, shapes – and a small image analysis used by Liquid Glass. */
-import type { Zip } from "./zip";
+import type { Zip, ZipEntry } from "./zip";
 import { NAMED, hex6 } from "./color";
 import { all, hashStr, kid, kids, parseXml, readRels, zget, NS_R } from "./util";
 import type { Anchor, AnchorPos, Crop, Drawing, DrawObj, Frac, Line, Para, Shared } from "./types";
@@ -50,6 +50,14 @@ async function convertImage(bytes: Uint8Array, b64: string, ext: string): Promis
   CONVERT_CACHE.set(key, res);
   return res;
 }
+/** a media part as a data URL the page, the PDF and PowerPoint can draw (EMF/WMF/TIFF converted by the helper when it
+    runs), null when it cannot be */
+export async function pictureSrc(file: ZipEntry, ext: string): Promise<string | null> {
+  const b64 = await file.async("base64");
+  let src: string | null = IMG_MIME[ext] ? `data:${IMG_MIME[ext]};base64,${b64}` : null;
+  if (!src && CONVERTIBLE[ext]) src = await convertImage(await file.async("uint8array"), b64, ext);
+  return src;
+}
 const runText = (r: XmlElement) => all(r, "t").map(t => t.textContent).join("");
 export function drawColor(el: XmlElement, ctx: Pick<Shared, "theme">): string | null {
   const c = kids(el, "srgbClr")[0] || kids(el, "schemeClr")[0] || kids(el, "prstClr")[0] || kids(el, "sysClr")[0];
@@ -99,10 +107,7 @@ export async function readDrawing(zip: Zip, sheetPath: string, ctx: Pick<Shared,
         }
         if (!target || !zget(zip, target)) { res.unsupported.push(name + " (linked picture)"); A.objects.push({ ...base, kind: "pic", unsupported: "Linked picture" }); continue; }
         const ext = target.split(".").pop()!.toLowerCase();
-        const file = zget(zip, target)!;
-        const b64 = await file.async("base64");
-        let src: string | null = IMG_MIME[ext] ? `data:${IMG_MIME[ext]};base64,${b64}` : null;
-        if (!src && CONVERTIBLE[ext]) src = await convertImage(await file.async("uint8array"), b64, ext);
+        const src = await pictureSrc(zget(zip, target)!, ext);
         if (!src) { res.unsupported.push(`${name} (.${ext})`); A.objects.push({ ...base, kind: "pic", unsupported: ext.toUpperCase() + " picture" }); continue; }
         A.objects.push({ ...base, kind: "pic", src, crop });
       } else if (o.type === "sp") {

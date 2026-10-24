@@ -111,6 +111,9 @@ export class SheetScanner {
   // the attributes of the tag being read
   private aR = -1; private aR1 = -1; private aT = -1; private aT1 = -1; private aS = -1; private aS1 = -1;
   private aHt = -1; private aHt1 = -1; private aHid = -1; private aHid1 = -1; private aCf = -1; private aCf1 = -1;
+  private aVm = -1; private aVm1 = -1;
+  /** cells with value metadata (vm="n": a picture in the cell, xlsx/cellimages.ts), by cell index: [row, column, n] */
+  private readonly vms = new Map<number, [number, number, number]>();
   // formulas (S7.1): the <f> of the cell being read, the shared masters seen so far (si → text and master cell)
   private readonly fml = new Map<number, number>(); private readonly fmls: string[] = []; private readonly fmlIx = new Map<string, number>();
   private readonly arr = new Map<number, string>();
@@ -194,6 +197,7 @@ export class SheetScanner {
         for (const k of this.runs.keys()) if (k >= savedN) this.runs.delete(k);
         for (const k of this.fml.keys()) if (k >= savedN) this.fml.delete(k);
         for (const k of this.arr.keys()) if (k >= savedN) this.arr.delete(k);
+        for (const k of this.vms.keys()) if (k >= savedN) this.vms.delete(k);
         for (const [si, m] of this.sharedF) if (m.row === r) this.sharedF.delete(si);
         return i + 1;
       }
@@ -304,6 +308,7 @@ export class SheetScanner {
     const n0 = this.cells.n;
     this.cell(r, c, v0, v1, is0, is1);
     if (this.fText !== null && this.cells.n > n0) this.formula(this.cells.n - 1, r, c);
+    if (this.aVm >= 0 && this.cells.n > n0) { const vm = +this.val(this.aVm, this.aVm1); if (vm > 0) this.vms.set(this.cells.n - 1, [r, c, vm]); }
     return next;
   }
   /** the <f> attributes t, si and ref of [a, z) (double-quoted, as attrs()) */
@@ -451,7 +456,7 @@ export class SheetScanner {
   /** v3 xattrs over [a, z): only double-quoted values; a prefix like x: is dropped; a later duplicate wins */
   private attrs(a: number, z: number, row: boolean) {
     const b = this.b;
-    this.aR = this.aT = this.aS = this.aHt = this.aHid = this.aCf = -1;
+    this.aR = this.aT = this.aS = this.aHt = this.aHid = this.aCf = this.aVm = -1;
     let p = a;
     while (p < z) {
       if (!isAttrName(b[p])) { p++; continue; }
@@ -469,6 +474,7 @@ export class SheetScanner {
       if (L === 1 && c0 === 114) { this.aR = v0; this.aR1 = v1; }                       // r
       else if (L === 1 && c0 === 115) { this.aS = v0; this.aS1 = v1; }                  // s
       else if (!row && L === 1 && c0 === 116) { this.aT = v0; this.aT1 = v1; }          // t
+      else if (!row && L === 2 && c0 === 118 && b[s0 + 1] === 109) { this.aVm = v0; this.aVm1 = v1; }   // vm
       else if (row && L === 2 && c0 === 104 && b[s0 + 1] === 116) { this.aHt = v0; this.aHt1 = v1; }   // ht
       else if (row && L === 6 && this.is(s0, "hidden")) { this.aHid = v0; this.aHid1 = v1; }
       else if (row && L === 12 && this.is(s0, "customFormat")) { this.aCf = v0; this.aCf1 = v1; }
@@ -478,7 +484,7 @@ export class SheetScanner {
       value), then ">" or "/>"; sets them like attrs() and returns the position of ">", or -1 for anything else */
   private cellAttrs(a: number): number {
     const b = this.b, end = this.end;
-    this.aR = this.aT = this.aS = -1;
+    this.aR = this.aT = this.aS = this.aVm = -1;
     let p = a;
     for (;;) {
       const c = b[p];
@@ -524,6 +530,8 @@ export class SheetScanner {
     return +(decode ? this.val(v0, v1) : this.str(v0, v1));
   }
 
+  /** the cells with value metadata (vm), after the last run(): [row, column, vm] */
+  valueMeta(): [number, number, number][] { return [...this.vms.values()]; }
   /** the columns, sorted, after the last run() */
   finish(): { cells: SheetColumns; rows: RowColumns } {
     return { cells: sortCells(this.cells, this.runs, this.strs, this.fml, this.fmls, this.arr), rows: sortRows(this.rowR.done(), this.rowH.done(), this.rowHid.done(), this.rowHasS.done(), this.rowS.done()) };

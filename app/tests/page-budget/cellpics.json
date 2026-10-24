@@ -1,0 +1,4 @@
+{
+  "bytes": 12000,
+  "why": "Pictures in cells (Excel 365 Place in Cell and IMAGE): by measurement on claude/excel-image-handling-oui70h – the page built from its base (81f1999, 5,163,273 bytes) is 5,175,022 bytes (+11,749): core xlsx/cellimages.ts (value metadata → rich values → media, picture sizes from their headers), layout.ts cellPicBox, the scanner's vm attribute, in the app's and the workers' bundles; rounded up to the next 500."
+}

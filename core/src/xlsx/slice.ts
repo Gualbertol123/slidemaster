@@ -110,7 +110,8 @@ export function sliceSheet(S: Sheet, box: Range | null, mainShared?: Shared | nu
     merges: S.merges, cfRules: S.cfRules, unsupportedCF: [...S.unsupportedCF], unpaired: S.unpaired, drawing: S.drawing,
     ...(S.notRead?.length ? { notRead: S.notRead } : {}),
     regions: S.tables.map(T => T.g), box,
-    imgmeta: S.drawing.anchors.flatMap(A => A.objects.flatMap(o => o.kind === "pic" && o.src && IMGMETA.has(o.src) ? [[o.src, IMGMETA.get(o.src)!] as [string, ImgMeta]] : [])),
+    imgmeta: [...S.drawing.anchors.flatMap(A => A.objects.map(o => o.kind === "pic" ? o.src : null)), ...(S.drawing.cells || []).map(p => p.src)]
+      .flatMap(src => src && IMGMETA.has(src) ? [[src, IMGMETA.get(src)!] as [string, ImgMeta]] : []),
   };
   if (!S.cols) return { ...base, cells: null, rows: null };
   const { cells: C, rows: R } = S.cols, ctx = S.ctx;

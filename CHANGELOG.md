@@ -3,6 +3,15 @@
 Every user-visible change, per release (PLAN Part B §8 lists the only ones allowed during the rebuild).
 Releases are made with `docs/next/release-checklist.md`.
 
+## Unreleased
+
+* **Pictures in cells** (Excel 365's *Place in Cell* and the `IMAGE` function) now show on the slide instead of
+  `#VALUE!`. As in Excel, a picture belongs to its cell: it can't be selected, moved or sized on its own, it fills the
+  cell (a merged cell's whole area) keeping its proportions, and it follows the cell's alignment. Resizing the row or
+  column resizes it. An `IMAGE` picture set to its own size or a custom size is cut at the cell's edges. All designs, the
+  PDF, PNG and PowerPoint draw it like the workbook's other pictures. A picture the workbook did not keep (an `IMAGE`
+  result never saved) is named in the Issues panel. Not read yet: pictures in cells of an `.xlsb`.
+
 ## 4.14.0 - 2026-10-23
 
 What users notice

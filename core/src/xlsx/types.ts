@@ -46,7 +46,12 @@ export type DrawObj =
   | (DrawObjBase & { kind: "pic"; src?: string | null; crop?: Crop | null; unsupported?: string })
   | (DrawObjBase & { kind: "box" | "text"; prst: string; fill: string | null; line: Line | null; paras: Para[]; anchorV: string });
 export interface Anchor { type: "two" | "one" | "abs"; editAs: string; from?: AnchorPos; to?: AnchorPos; ext?: { w: number; h: number }; pos?: { x: number; y: number }; objects: DrawObj[] }
-export interface Drawing { anchors: Anchor[]; charts: string[]; unsupported: string[]; skipped: number }
+/** a picture in a cell (Excel's "Place in Cell" and IMAGE function, xlsx/cellimages.ts): its cell, the picture's own size
+    in px (0: unknown), and how it sits in the cell – Excel's IMAGE sizing: 0 fit, keeping its proportions (a placed
+    picture's), 1 fill, 2 its own size, 3 w × h px; one larger than its cell is cut at the cell's edges */
+export interface CellPic { r: number; c: number; name: string; src?: string | null; unsupported?: string; iw: number; ih: number; sizing: 0 | 1 | 2 | 3; w?: number; h?: number }
+/** cells: the sheet's pictures in cells (absent: none) */
+export interface Drawing { anchors: Anchor[]; charts: string[]; unsupported: string[]; skipped: number; cells?: CellPic[] }
 
 export interface ColInfo { w: number; hidden: boolean; s: number | null }
 export interface RowInfo { h: number; hidden: boolean; s: number | null }

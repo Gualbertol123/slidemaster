@@ -2,7 +2,7 @@
 import { A1, parseRange, splitRef } from "./util";
 import { cfAt, cfBorders, cfKeys, cfText } from "./cf";
 import type { Range } from "./util";
-import type { Box, BorderSide, Item, Pic, Rect, Sheet, TableLayout } from "./types";
+import type { Box, BorderSide, CellPic, Item, Pic, Rect, Sheet, TableLayout } from "./types";
 
 export const BW: Record<string, number> = { hair: 1, thin: 1, dotted: 1, dashDot: 1, dashDotDot: 1, dashed: 1, mediumDashDot: 2, mediumDashDotDot: 2, mediumDashed: 2, slantDashDot: 2, medium: 2, thick: 3, double: 3 };
 const BRANK: Record<string, number> = { hair: 1, dotted: 2, dashDotDot: 3, dashDot: 4, dashed: 5, thin: 6, mediumDashDotDot: 7, slantDashDot: 8, mediumDashDot: 9, mediumDashed: 10, medium: 11, thick: 12, double: 13 };
@@ -78,6 +78,9 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes, hide?: { rows: Se
 
   const errors: string[] = [];
   const items: Item[] = [];
+  // pictures in cells (xlsx/cellimages.ts): their cell shows the picture, not its value (#VALUE!)
+  const cellPics = new Map<string, CellPic>(); for (const q of S.drawing.cells || []) cellPics.set(q.r + "," + q.c, q);
+  const inCell: { it: Item; q: CellPic }[] = [];
   for (const b of boxes) {
     const bx = x.get(b.c)!, by = y.get(b.r)!, bw = x.get(b.c2)! + w.get(b.c2)! - bx, bh = y.get(b.r2)! + h.get(b.r2)! - by;
     if (bw <= 0 || bh <= 0) continue;
@@ -97,7 +100,8 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes, hide?: { rows: Se
     const cfr = cfAt(S, b.src.r, b.src.c), cf = cfr?.dxf || null;
     if (cf) { if (cf.fill) fill = cf.fill; if (cf.color) font.color = cf.color; if (cf.b !== undefined) font.b = cf.b; if (cf.i !== undefined) font.i = cf.i; if (cf.u !== undefined) font.u = cf.u; if (cf.s !== undefined) font.s = cf.s; }
     let text = "", raw = "", nfColor: string | null = null;
-    if (cell && cell.t !== "blank") { const f = cfText(cell, cf); text = f.text; raw = cf?.fmt ? cfText(cell, null).text : text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
+    const q = cellPics.get(b.src.r + "," + b.src.c);
+    if (cell && cell.t !== "blank" && !q) { const f = cfText(cell, cf); text = f.text; raw = cf?.fmt ? cfText(cell, null).text : text; nfColor = f.color || null; if (cell.t === "e") errors.push(A1(b.src.r, b.src.c)); }
     const ck = cfKeys(cfr);
     let align = xf.h || "general";
     if (align === "general") align = cell && (cell.t === "n" || cell.t === "d") ? "right" : cell && (cell.t === "b" || cell.t === "e") ? "center" : "left";
@@ -105,10 +109,11 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes, hide?: { rows: Se
     if (align === "fill" || align === "justify" || align === "distributed") align = "left";
     items.push({ ...(cell?.scr && cell.t === "s" && text === cell.v ? { scripts: cell.scr } : {}), b, bx, by, bw, bh, fill, top, left, right, bottom, text, font, color: nfColor || font.color || "#000000", align, valign: xf.v || "bottom", wrap: !!xf.wrap, indent: xf.indent || 0, rot: xf.rot || 0, isText: !!cell && cell.t === "s", merged: !!b.m,
       baseFill: xf.fill, baseColor, cf, nfColor, ctype: cell ? cell.t : "blank", ...ck, ...(raw !== (ck.text ?? text) ? { rawText: raw } : {}) });
+    if (q) inCell.push({ it: items[items.length - 1], q });
   }
   cfBorders(items, rows, cols);
   // text overflow into empty neighbours (Excel behaviour for unwrapped text)
-  const occupied = new Set(items.filter(i => i.text).map(i => i.b.r + "," + i.b.c));
+  const occupied = new Set([...items.filter(i => i.text), ...inCell.map(p => p.it)].map(i => i.b.r + "," + i.b.c));
   for (const it of items) {
     if (!it.text || it.wrap || it.merged || !it.isText) continue;
     if (it.align === "left") {
@@ -141,7 +146,31 @@ export function buildLayout(S: Sheet, g: Range, sizes?: Sizes, hide?: { rows: Se
       else if (o.kind === "text") texts.push({ ...box, fill: o.fill, line: o.line, round: /round/i.test(o.prst), paras: o.paras, anchorV: o.anchorV });
     }
   }
+  for (const { it, q } of inCell) { const p = cellPicBox(q, it); if (p) pics.push(p); }
   return { g, rows, cols, W, H, items, pics, rects, texts, hiddenRows: hr, hiddenCols: hc, errors, colX: x, colW: w, rowY: y, rowH: h, sheet: S, fixedCols };
+}
+
+/** a picture in a cell (CellPic) placed in its cell's box (a merged cell's whole box), 1 px inside its edges so the
+    borders and gridlines show: sized by its sizing (fit: as large as the box allows, keeping its proportions), aligned
+    as the cell is (General: centred, as Excel centres a picture), and cut at the box's edges when larger (crop) */
+export function cellPicBox(q: CellPic, it: Pick<Item, "bx" | "by" | "bw" | "bh" | "align" | "valign">): Pic | null {
+  const P = 1, X = it.bx + P, Y = it.by + P, BW = it.bw - 2 * P, BH = it.bh - 2 * P;
+  if (BW < 1 || BH < 1) return null;
+  const base = { rot: 0, flipH: false, flipV: false, name: q.name };
+  if (q.unsupported || !q.src) return { ...base, x: X, y: Y, w: BW, h: BH, src: q.src, unsupported: q.unsupported || "Picture" };
+  let w = BW, h = BH;
+  const known = q.iw > 0 && q.ih > 0;
+  if (q.sizing === 0 && known) { const k = Math.min(BW / q.iw, BH / q.ih); w = q.iw * k; h = q.ih * k; }
+  else if (q.sizing === 2 && known) { w = q.iw; h = q.ih; }
+  else if (q.sizing === 3 && q.w && q.h) { w = q.w; h = q.h; }
+  else if (q.sizing === 3 && (q.w || q.h) && known) { w = q.w || q.iw * q.h! / q.ih; h = q.h || q.ih * q.w! / q.iw; }
+  const ha = it.align === "left" ? 0 : it.align === "right" ? 1 : .5, va = it.valign === "top" ? 0 : it.valign === "bottom" ? 1 : .5;
+  const x = X + (BW - w) * ha, y = Y + (BH - h) * va;
+  // the part inside the box, as the crop of the picture's own frame
+  const x0 = Math.max(x, X), y0 = Math.max(y, Y), x1 = Math.min(x + w, X + BW), y1 = Math.min(y + h, Y + BH);
+  if (x1 - x0 < 1 || y1 - y0 < 1) return null;
+  const crop = x0 > x || y0 > y || x1 < x + w || y1 < y + h ? { l: (x0 - x) / w, t: (y0 - y) / h, r: (x + w - x1) / w, b: (y + h - y1) / h } : null;
+  return { ...base, x: x0, y: y0, w: x1 - x0, h: y1 - y0, src: q.src, crop };
 }
 
 /* conditional formatting: xlsx/cf.ts (S16.4) */
